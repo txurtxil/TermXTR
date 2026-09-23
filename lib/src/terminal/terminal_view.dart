@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:xterm/xterm.dart';
-import '../container/container_manager.dart';
 import 'terminal_keybar.dart';
 import 'terminal_session.dart';
 import 'keybar_config.dart';
@@ -16,7 +15,7 @@ class TerminalScreen extends StatefulWidget {
 }
 
 class _TerminalScreenState extends State<TerminalScreen> {
-  final ContainerManager _manager = ContainerManager();
+  
 
   final List<TerminalSession> _sessions = [];
   int _activeIndex = 0;
@@ -57,7 +56,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
       // Carga la configuración del teclado guardada
       _keybarConfig = await KeybarConfig.load();
 
-      await _manager.initContainer(log: _appendLog);
+      
       await Future.delayed(const Duration(milliseconds: 300));
       if (!mounted) return;
 
@@ -328,7 +327,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('LinuxContainer · arranque', style: TextStyle(color: Colors.white38, fontFamily: 'monospace', fontSize: 12)),
+                const Text('TermXTR · arranque', style: TextStyle(color: Colors.white38, fontFamily: 'monospace', fontSize: 12)),
                 const SizedBox(height: 12),
                 Expanded(
                   child: ListView.builder(

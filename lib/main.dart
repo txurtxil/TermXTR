@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'src/terminal/terminal_view.dart';
 
 void main() {
-  runApp(const LinuxContainerApp());
+  runApp(const TermXTRApp());
 }
 
-class LinuxContainerApp extends StatelessWidget {
-  const LinuxContainerApp({super.key});
+class TermXTRApp extends StatelessWidget {
+  const TermXTRApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Linux Container',
+      title: 'TermXTR',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
