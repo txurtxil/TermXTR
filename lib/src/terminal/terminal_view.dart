@@ -6,9 +6,13 @@ import 'terminal_keybar.dart';
 import 'terminal_session.dart';
 import 'keybar_config.dart';
 import 'keybar_settings_screen.dart';
+import '../../models/host_profile.dart';
+import 'ssh_session.dart';
 
 class TerminalScreen extends StatefulWidget {
-  const TerminalScreen({super.key});
+  const TerminalScreen({super.key, this.host});
+
+  final HostProfile? host;
 
   @override
   State<TerminalScreen> createState() => _TerminalScreenState();
@@ -17,7 +21,7 @@ class TerminalScreen extends StatefulWidget {
 class _TerminalScreenState extends State<TerminalScreen> {
   
 
-  final List<TerminalSession> _sessions = [];
+  final List<AppSession> _sessions = [];
   int _activeIndex = 0;
   static const int _maxSessions = 5;
 
@@ -34,7 +38,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
   static const double _minFont = 8.0;
   static const double _maxFont = 28.0;
 
-  TerminalSession get _active => _sessions[_activeIndex];
+  AppSession get _active => _sessions[_activeIndex];
 
   @override
   void initState() {
@@ -84,7 +88,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
       return;
     }
     final n = _sessions.length + 1;
-    final session = TerminalSession('Sesión $n');
+    final session = widget.host != null
+            ? SshSession(widget.host!)
+            : TerminalSession('Sesión $n');
     session.controller.addListener(_onSelectionChanged);
     _sessions.add(session);
     if (!initial) {

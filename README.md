@@ -2,6 +2,19 @@
 
 A new Flutter project.
 
+## Funciones
+
+- Terminal local (shell del dispositivo) multi-sesion
+- Gestion de hosts SSH (password o clave PEM)
+- Terminal SSH remota interactiva
+- Explorador SFTP (subir/descargar/editar)
+- Editor de texto con undo/redo
+- Tema claro/oscuro y ajustes de fuente
+
+## Changelog
+
+Ver [CHANGELOG.md](CHANGELOG.md).
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

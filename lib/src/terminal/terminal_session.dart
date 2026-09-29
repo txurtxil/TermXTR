@@ -6,7 +6,7 @@ import 'package:flutter_pty/flutter_pty.dart';
 import 'package:xterm/xterm.dart';
 
 /// Sesion de terminal local (shell del sistema) sobre un pseudo-terminal.
-class TerminalSession {
+class TerminalSession implements AppSession {
   final String name;
   final Terminal terminal = Terminal(maxLines: 10000);
   final TerminalController controller = TerminalController();
@@ -63,4 +63,15 @@ class TerminalSession {
     _pty?.kill();
     _pty = null;
   }
+}
+
+/// Contrato comun de las sesiones de terminal (local PTY o remota SSH).
+abstract class AppSession {
+  String get name;
+  Terminal get terminal;
+  TerminalController get controller;
+  bool get isStarted;
+  Future<void> start({int columns, int rows});
+  Future<void> restart({int columns, int rows});
+  void dispose();
 }
