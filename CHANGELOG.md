@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.6.0 (2026-09-29)
+
+### Transferencias entre equipos con telemetría en vivo
+- En el explorador SFTP: menú de cada fichero → "Enviar a otro equipo...":
+  eliges host destino y carpeta, y la app transfiere el fichero en
+  streaming (store-and-forward por chunks de 256 KB, sin cargarlo entero
+  en memoria) usando tu identidad Ed25519.
+- Cola de transferencias (icono ⇄ en la pantalla de Hosts): barra de
+  progreso, velocidad actual (ventana móvil) y media, %, bytes
+  transferidos/totales, tiempo transcurrido y ETA en vivo.
+- Cancelar entre chunks y limpiar terminadas.
+
+
 ## v2.5.0 (2026-09-29)
 
 ### Sugerencia fantasma de comandos (fish-style) + historial

@@ -12,6 +12,7 @@ import 'identity_screen.dart';
 import 'identity_service.dart';
 import 'snippets_screen.dart';
 import 'tunnels_screen.dart';
+import '../sftp/transfers_screen.dart';
 import 'ssh_credentials_store.dart';
 import '../storage/app_paths.dart';
 import '../sftp/sftp_browser_screen.dart';
@@ -182,6 +183,16 @@ class _HostsScreenState extends State<HostsScreen> {
         title: const Text('Hosts', style: TextStyle(color: _C.textHi)),
         iconTheme: const IconThemeData(color: _C.textHi),
         actions: [
+          IconButton(
+            tooltip: 'Cola de transferencias entre equipos',
+            icon: const Icon(Icons.swap_horiz, color: _C.textLo),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TransfersScreen()),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Identidad SSH (claves sin password)',
             icon: const Icon(Icons.vpn_key, color: _C.textLo),

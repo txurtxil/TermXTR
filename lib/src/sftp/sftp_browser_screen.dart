@@ -14,8 +14,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../storage/app_paths.dart';
 import '../ssh/ssh_host.dart';
+import '../ssh/ssh_hosts_service.dart';
 import 'sftp_service.dart';
+import 'transfer_engine.dart';
+import 'transfers_screen.dart';
 import 'sftp_favorites_service.dart';
 import 'sftp_connection_pool.dart';
 import 'local_file_picker_screen.dart';
@@ -419,6 +423,106 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     }
   }
 
+  Future<List<SshHost>> _otherHosts() async {
+    try {
+      await SshHostsService.instance.loadFrom(AppPaths.base);
+      return SshHostsService.instance.hosts
+          .where((h) => h.id != widget.host.id)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _sendTo(SftpEntry e) async {
+    if (e.isDirectory) return;
+    final hosts = await _otherHosts();
+    if (hosts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Necesitas otro host configurado como destino')));
+      return;
+    }
+    final target = await showDialog<SshHost>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        backgroundColor: _C.card,
+        title: const Text('Enviar a...',
+            style: TextStyle(color: _C.textHi)),
+        children: [
+          for (final h in hosts)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, h),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(h.name,
+                        style: const TextStyle(color: _C.textHi)),
+                    Text('${h.username}@${h.hostname}${h.port != 22 ? ':${h.port}' : ''}',
+                        style: const TextStyle(
+                            color: _C.textLo, fontSize: 11)),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (target == null || !mounted) return;
+    final dirCtrl = TextEditingController(text: '/');
+    final dir = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _C.card,
+        title: const Text('Carpeta destino',
+            style: TextStyle(color: _C.textHi, fontSize: 15)),
+        content: TextField(
+          controller: dirCtrl,
+          autofocus: true,
+          style: const TextStyle(
+              color: _C.textHi, fontFamily: 'monospace'),
+          decoration: const InputDecoration(
+              hintText: '/ruta/destino',
+              hintStyle: TextStyle(color: _C.textLo)),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, dirCtrl.text.trim()),
+              child: const Text('Enviar')),
+        ],
+      ),
+    );
+    if (dir == null || dir.isEmpty || !mounted) return;
+    final job = TransferJob(
+      id: '${DateTime.now().millisecondsSinceEpoch}',
+      fileName: e.name,
+      sourceHostId: widget.host.id,
+      sourceHostName: widget.host.name,
+      sourcePath: _fullPath(e),
+      targetHostId: target.id,
+      targetHostName: target.name,
+      targetDir: dir,
+      size: e.size,
+    );
+    TransferEngine.instance.enqueue(job);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Enviando ${e.name} a ${target.name}'),
+      action: SnackBarAction(
+        label: 'Ver cola',
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TransfersScreen()),
+          );
+        },
+      ),
+    ));
+  }
+
   Future<void> _download(SftpEntry e) async {
     setState(() { _busy = true; _busyLabel = 'Descargando ${e.name}...'; });
     final messenger = ScaffoldMessenger.of(context);
@@ -819,6 +923,13 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
                 leading: const Icon(Icons.download, color: _C.accent),
                 title: const Text('Descargar', style: TextStyle(color: _C.textHi)),
                 onTap: () { Navigator.pop(ctx); _download(e); },
+              ),
+            if (!e.isDirectory)
+              ListTile(
+                leading: const Icon(Icons.send, color: _C.accent),
+                title: const Text('Enviar a otro equipo...',
+                    style: TextStyle(color: _C.textHi)),
+                onTap: () { Navigator.pop(ctx); _sendTo(e); },
               ),
             
       if (!e.isDirectory)
