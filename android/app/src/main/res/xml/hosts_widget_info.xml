@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Celdas launcher: 70*n-30 dp -> 1 celda = 40dp, 2 celdas = 110dp.
+     v14.23: el widget puede encogerse hasta 2x1 (modo MICRO: cabecera
+     fina + filas de 24dp). HostsWidgetProvider elige MICRO/COMPACTO/
+     NORMAL segun las celdas reales en onUpdate y onAppWidgetOptionsChanged. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="40dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_hosts"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

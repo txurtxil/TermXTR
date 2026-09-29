@@ -30,3 +30,28 @@ else
     echo "❌ Error durante la compilación de Flutter."
     exit 1
 fi
+
+# ── Servidor web APK (puerto 8091) ───────────────────────────
+SERVE_DIR="$HOME/shared_linuxcontainer"
+PORT=8091
+APK_FINAL="$SERVE_DIR/app-release.apk"
+
+cp -f "$TARGET_DIR/app-release.apk" "$APK_FINAL" 2>/dev/null || true
+
+# Arrancar servidor si no está corriendo
+if ! fuser ${PORT}/tcp > /dev/null 2>&1; then
+    IP=$(ip route get 1 2>/dev/null | awk '{print $7; exit}' || hostname -I | awk '{print $1}')
+    echo ""
+    echo "========================================"
+    echo "  APK disponible en:"
+    echo "  http://${IP}:${PORT}/app-release.apk"
+    echo "========================================"
+    cd "$SERVE_DIR"
+    nohup python3 -m http.server $PORT > /tmp/apk_server.log 2>&1 &
+    echo "Servidor iniciado (PID $!) — log: /tmp/apk_server.log"
+    cd - > /dev/null
+else
+    IP=$(ip route get 1 2>/dev/null | awk '{print $7; exit}' || hostname -I | awk '{print $1}')
+    echo ""
+    echo "APK actualizada en http://${IP}:${PORT}/app-release.apk"
+fi

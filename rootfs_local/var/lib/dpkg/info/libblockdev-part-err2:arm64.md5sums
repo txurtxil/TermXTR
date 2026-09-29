@@ -1,0 +1,4 @@
+b94d5fc037f26b32276136cdb27be796  usr/lib/aarch64-linux-gnu/libbd_part_err.so.2.0.0
+327ec627a7c00f435fd4a57152b8554f  usr/share/doc/libblockdev-part-err2/changelog.Debian.gz
+922c155bcf341a506fc85204b120a511  usr/share/doc/libblockdev-part-err2/copyright
+2f4c5da39dbb3265c7226b1759edfd92  usr/share/lintian/overrides/libblockdev-part-err2

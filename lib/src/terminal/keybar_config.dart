@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:xterm/xterm.dart';
 
 /// Tipo de acción de una tecla de la barra.
-enum KeyAction { sendKey, sendChar, ctrlChar, toggleCtrl, fontInc, fontDec }
+enum KeyAction { sendKey, sendChar, ctrlChar, toggleCtrl, fontInc, fontDec, copy, paste }
 
 /// Definición de una tecla del catálogo (qué es y qué hace).
 class KeyDef {
@@ -14,7 +15,8 @@ class KeyDef {
   final TerminalKey? key;     // para sendKey
   final String? text;         // para sendChar / ctrlChar
   final bool accent;          // estilo azul (controles)
-  const KeyDef(this.id, this.label, this.action, {this.key, this.text, this.accent = false});
+  final IconData? icon;       // si se da, se pinta icono en vez de texto
+  const KeyDef(this.id, this.label, this.action, {this.key, this.text, this.accent = false, this.icon});
 }
 
 /// Catálogo completo de teclas disponibles (incluye F1-F12 y extras nuevos).
@@ -45,6 +47,8 @@ class KeyCatalog {
     KeyDef('del', 'Del', KeyAction.sendKey, key: TerminalKey.delete),
     KeyDef('ins', 'Ins', KeyAction.sendKey, key: TerminalKey.insert),
     KeyDef('pipe', '|', KeyAction.sendChar, text: '|'),
+    KeyDef('copy', 'Copiar', KeyAction.copy, icon: Icons.copy_outlined, accent: true),
+    KeyDef('paste', 'Pegar', KeyAction.paste, icon: Icons.paste_outlined, accent: true),
     KeyDef('slash', '/', KeyAction.sendChar, text: '/'),
     KeyDef('dash', '-', KeyAction.sendChar, text: '-'),
     KeyDef('tilde', '~', KeyAction.sendChar, text: '~'),
@@ -86,6 +90,7 @@ class KeyCatalog {
         KeyConfigItem('ctrlX', true),
         KeyConfigItem('ctrlZ', true),
         KeyConfigItem('ctrlR', true),
+        KeyConfigItem('ctrlL', true),
         KeyConfigItem('up', true),
         KeyConfigItem('down', true),
         KeyConfigItem('left', true),
@@ -95,6 +100,8 @@ class KeyCatalog {
         KeyConfigItem('pgup', true),
         KeyConfigItem('pgdn', true),
         KeyConfigItem('pipe', true),
+        KeyConfigItem('copy', true),
+        KeyConfigItem('paste', true),
         KeyConfigItem('slash', true),
         KeyConfigItem('dash', true),
         KeyConfigItem('tilde', true),
@@ -102,7 +109,6 @@ class KeyCatalog {
         KeyConfigItem('fontInc', true),
         // El resto del catálogo, oculto por defecto:
         KeyConfigItem('ctrlD', false),
-        KeyConfigItem('ctrlL', false),
         KeyConfigItem('ctrlA', false),
         KeyConfigItem('ctrlE', false),
         KeyConfigItem('ctrlK', false),
@@ -161,10 +167,14 @@ class KeybarConfig {
         // Reconciliar: mantener guardados válidos + añadir ids nuevos del catálogo
         final savedIds = saved.map((e) => e.id).toSet();
         final validSaved = saved.where((e) => KeyCatalog.byId(e.id) != null).toList();
+        // Visibilidad por defecto de cada id (para las teclas nuevas que
+        // aparezcan en futuras versiones del catálogo).
+        final defaultVis = {for (final it in KeyCatalog.defaultConfig) it.id: it.visible};
         for (final k in KeyCatalog.all) {
           if (!savedIds.contains(k.id)) {
-            // tecla nueva en el catálogo: añadir oculta al final
-            validSaved.add(KeyConfigItem(k.id, false));
+            // tecla nueva en el catálogo: se añade con la visibilidad que
+            // marque la config por defecto (no siempre oculta).
+            validSaved.add(KeyConfigItem(k.id, defaultVis[k.id] ?? false));
           }
         }
         return validSaved;

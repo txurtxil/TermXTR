@@ -1,0 +1,1 @@
+ldconfig-escape usr/lib/gvfs/gvfs* -> usr/libexec/gvfs*

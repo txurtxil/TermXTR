@@ -11,6 +11,8 @@ class TerminalKeybar extends StatefulWidget {
   final VoidCallback? onFontIncrease;
   final VoidCallback? onFontDecrease;
   final VoidCallback? onMenu;
+  final VoidCallback? onCopy;
+  final Future<void> Function()? onPaste;
 
   const TerminalKeybar({
     super.key,
@@ -19,6 +21,8 @@ class TerminalKeybar extends StatefulWidget {
     this.onFontIncrease,
     this.onFontDecrease,
     this.onMenu,
+    this.onCopy,
+    this.onPaste,
   });
 
   @override
@@ -59,6 +63,12 @@ class _TerminalKeybarState extends State<TerminalKeybar> {
       case KeyAction.fontDec:
         widget.onFontDecrease?.call();
         break;
+      case KeyAction.copy:
+        widget.onCopy?.call();
+        break;
+      case KeyAction.paste:
+        widget.onPaste?.call();
+        break;
     }
   }
 
@@ -78,6 +88,7 @@ class _TerminalKeybarState extends State<TerminalKeybar> {
         accent: def.accent,
         highlight: isFont,
         active: isCtrlToggle && _ctrl,
+        icon: def.icon,
       ));
     }
 
@@ -103,7 +114,7 @@ class _TerminalKeybarState extends State<TerminalKeybar> {
         color: Colors.white24,
       );
 
-  Widget _key(String label, {required VoidCallback onTap, bool accent = false, bool highlight = false, bool active = false}) {
+  Widget _key(String label, {required VoidCallback onTap, bool accent = false, bool highlight = false, bool active = false, IconData? icon}) {
     final Color bg = active
         ? Colors.green.shade700
         : highlight
@@ -130,7 +141,9 @@ class _TerminalKeybarState extends State<TerminalKeybar> {
             constraints: const BoxConstraints(minWidth: 42),
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(horizontal: 9),
-            child: Text(label, style: TextStyle(color: fg, fontFamily: 'monospace', fontSize: 15, fontWeight: FontWeight.w600)),
+            child: icon != null
+                ? Icon(icon, size: 17, color: fg)
+                : Text(label, style: TextStyle(color: fg, fontFamily: 'monospace', fontSize: 15, fontWeight: FontWeight.w600)),
           ),
         ),
       ),
