@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.3.0 (2026-09-29)
+
+### Túneles SSH (port forwarding local, tipo `ssh -L`)
+- Nuevo gestor de túneles (menú de la pantalla de Hosts): cada túnel es un
+  ServerSocket local en 127.0.0.1 que reenvía tráfico a cualquier destino
+  alcanzable por el servidor SSH (direct-tcpip).
+- Puerto local 0 = asignación automática (se muestra el puerto real).
+- Conexión SSH propia por túnel con fallback a la identidad Ed25519 de la app
+  y keepalive de 15 s.
+- Estado en vivo: activo/error, uptime, botón detener.
+- Limpieza completa de sockets, canales y suscripciones al detener.
+
 ## v2.2.0 (2026-09-29)
 
 ### Identidad SSH automatizada (adios a teclear claves)
