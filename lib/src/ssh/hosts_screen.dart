@@ -88,12 +88,26 @@ class _HostsScreenState extends State<HostsScreen> {
       list.add(json);
     }
     
-    final jsonString = const JsonEncoder.withIndent('  ').convert(list);
+    // v2.4.0: backup completo (hosts + snippets) con compatibilidad
+    List<dynamic> snippets = [];
+    try {
+      final sf = File('\${AppPaths.base}/snippets.json');
+      if (await sf.exists()) {
+        snippets = jsonDecode(await sf.readAsString()) as List<dynamic>;
+      }
+    } catch (_) {}
+    final backup = {
+      'type': 'termxtr-backup',
+      'version': 2,
+      'hosts': list,
+      'snippets': snippets,
+    };
+    final jsonString = const JsonEncoder.withIndent('  ').convert(backup);
     
     try {
       final file = XFile.fromData(
         utf8.encode(jsonString),
-        name: 'xtr_hosts_backup.json',
+        name: 'termxtr_backup.json',
         mimeType: 'application/json',
       );
       // Usar share_plus esquiva el error UnimplementedError de file_selector en Android
@@ -114,7 +128,16 @@ class _HostsScreenState extends State<HostsScreen> {
       if (file == null) return;
       
       final content = await file.readAsString();
-      final list = jsonDecode(content) as List<dynamic>;
+      final decoded = jsonDecode(content);
+      // v2.4.0: soporta backup completo (hosts + snippets) y formato antiguo
+      List<dynamic> list;
+      List<dynamic>? snippets;
+      if (decoded is Map && decoded['type'] == 'termxtr-backup') {
+        list = (decoded['hosts'] as List?) ?? [];
+        snippets = decoded['snippets'] as List?;
+      } else {
+        list = decoded as List<dynamic>;
+      }
       int count = 0;
       
       for (final item in list) {
@@ -134,7 +157,15 @@ class _HostsScreenState extends State<HostsScreen> {
         }
         count++;
       }
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$count hosts importados con éxito')));
+      // restaurar snippets si el backup los trae
+      if (snippets != null) {
+        try {
+          final sf = File('\${AppPaths.base}/snippets.json');
+          await sf.writeAsString(jsonEncode(snippets), flush: true);
+        } catch (_) {}
+      }
+      final extra = snippets != null ? ' y \${snippets.length} snippets' : '';
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$count hosts$extra importados con éxito')));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error: Archivo inválido o corrupto')));
     }

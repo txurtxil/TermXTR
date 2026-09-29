@@ -470,6 +470,45 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
     );
   }
 
+  Widget _suggestionBar(TerminalSession s) {
+    return GestureDetector(
+      onTap: s.acceptSuggestion,
+      child: Container(
+        width: double.infinity,
+        color: const Color(0xFF161618),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text.rich(
+                TextSpan(children: [
+                  TextSpan(
+                      text: s.currentLine,
+                      style: const TextStyle(
+                          color: Colors.white70,
+                          fontFamily: 'monospace',
+                          fontSize: 13)),
+                  TextSpan(
+                      text: s.suggestion!.substring(s.currentLine.length),
+                      style: const TextStyle(
+                          color: Colors.white30,
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic)),
+                ]),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.keyboard_tab,
+                size: 14, color: Colors.white30),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _terminalView() {
     return Column(
       children: [
@@ -548,10 +587,25 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
 
               if (s.sourceHost == null) return terminalPane;
               final sftpOpen = _sftpOpen.contains(s);
-              return Stack(
+              final pane = Stack(
                 children: [
                   Offstage(offstage: sftpOpen, child: terminalPane),
                   if (_sftpOpened.contains(s)) Offstage(offstage: !sftpOpen, child: SftpBrowserScreen(host: s.sourceHost!, rootfsPath: AppPaths.base, embedded: true, onOpenTerminal: (_) => setState(() => _sftpOpen.remove(s)))),
+                ],
+              );
+              // v2.5.0: sugerencia fantasma de comando (fish-style)
+              return Column(
+                children: [
+                  Expanded(child: pane),
+                  ValueListenableBuilder<String?>(
+                    valueListenable: s.suggestionNotify,
+                    builder: (_, sug, __) {
+                      if (sug == null || sug.isEmpty || s.currentLine.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return _suggestionBar(s);
+                    },
+                  ),
                 ],
               );
             }).toList(),

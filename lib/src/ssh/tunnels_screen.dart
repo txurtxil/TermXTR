@@ -354,7 +354,7 @@ class _TunnelsScreenState extends State<TunnelsScreen> {
       body: _loading
           ? const Center(
               child: CircularProgressIndicator(color: _C.accent))
-          : _tunnels.isEmpty
+          : _tunnels.isEmpty && _defs.isEmpty
               ? const Center(
                   child: Padding(
                     padding: EdgeInsets.all(24),
@@ -368,7 +368,9 @@ class _TunnelsScreenState extends State<TunnelsScreen> {
                     ),
                   ),
                 )
-              : ListView.builder(
+              : _tunnels.isEmpty
+                  ? _buildDefs()
+                  : ListView.builder(
                   padding: const EdgeInsets.all(8),
                   itemCount: _tunnels.length,
                   itemBuilder: (_, i) {

@@ -6,6 +6,7 @@ import 'package:xterm/xterm.dart';
 import 'package:dartssh2/dartssh2.dart';
 import '../ssh/ssh_host.dart';
 import '../ssh/identity_service.dart';
+import 'command_history.dart';
 import '../storage/app_paths.dart';
 import 'terminal_recorder.dart';
 
@@ -76,7 +77,69 @@ class TerminalSession {
     unawaited(_startSsh(columns, rows));
   }
 
+  // ---- v2.5.0: historial y sugerencia fantasma (fish-style) ----
+
+  String currentLine = '';
+  String? suggestion;
+  final suggestionNotify = ValueNotifier<String?>(null);
+
+  void _updateSuggestion() {
+    final v = (suggestion == null || suggestion!.isEmpty) ? null : suggestion;
+    if (suggestionNotify.value != v) suggestionNotify.value = v;
+  }
+
+  void _trackInput(String data) {
+    if (data.startsWith('\x1b')) return; // secuencias de escape
+    if (data == '\r' || data == '\n') {
+      final cmd = currentLine.trim();
+      if (cmd.length > 1 && !cmd.startsWith(' ')) {
+        unawaited(CommandHistory.add(sourceHost.id, cmd));
+      }
+      currentLine = '';
+      suggestion = null;
+      _updateSuggestion();
+      return;
+    }
+    if (data == '\x7f') {
+      if (currentLine.isNotEmpty) {
+        currentLine = currentLine.substring(0, currentLine.length - 1);
+      }
+    } else if (data == '\x03') {
+      currentLine = '';
+    } else if (data.length == 1) {
+      final c = data.codeUnitAt(0);
+      if (c >= 32 && c != 127) currentLine += data;
+    } else {
+      // pegado: quedarse con la ultima linea
+      final txt = data.replaceAll('\r', '');
+      final idx = txt.lastIndexOf('\n');
+      currentLine += idx >= 0 ? txt.substring(idx + 1) : txt;
+      if (currentLine.length > 4096) {
+        currentLine = currentLine.substring(currentLine.length - 4096);
+      }
+    }
+    final s = CommandHistory.suggest(sourceHost.id, currentLine);
+    suggestion = (s != null && s != currentLine) ? s : null;
+    _updateSuggestion();
+  }
+
+  /// Acepta la sugerencia: envia el resto al shell como si lo teclearas.
+  void acceptSuggestion() {
+    final s = suggestion;
+    if (s == null || s.length <= currentLine.length) return;
+    final rest = s.substring(currentLine.length);
+    currentLine = s;
+    suggestion = null;
+    _updateSuggestion();
+    _handleOutput(rest);
+  }
+
   void _handleOutput(String data) {
+    if (data == '\t' && suggestion != null) {
+      acceptSuggestion();
+      return;
+    }
+    _trackInput(data);
     final shell = _shell;
     if (shell != null) {
       shell.write(utf8.encode(data));
@@ -90,6 +153,7 @@ class TerminalSession {
 
   Future<void> _startSsh(int columns, int rows) async {
     final host = sourceHost;
+    unawaited(CommandHistory.load(host.id));
     terminal.write('\x1b[90mConectando a ${host.username}@${host.hostname}:${host.port}...\x1b[0m\r\n');
     try {
       final socket = await SSHSocket.connect(host.hostname, host.port)
@@ -237,6 +301,7 @@ class TerminalSession {
   }
 
   void dispose() {
+    suggestionNotify.dispose();
     _killTransport();
     unawaited(recorder.dispose());
     scrollController.dispose();
