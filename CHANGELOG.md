@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.5.0 (2026-09-29)
+
+### Sugerencia fantasma de comandos (fish-style) + historial
+- Historial de comandos por host, persistido en JSON (500 entradas,
+  mas reciente primero, sin duplicados).
+- Barra bajo el terminal: lo tecleado en blanco y el resto del comando
+  previsto en gris difuminado y cursiva (el ultimo comando del historial
+  que empieza por lo escrito).
+- Aceptar con un toque sobre la barra o con la tecla TAB: envia el resto
+  al shell como si lo teclearas.
+- Soporta pegados multilinea, backspace y Ctrl-C.
+
+### v2.4.0 (incluido)
+- Backup completo hosts+snippets (termxtr_backup.json).
+- Túneles guardados con reactivación en un toque.
+
 ## v2.3.0 (2026-09-29)
 
 ### Túneles SSH (port forwarding local, tipo `ssh -L`)

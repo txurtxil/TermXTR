@@ -5,6 +5,7 @@
 // cada conexión entrante se canaliza al destino remoto por direct-tcpip.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartssh2/dartssh2.dart';
@@ -68,6 +69,49 @@ class _Tunnel {
   }
 }
 
+class _TunnelDef {
+  final String id;
+  final String hostId;
+  final String name;
+  final int localPort;
+  final String remoteHost;
+  final int remotePort;
+
+  const _TunnelDef({
+    required this.id,
+    required this.hostId,
+    required this.name,
+    required this.localPort,
+    required this.remoteHost,
+    required this.remotePort,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'hostId': hostId,
+        'name': name,
+        'localPort': localPort,
+        'remoteHost': remoteHost,
+        'remotePort': remotePort,
+      };
+
+  static _TunnelDef? fromJson(dynamic j) {
+    if (j is! Map) return null;
+    try {
+      return _TunnelDef(
+        id: (j['id'] ?? '').toString(),
+        hostId: (j['hostId'] ?? '').toString(),
+        name: (j['name'] ?? '').toString(),
+        localPort: (j['localPort'] is int) ? j['localPort'] : 0,
+        remoteHost: (j['remoteHost'] ?? '').toString(),
+        remotePort: (j['remotePort'] is int) ? j['remotePort'] : 0,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
 class TunnelsScreen extends StatefulWidget {
   const TunnelsScreen({super.key});
 
@@ -77,6 +121,9 @@ class TunnelsScreen extends StatefulWidget {
 
 class _TunnelsScreenState extends State<TunnelsScreen> {
   final _tunnels = <_Tunnel>[];
+  final _defs = <_TunnelDef>[];
+
+  File get _defsFile => File('${AppPaths.base}/tunnels.json');
   List<SshHost> _hosts = [];
   bool _loading = true;
 
@@ -84,7 +131,95 @@ class _TunnelsScreenState extends State<TunnelsScreen> {
   void initState() {
     super.initState();
     _loadHosts();
+    _loadDefs();
   }
+
+  Future<void> _loadDefs() async {
+    try {
+      if (await _defsFile.exists()) {
+        final list = jsonDecode(await _defsFile.readAsString()) as List;
+        _defs.addAll(list.map(_TunnelDef.fromJson).whereType<_TunnelDef>());
+      }
+    } catch (_) {}
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _saveDefs() async {
+    final tmp = File('${_defsFile.path}.tmp');
+    await tmp.writeAsString(
+        jsonEncode(_defs.map((d) => d.toJson()).toList()), flush: true);
+    await tmp.rename(_defsFile.path);
+  }
+
+  Future<void> _deleteDef(_TunnelDef d) async {
+    setState(() => _defs.removeWhere((e) => e.id == d.id));
+    await _saveDefs();
+  }
+
+  Future<void> _activateDef(_TunnelDef d) async {
+    SshHost? host;
+    for (final h in _hosts) {
+      if (h.id == d.hostId) {
+        host = h;
+        break;
+      }
+    }
+    if (host == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('El host de este túnel ya no existe')));
+      return;
+    }
+    await _startTunnel(
+      host: host,
+      name: d.name,
+      localPort: d.localPort,
+      remoteHost: d.remoteHost,
+      remotePort: d.remotePort,
+    );
+  }
+
+  Widget _buildDefs() {
+    return ListView(
+      padding: const EdgeInsets.all(8),
+      children: [
+        const Padding(
+          padding: EdgeInsets.all(8),
+          child: Text('Túneles guardados (pulsa ▶ para activar)',
+              style: TextStyle(color: _C.textLo, fontSize: 12)),
+        ),
+        for (final d in _defs)
+          Card(
+            color: _C.card,
+            child: ListTile(
+              leading: const Icon(Icons.vpn_lock, color: _C.textLo),
+              title: Text(d.name, style: const TextStyle(color: _C.textHi)),
+              subtitle: Text(
+                  '${d.remoteHost}:${d.remotePort} (local ${d.localPort == 0 ? "auto" : d.localPort})',
+                  style: const TextStyle(
+                      color: _C.textLo,
+                      fontSize: 11,
+                      fontFamily: 'monospace')),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.play_arrow, color: _C.accent),
+                    tooltip: 'Activar',
+                    onPressed: () => _activateDef(d),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: _C.err),
+                    tooltip: 'Olvidar',
+                    onPressed: () => _deleteDef(d),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
 
   @override
   void dispose() {
