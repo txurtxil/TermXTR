@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.1.0 (2026-09-29)
+
+### Editor potente (reescrito)
+- Buscar y reemplazar: siguiente, reemplazar uno, reemplazar todos, toggle mayusculas/minusculas, wrap-around.
+- Ir a linea N.
+- Auto-indent: Intro hereda la indentacion de la linea anterior.
+- Undo/redo (200 pasos).
+- Barra de estado: Ln/Col, longitud de seleccion, palabras, tamano, codificacion (UTF-8/Latin-1), estado de modificacion.
+- Seleccionar todo y copiar seleccion desde la toolbar.
+- Confirmacion de cambios al salir (guardar/descartar/seguir).
+
+### Multitarea
+- Ejecucion de un comando en multiples hosts a la vez (icono ▶ en la pantalla de hosts): seleccion multiple, ejecucion concurrente, resultados en vivo con estado, duracion y salida seleccionable.
+- Reutiliza el keystore cifrado de credenciales, claves PEM y keepalive de la base.
+
+
 ## v2.0.0 (2026-09-29)
 
 TermXTR renace sobre la base madura de LinuxContainer 1.3.0, mejorada por un analista senior.

@@ -1,24 +1,15 @@
 // lib/src/sftp/sftp_text_editor_screen.dart
 //
-// Editor de texto plano para ficheros remotos SFTP: abre el fichero en
-// memoria, permite editarlo y guardarlo de vuelta por el mismo canal SFTP.
-// Sin dependencias nuevas: TextField multilinea con fuente monospace.
-//
-// Protecciones:
-//  - Limite de tamano (1 MB por defecto): un .log de gigas no se edita
-//    desde un movil; los configs/scripts/codigo habituales caben de sobra.
-//  - Deteccion de binario: si la cabecera contiene bytes nulos, no se
-//    intenta editar (se avisa en vez de corromper el fichero).
-//  - Decodificacion UTF-8 con fallback a Latin-1, y la codificacion real
-//    usada se muestra en la barra de estado.
-//  - Guardado atomico desde el punto de vista del usuario: trunca y
-//    reescribe el remoto, con confirmacion al salir si hay cambios sin
-//    guardar.
+// Editor de texto plano para ficheros remotos SFTP (generico: tambien lo
+// usa el picker de ficheros locales). v2.1.0: buscar/reemplazar, ir a
+// linea, auto-indent, undo/redo, barra de estado, seleccionar todo/copiar.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class _C {
   static const bg = Color(0xFF1C1C1E);
@@ -51,6 +42,8 @@ class SftpTextEditorScreen extends StatefulWidget {
 
 class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
   final _controller = TextEditingController();
+  final _searchCtrl = TextEditingController();
+  final _replaceCtrl = TextEditingController();
 
   bool _loading = true;
   bool _loaded = false;
@@ -59,9 +52,17 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
   String? _error;
   String _encoding = '';
   int _size = 0;
+
+  // v2.1.0
   bool _wrap = true;
   bool _showSearch = false;
-  final _searchCtrl = TextEditingController();
+  bool _caseSensitive = false;
+  final _undo = <String>[];
+  final _redo = <String>[];
+  String _lastText = '';
+  DateTime _lastSnapshot = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _statusDebounce;
+  String _status = '';
 
   @override
   void initState() {
@@ -72,15 +73,14 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
 
   @override
   void dispose() {
+    _statusDebounce?.cancel();
     _controller.dispose();
     _searchCtrl.dispose();
+    _replaceCtrl.dispose();
     super.dispose();
   }
 
-  void _onEdit() {
-    if (!_loaded) return;
-    if (!_dirty) setState(() => _dirty = true);
-  }
+  // ---------- carga / guardado ----------
 
   static bool _looksBinary(Uint8List head) {
     final n = head.length > 8192 ? 8192 : head.length;
@@ -133,6 +133,12 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
         _encoding = 'Latin-1';
       }
       _controller.text = text;
+      _lastText = text;
+      _undo
+        ..clear()
+        ..add(text);
+      _redo.clear();
+      _scheduleStatus();
       if (!mounted) return;
       setState(() {
         _loading = false;
@@ -172,105 +178,343 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
     }
   }
 
-  Future<void> _reloadWithConfirm() async {
-    if (_dirty) {
-      final r = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: _C.card,
-          title: const Text('Descartar cambios', style: TextStyle(color: _C.textHi)),
-          content: const Text('Tienes cambios sin guardar que se perderan si recargas.',
-              style: TextStyle(color: _C.textLo)),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
-            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Descartar', style: TextStyle(color: _C.err))),
-          ],
-        ),
-      );
-      if (r != true) return;
+  // ---------- edicion: undo/redo, auto-indent, estado ----------
+
+  void _onEdit() {
+    if (!_loaded) return;
+    _autoIndent();
+    final now = DateTime.now();
+    if (now.difference(_lastSnapshot).inMilliseconds > 800) {
+      _undo.add(_lastText);
+      if (_undo.length > 200) _undo.removeAt(0);
+      _redo.clear();
+      _lastSnapshot = now;
     }
-    _load();
+    _lastText = _controller.text;
+    if (!_dirty) setState(() => _dirty = true);
+    _scheduleStatus();
   }
 
-  String get _cursorLabel {
+  /// Tras pulsar Intro, hereda la indentacion (espacios/tabs) de la linea
+  /// anterior. Sin recursion: la reentrada no cumple la condicion de diff.
+  void _autoIndent() {
+    final text = _controller.text;
+    if (text.length != _lastText.length + 1) return;
+    final sel = _controller.selection;
+    if (!sel.isValid || sel.baseOffset != sel.extentOffset) return;
+    final pos = sel.baseOffset;
+    if (pos < 1 || text[pos - 1] != '\n') return;
+    final before = text.substring(0, pos - 1);
+    final lineStart = before.lastIndexOf('\n') + 1;
+    final prevLine = before.substring(lineStart);
+    final indent = RegExp(r'^[ \t]*').firstMatch(prevLine)?.group(0) ?? '';
+    if (indent.isEmpty) return;
+    _lastText = text; // evita reentrada
+    _controller.value = TextEditingValue(
+      text: text.substring(0, pos) + indent + text.substring(pos),
+      selection: TextSelection.collapsed(offset: pos + indent.length),
+    );
+  }
+
+  void _scheduleStatus() {
+    _statusDebounce?.cancel();
+    _statusDebounce = Timer(const Duration(milliseconds: 300), _updateStatus);
+  }
+
+  void _updateStatus() {
+    if (!mounted) return;
     final sel = _controller.selection;
     final text = _controller.text;
-    final upto = sel.baseOffset.clamp(0, text.length);
-    final before = text.substring(0, upto);
-    final line = '\n'.allMatches(before).length + 1;
-    final lastNl = before.lastIndexOf('\n');
-    final col = upto - lastNl;
-    return 'Ln $line, Col $col';
+    var line = 1, col = 1;
+    if (sel.isValid && sel.baseOffset <= text.length) {
+      final upto = sel.baseOffset;
+      line = '\n'.allMatches(text.substring(0, upto)).length + 1;
+      final ls = text.lastIndexOf('\n', upto - 1 < 0 ? 0 : upto - 1);
+      col = upto - (ls < 0 ? 0 : ls);
+    }
+    var selLen = 0;
+    if (sel.isValid && sel.baseOffset != sel.extentOffset) {
+      selLen = (sel.extentOffset - sel.baseOffset).abs();
+    }
+    final words =
+        text.isEmpty ? 0 : text.trim().split(RegExp(r'\s+')).length;
+    setState(() {
+      _status = 'Ln $line, Col $col'
+          '${selLen > 0 ? ' · sel $selLen' : ''}'
+          ' · $words palabras · ${_fmtBytes(text.length)}'
+          ' · $_encoding${_dirty ? ' · modificado' : ''}';
+    });
   }
+
+  void _undoIt() {
+    if (_undo.isEmpty) return;
+    _redo.add(_controller.text);
+    _applyHistory(_undo.removeLast());
+  }
+
+  void _redoIt() {
+    if (_redo.isEmpty) return;
+    _undo.add(_controller.text);
+    _applyHistory(_redo.removeLast());
+  }
+
+  void _applyHistory(String text) {
+    _lastText = text;
+    _controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    _scheduleStatus();
+    setState(() {});
+  }
+
+  // ---------- buscar / reemplazar ----------
+
+  bool _matchAt(String text, int i, String q) {
+    if (i < 0 || i + q.length > text.length) return false;
+    final slice = text.substring(i, i + q.length);
+    return _caseSensitive ? slice == q : slice.toLowerCase() == q.toLowerCase();
+  }
+
+  int _findFrom(String text, String q, int start) {
+    if (q.isEmpty) return -1;
+    if (_caseSensitive) {
+      final i = text.indexOf(q, start);
+      return i >= 0 ? i : text.indexOf(q); // wrap-around
+    }
+    final lower = text.toLowerCase();
+    final ql = q.toLowerCase();
+    final i = lower.indexOf(ql, start);
+    return i >= 0 ? i : lower.indexOf(ql);
+  }
+
+  void _findNext() {
+    final q = _searchCtrl.text;
+    if (q.isEmpty) return;
+    final text = _controller.text;
+    final sel = _controller.selection;
+    final start = sel.isValid && sel.baseOffset >= 0 ? sel.baseOffset : 0;
+    final i = _findFrom(text, q, start);
+    if (i < 0) {
+      _toast('Sin resultados');
+      return;
+    }
+    _select(i, q.length);
+  }
+
+  void _select(int i, int len) {
+    _controller.selection = TextSelection(baseOffset: i, extentOffset: i + len);
+    _scheduleStatus();
+  }
+
+  void _replaceOne() {
+    final q = _searchCtrl.text;
+    if (q.isEmpty) return;
+    final text = _controller.text;
+    final sel = _controller.selection;
+    if (sel.isValid &&
+        sel.baseOffset != sel.extentOffset &&
+        _matchAt(text, sel.baseOffset, q)) {
+      final repl = _replaceCtrl.text;
+      final newText = text.replaceRange(sel.baseOffset, sel.baseOffset + q.length, repl);
+      final newPos = sel.baseOffset + repl.length;
+      _lastText = newText;
+      _controller.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newPos),
+      );
+      if (!_dirty) setState(() => _dirty = true);
+      _scheduleStatus();
+    }
+    _findNext();
+  }
+
+  void _replaceAll() {
+    final q = _searchCtrl.text;
+    if (q.isEmpty) return;
+    final text = _controller.text;
+    final repl = _replaceCtrl.text;
+    final newText = _caseSensitive
+        ? text.replaceAll(q, repl)
+        : text.replaceAll(RegExp(RegExp.escape(q), caseSensitive: false), repl);
+    if (newText == text) {
+      _toast('Sin resultados');
+      return;
+    }
+    _lastText = newText;
+    _controller.value = TextEditingValue(
+      text: newText,
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+    if (!_dirty) setState(() => _dirty = true);
+    _scheduleStatus();
+    _toast('Reemplazado');
+  }
+
+  // ---------- ir a linea ----------
+
+  Future<void> _goToLine() async {
+    final c = TextEditingController();
+    final line = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _C.card,
+        title: const Text('Ir a linea', style: TextStyle(color: _C.textHi)),
+        content: TextField(
+          controller: c,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          style: const TextStyle(color: _C.textHi),
+          decoration: const InputDecoration(
+            hintText: 'Numero de linea',
+            hintStyle: TextStyle(color: _C.textLo),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () =>
+                  Navigator.pop(ctx, int.tryParse(c.text.trim())),
+              child: const Text('Ir')),
+        ],
+      ),
+    );
+    if (line == null || line < 1) return;
+    final text = _controller.text;
+    var offset = 0;
+    var current = 1;
+    while (current < line) {
+      final next = text.indexOf('\n', offset);
+      if (next < 0) break;
+      offset = next + 1;
+      current++;
+    }
+    _controller.selection = TextSelection.collapsed(offset: offset);
+    _scheduleStatus();
+  }
+
+  // ---------- seleccion ----------
+
+  void _selectAll() {
+    final text = _controller.text;
+    _controller.selection =
+        TextSelection(baseOffset: 0, extentOffset: text.length);
+    _scheduleStatus();
+  }
+
+  void _copySelection() {
+    final sel = _controller.selection;
+    final text = _controller.text;
+    if (!sel.isValid || sel.baseOffset == sel.extentOffset) return;
+    final a = sel.baseOffset < sel.extentOffset ? sel.baseOffset : sel.extentOffset;
+    final b = sel.baseOffset < sel.extentOffset ? sel.extentOffset : sel.baseOffset;
+    Clipboard.setData(ClipboardData(text: text.substring(a, b)));
+    _toast('Copiado');
+  }
+
+  void _toast(String msg) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 1)));
+  }
+
+  Future<bool> _confirmExit() async {
+    if (!_dirty || !_loaded) return true;
+    final r = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _C.card,
+        title: const Text('Cambios sin guardar',
+            style: TextStyle(color: _C.textHi)),
+        content: const Text('¿Guardar antes de salir?',
+            style: TextStyle(color: _C.textLo)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, 'discard'),
+              child: const Text('Descartar',
+                  style: TextStyle(color: _C.err))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, 'cancel'),
+              child: const Text('Seguir editando')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'save'),
+              child: const Text('Guardar')),
+        ],
+      ),
+    );
+    if (r == 'discard') return true;
+    if (r == 'save') {
+      await _save();
+      return !_dirty;
+    }
+    return false;
+  }
+
+  // ---------- UI ----------
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: !_dirty,
-      onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
-        final r = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: _C.card,
-            title: const Text('Cambios sin guardar', style: TextStyle(color: _C.textHi)),
-            content: const Text('Quieres salir del editor sin guardar?',
-                style: TextStyle(color: _C.textLo)),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Seguir editando', style: TextStyle(color: _C.textLo))),
-              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Salir sin guardar', style: TextStyle(color: _C.err))),
-            ],
-          ),
-        );
-        if (r == true && context.mounted) Navigator.pop(context);
-      },
+    return WillPopScope(
+      onWillPop: _confirmExit,
       child: Scaffold(
         backgroundColor: _C.bg,
         appBar: AppBar(
           backgroundColor: _C.bg,
-          iconTheme: const IconThemeData(color: _C.textLo),
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(widget.fileName, style: const TextStyle(color: _C.textHi, fontSize: 16)),
-              Text('editor remoto SFTP', style: const TextStyle(color: _C.textLo, fontSize: 11)),
-            ],
-          ),
+          elevation: 0,
+          iconTheme: const IconThemeData(color: _C.textHi),
+          title: Text(widget.fileName,
+              style: const TextStyle(color: _C.textHi, fontSize: 15)),
           actions: [
-            if (_dirty)
-              const Padding(
-                padding: EdgeInsets.only(right: 4),
-                child: Icon(Icons.circle, size: 8, color: _C.accent),
-              ),
             IconButton(
-              tooltip: 'Buscar',
-              icon: const Icon(Icons.search),
-              color: _C.textLo,
-              onPressed: () => setState(() => _showSearch = !_showSearch),
+              tooltip: 'Seleccionar todo',
+              icon: const Icon(Icons.select_all, color: _C.textLo),
+              onPressed: _loaded ? _selectAll : null,
+            ),
+            IconButton(
+              tooltip: 'Copiar seleccion',
+              icon: const Icon(Icons.copy, color: _C.textLo),
+              onPressed: _loaded ? _copySelection : null,
+            ),
+            IconButton(
+              tooltip: 'Buscar y reemplazar',
+              icon: const Icon(Icons.search, color: _C.textLo),
+              onPressed: _loaded
+                  ? () => setState(() => _showSearch = !_showSearch)
+                  : null,
+            ),
+            IconButton(
+              tooltip: 'Ir a linea',
+              icon: const Icon(Icons.format_list_numbered, color: _C.textLo),
+              onPressed: _loaded ? _goToLine : null,
             ),
             IconButton(
               tooltip: 'Ajuste de linea',
-              icon: Icon(_wrap ? Icons.wrap_text : Icons.notes),
-              color: _C.textLo,
-              onPressed: () => setState(() => _wrap = !_wrap),
+              icon: Icon(_wrap ? Icons.wrap_text : Icons.notes,
+                  color: _C.textLo),
+              onPressed: _loaded
+                  ? () => setState(() => _wrap = !_wrap)
+                  : null,
+            ),
+            IconButton(
+              tooltip: 'Deshacer',
+              icon: const Icon(Icons.undo, color: _C.textLo),
+              onPressed: _undo.isEmpty ? null : _undoIt,
+            ),
+            IconButton(
+              tooltip: 'Rehacer',
+              icon: const Icon(Icons.redo, color: _C.textLo),
+              onPressed: _redo.isEmpty ? null : _redoIt,
             ),
             IconButton(
               tooltip: 'Guardar',
-              icon: const Icon(Icons.save_outlined),
-              color: (_dirty && !_saving && _loaded) ? _C.ok : _C.textLo,
-              onPressed: (_dirty && !_saving && _loaded) ? _save : null,
-            ),
-            PopupMenuButton<String>(
-              iconColor: _C.textLo,
-              color: _C.card,
-              onSelected: (v) {
-                if (v == 'reload') _reloadWithConfirm();
-                if (v == 'info') _showInfo();
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'reload', child: Text('Recargar desde el servidor', style: TextStyle(color: _C.textHi))),
-                const PopupMenuItem(value: 'info', child: Text('Info del fichero', style: TextStyle(color: _C.textHi))),
-              ],
+              icon: _saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.save, color: _C.textLo),
+              onPressed: _loaded && !_saving ? _save : null,
             ),
           ],
         ),
@@ -279,24 +523,78 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
     );
   }
 
-  void _showInfo() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: Text(widget.fileName, style: const TextStyle(color: _C.textHi)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Tamano: ${_fmtBytes(_size)}', style: const TextStyle(color: _C.textLo)),
-            Text('Codificacion: $_encoding', style: const TextStyle(color: _C.textLo)),
-            Text('Caracteres: ${_controller.text.length}', style: const TextStyle(color: _C.textLo)),
-            Text('Lineas: ${_controller.text.isEmpty ? 0 : '\n'.allMatches(_controller.text).length + 1}', style: const TextStyle(color: _C.textLo)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar', style: TextStyle(color: _C.accent))),
+  Widget _buildSearchPanel() {
+    return Container(
+      color: _C.card,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchCtrl,
+                  autofocus: true,
+                  style: const TextStyle(color: _C.textHi, fontSize: 13),
+                  decoration: const InputDecoration(
+                    hintText: 'Buscar...',
+                    hintStyle: TextStyle(color: _C.textLo),
+                    border: InputBorder.none,
+                    isDense: true,
+                    prefixIcon: Icon(Icons.search,
+                        size: 18, color: _C.textLo),
+                  ),
+                  onSubmitted: (_) => _findNext(),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.keyboard_return,
+                    size: 18, color: _C.accent),
+                tooltip: 'Siguiente',
+                onPressed: _findNext,
+              ),
+              IconButton(
+                icon: Icon(
+                    _caseSensitive ? Icons.abc : Icons.abc_outlined,
+                    size: 18,
+                    color: _caseSensitive ? _C.accent : _C.textLo),
+                tooltip: 'Mayusculas/minusculas',
+                onPressed: () =>
+                    setState(() => _caseSensitive = !_caseSensitive),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _replaceCtrl,
+                  style: const TextStyle(color: _C.textHi, fontSize: 13),
+                  decoration: const InputDecoration(
+                    hintText: 'Reemplazar con...',
+                    hintStyle: TextStyle(color: _C.textLo),
+                    border: InputBorder.none,
+                    isDense: true,
+                    prefixIcon: Icon(Icons.find_replace,
+                        size: 18, color: _C.textLo),
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: _replaceOne,
+                child: const Text('Uno', style: TextStyle(fontSize: 12)),
+              ),
+              TextButton(
+                onPressed: _replaceAll,
+                child: const Text('Todos', style: TextStyle(fontSize: 12)),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18, color: _C.textLo),
+                tooltip: 'Cerrar',
+                onPressed: () => setState(() => _showSearch = false),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -304,119 +602,60 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: _C.accent));
+      return const Center(
+          child: CircularProgressIndicator(color: _C.accent));
     }
     if (_error != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, color: _C.err, size: 40),
-              const SizedBox(height: 12),
-              Text(_error!, style: const TextStyle(color: _C.textLo), textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              TextButton.icon(
-                onPressed: _load,
-                icon: const Icon(Icons.refresh, color: _C.accent),
-                label: const Text('Reintentar', style: TextStyle(color: _C.accent)),
-              ),
-            ],
-          ),
+          child: Text(_error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: _C.err)),
         ),
       );
     }
     return Column(
       children: [
-        if (_showSearch) _buildSearchBar(),
+        if (_showSearch) _buildSearchPanel(),
         Expanded(
-          child: TextField(
-            controller: _controller,
-            maxLines: _wrap ? null : 1,
-            expands: true,
-            keyboardType: TextInputType.multiline,
-            textAlignVertical: TextAlignVertical.top,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 13,
-              height: 1.35,
-              color: _C.textHi,
-            ),
-            cursorColor: _C.accent,
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.all(12),
-              hintText: '(fichero vacio)',
-              hintStyle: TextStyle(color: _C.textLo),
+          child: Container(
+            color: _C.bg,
+            child: TextField(
+              controller: _controller,
+              maxLines: _wrap ? null : 1,
+              expands: _wrap,
+              scrollPadding: const EdgeInsets.all(20),
+              keyboardType: TextInputType.multiline,
+              textCapitalization: TextCapitalization.none,
+              autocorrect: false,
+              enableSuggestions: false,
+              style: const TextStyle(
+                color: _C.textHi,
+                fontSize: 13,
+                height: 1.35,
+                fontFamily: 'monospace',
+                fontFamilyFallback: ['Courier'],
+              ),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.all(12),
+              ),
             ),
           ),
         ),
         Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: const BoxDecoration(
-            color: _C.card,
-            border: Border(top: BorderSide(color: _C.border)),
-          ),
-          child: Row(
-            children: [
-              Text(_cursorLabel, style: const TextStyle(color: _C.textLo, fontSize: 11, fontFamily: 'monospace')),
-              const Spacer(),
-              Text('$_encoding · ${_fmtBytes(_controller.text.length)}', style: const TextStyle(color: _C.textLo, fontSize: 11, fontFamily: 'monospace')),
-            ],
+          width: double.infinity,
+          color: _C.card,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Text(
+            _status.isEmpty
+                ? (_loaded ? 'Listo' : '')
+                : _status,
+            style: const TextStyle(color: _C.textLo, fontSize: 10),
           ),
         ),
       ],
     );
-  }
-
-  Widget _buildSearchBar() {
-    return Container(
-      color: _C.card,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              autofocus: true,
-              style: const TextStyle(color: _C.textHi, fontSize: 13),
-              decoration: const InputDecoration(
-                hintText: 'Buscar...',
-                hintStyle: TextStyle(color: _C.textLo),
-                border: InputBorder.none,
-                isDense: true,
-              ),
-              onSubmitted: (_) => _findNext(),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.keyboard_return, size: 18, color: _C.accent),
-            tooltip: 'Siguiente',
-            onPressed: _findNext,
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 18, color: _C.textLo),
-            tooltip: 'Cerrar busqueda',
-            onPressed: () => setState(() => _showSearch = false),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _findNext() {
-    final q = _searchCtrl.text;
-    if (q.isEmpty) return;
-    final text = _controller.text;
-    final start = _controller.selection.baseOffset < 0 ? 0 : _controller.selection.baseOffset;
-    var i = text.indexOf(q, start);
-    if (i < 0) i = text.indexOf(q);
-    if (i < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sin resultados')));
-      return;
-    }
-    _controller.selection = TextSelection(baseOffset: i, extentOffset: i + q.length);
   }
 }

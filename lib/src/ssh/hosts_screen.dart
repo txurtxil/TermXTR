@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'ssh_host.dart';
 import 'ssh_hosts_service.dart';
+import 'multi_exec_screen.dart';
 import 'ssh_credentials_store.dart';
 import '../storage/app_paths.dart';
 import '../sftp/sftp_browser_screen.dart';
@@ -146,6 +147,16 @@ class _HostsScreenState extends State<HostsScreen> {
         title: const Text('Hosts', style: TextStyle(color: _C.textHi)),
         iconTheme: const IconThemeData(color: _C.textHi),
         actions: [
+          IconButton(
+            tooltip: 'Ejecutar comando en varios hosts',
+            icon: const Icon(Icons.playlist_play, color: _C.textLo),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MultiExecScreen()),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Cerrar todas las conexiones SFTP',
             icon: const Icon(Icons.link_off, color: _C.textLo),
