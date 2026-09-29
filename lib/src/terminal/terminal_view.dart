@@ -110,18 +110,12 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
 
       await Future.delayed(const Duration(milliseconds: 300));
       if (!mounted) return;
-
-      _addSession(initial: true);
       setState(() => _booting = false);
 
+      // Sin ghost local: al arrancar siempre se ofrece la lista de hosts.
       SchedulerBinding.instance.addPostFrameCallback((_) {
         WidgetsBinding.instance.endOfFrame.then((_) {
-          if (mounted) {
-            _startActiveSession();
-            if (_showHostsOnStartup) {
-              Future.delayed(const Duration(milliseconds: 150), _openHosts);
-            }
-          }
+          if (mounted) _openHosts();
         });
       });
     } catch (e) {
@@ -131,14 +125,8 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
   }
 
   void _addSession({bool initial = false}) {
-    if (_sessions.length >= _maxSessions) { _toast('Máximo $_maxSessions sesiones'); return; }
-    _sessions.add(TerminalSession('Sesión ${_sessions.length + 1}'));
-    if (!initial) {
-      setState(() => _activeIndex = _sessions.length - 1);
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        WidgetsBinding.instance.endOfFrame.then((_) { if (mounted) _startActiveSession(); });
-      });
-    }
+    // Sin ghost local: 'nueva sesion' = conectar a un host SSH.
+    _openHosts();
   }
 
   void _startActiveSession() {
@@ -191,13 +179,13 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
   }
 
   void _closeSession(int index) {
-    if (_sessions.length == 1) { _toast('No puedes cerrar la última sesión'); return; }
     final s = _sessions[index];
     _sftpOpen.remove(s); _sftpOpened.remove(s); s.dispose();
     setState(() {
       _sessions.removeAt(index);
-      if (_activeIndex >= _sessions.length) _activeIndex = _sessions.length - 1;
+      if (_sessions.isNotEmpty && _activeIndex >= _sessions.length) _activeIndex = _sessions.length - 1;
     });
+    if (_sessions.isEmpty) _openHosts();
   }
 
   void _changeFont(double delta) { setState(() { _fontSize = (_fontSize + delta).clamp(_minFont, _maxFont); }); }
@@ -457,8 +445,29 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
   @override
   Widget build(BuildContext context) {
     if (_error != null) return Scaffold(backgroundColor: Colors.black, body: SafeArea(child: Padding(padding: const EdgeInsets.all(16), child: SingleChildScrollView(child: Text('ERROR:\n$_error', style: const TextStyle(color: Colors.red, fontFamily: 'monospace'))))));
-    if (_booting) return Scaffold(backgroundColor: Colors.black, body: SafeArea(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('LinuxContainer · arranque', style: TextStyle(color: Colors.white38, fontFamily: 'monospace', fontSize: 12)), const SizedBox(height: 12), Expanded(child: ListView.builder(itemCount: _logLines.length, itemBuilder: (ctx, i) => Padding(padding: const EdgeInsets.symmetric(vertical: 1), child: Text(_logLines[i], style: TextStyle(color: _lineColor(_logLines[i]), fontFamily: 'monospace', fontSize: 13, height: 1.3))))), const SizedBox(height: 12), LinearProgressIndicator(value: _spinning ? null : _progress, backgroundColor: Colors.white10, color: Colors.greenAccent), const SizedBox(height: 8)]))));
-    return Scaffold(backgroundColor: Colors.black, body: SafeArea(child: _terminalView()));
+    if (_booting) return Scaffold(backgroundColor: Colors.black, body: SafeArea(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('TermXTR · arranque', style: TextStyle(color: Colors.white38, fontFamily: 'monospace', fontSize: 12)), const SizedBox(height: 12), Expanded(child: ListView.builder(itemCount: _logLines.length, itemBuilder: (ctx, i) => Padding(padding: const EdgeInsets.symmetric(vertical: 1), child: Text(_logLines[i], style: TextStyle(color: _lineColor(_logLines[i]), fontFamily: 'monospace', fontSize: 13, height: 1.3))))), const SizedBox(height: 12), LinearProgressIndicator(value: _spinning ? null : _progress, backgroundColor: Colors.white10, color: Colors.greenAccent), const SizedBox(height: 8)]))));
+    return Scaffold(backgroundColor: Colors.black, body: SafeArea(child: _sessions.isEmpty ? _emptyState() : _terminalView()));
+  }
+
+  Widget _emptyState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.terminal, color: Colors.white38, size: 64),
+          const SizedBox(height: 16),
+          const Text('TermXTR', style: TextStyle(color: Colors.white70, fontSize: 20, fontFamily: 'monospace', fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text('Sin sesiones activas', style: TextStyle(color: Colors.white38, fontSize: 13)),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _openHosts,
+            icon: const Icon(Icons.dns_rounded),
+            label: const Text('Conectar a un host'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _terminalView() {
@@ -469,7 +478,7 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
           child: Row(
             children: [
               const SizedBox(width: 8),
-              const Expanded(child: Text('XTR Terminal $_appVersion', style: TextStyle(color: Colors.white70, fontSize: 14, fontFamily: 'monospace', fontWeight: FontWeight.bold))),
+              const Expanded(child: Text('TermXTR $_appVersion', style: TextStyle(color: Colors.white70, fontSize: 14, fontFamily: 'monospace', fontWeight: FontWeight.bold))),
               IconButton(tooltip: 'Hosts SSH / SFTP', onPressed: _openHosts, icon: const Icon(Icons.dns_rounded, color: Colors.lightBlueAccent, size: 22)),
               if (_active.sourceHost != null) IconButton(tooltip: _sftpOpen.contains(_active) ? 'Volver a la shell' : 'SFTP de este host', onPressed: () => _toggleSftp(_active), icon: Icon(_sftpOpen.contains(_active) ? Icons.terminal : Icons.folder_open, color: Colors.amberAccent, size: 22)),
               if (_sessions.length < _maxSessions) IconButton(tooltip: 'Nueva sesión', onPressed: _addSession, icon: const Icon(Icons.add, color: Colors.greenAccent, size: 22)),

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
-import 'package:flutter_pty/flutter_pty.dart';
 import 'package:xterm/xterm.dart';
 import 'package:dartssh2/dartssh2.dart';
 import '../ssh/ssh_host.dart';
@@ -33,17 +32,15 @@ class TerminalSession {
   final ScrollController scrollController = ScrollController();
   final TerminalRecorder recorder;
 
-  /// Si no es null, esta sesión es SSH a este host; si es null, es el
-  /// shell local de Android. En el objeto sesión, no en un mapa por
-  /// índice: sobrevive si se cierran otras pestañas.
-  final SshHost? sourceHost;
+  /// Host remoto al que se conecta esta sesión (siempre SSH; el shell
+  /// local fue eliminado en v2.0.0 por no aportar funcionalidad real).
+  final SshHost sourceHost;
 
   /// Contraseña guardada (Keystore) para hosts sin clave. La inyecta el
   /// view antes de start(); si es null y el servidor pide contraseña, la
   /// autenticación falla con mensaje claro en pantalla.
   final String? password;
 
-  Pty? _pty;
   SSHClient? _ssh;
   SSHSession? _shell;
   bool _started = false;
@@ -53,11 +50,11 @@ class TerminalSession {
   /// (la conexión es async): se encola y se vuelca al conectar.
   final List<String> _pendingOutput = <String>[];
 
-  TerminalSession(this.name, {this.sourceHost, this.password})
+  TerminalSession(this.name, {required this.sourceHost, this.password})
       : recorder = TerminalRecorder(label: name);
 
   bool get isStarted => _started;
-  bool get isSsh => sourceHost != null;
+  bool get isSsh => true;
 
   /// Arranca el transporte con el tamaño dado. Idempotente.
   void start({required int columns, required int rows}) {
@@ -68,7 +65,6 @@ class TerminalSession {
     unawaited(recorder.startSession(AppPaths.base));
 
     terminal.onResize = (w, h, pw, ph) {
-      _pty?.resize(h, w);
       _shell?.resizeTerminal(w, h);
     };
     // Único punto de entrada del teclado: el transporte puede no estar
@@ -76,19 +72,10 @@ class TerminalSession {
     // la conexión se encola y se vuelca al abrirse la shell.
     terminal.onOutput = _handleOutput;
 
-    if (isSsh) {
-      unawaited(_startSsh(columns, rows));
-    } else {
-      _startLocal(columns, rows);
-    }
+    unawaited(_startSsh(columns, rows));
   }
 
   void _handleOutput(String data) {
-    final pty = _pty;
-    if (pty != null) {
-      pty.write(const Utf8Encoder().convert(data));
-      return;
-    }
     final shell = _shell;
     if (shell != null) {
       shell.write(utf8.encode(data));
@@ -97,35 +84,11 @@ class TerminalSession {
     _pendingOutput.add(data);
   }
 
-  // ── Transporte LOCAL: /system/bin/sh ────────────────────────────────
-
-  void _startLocal(int columns, int rows) {
-    terminal.write(
-        '\x1b[33mXTR local — shell de Android (toybox), sin Debian.\x1b[0m\r\n'
-        '\x1b[90mComandos básicos: cd, ls, cat, ps... Para un entorno completo, conecta por SSH.\x1b[0m\r\n\r\n');
-    final home = AppPaths.base;
-    unawaited(Directory('$home/tmp').create(recursive: true));
-    final pty = Pty.start(
-      '/system/bin/sh',
-      environment: {
-        'HOME': home,
-        'PATH': '/system/bin:/system/xbin',
-        'TERM': 'xterm-256color',
-        'TMPDIR': '$home/tmp',
-        'PREFIX': home,
-      },
-      workingDirectory: home,
-      rows: rows > 0 ? rows : 24,
-      columns: columns > 0 ? columns : 80,
-    );
-    _pty = pty;
-    _wirePty(pty);
-  }
 
   // ── Transporte SSH: dartssh2 ────────────────────────────────────────
 
   Future<void> _startSsh(int columns, int rows) async {
-    final host = sourceHost!;
+    final host = sourceHost;
     terminal.write('\x1b[90mConectando a ${host.username}@${host.hostname}:${host.port}...\x1b[0m\r\n');
     try {
       final socket = await SSHSocket.connect(host.hostname, host.port)
@@ -246,25 +209,6 @@ class TerminalSession {
     } catch (_) {}
   }
 
-  // ── Cableado común del PTY local ────────────────────────────────────
-
-  void _wirePty(Pty pty) {
-    pty.output
-        .cast<List<int>>()
-        .transform(const Utf8Decoder())
-        .listen((data) {
-      terminal.write(data);
-      recorder.feed(data);
-    });
-
-    // onOutput lo pone start() (_handleOutput): escribe al PTY si existe.
-
-    pty.exitCode.then((code) {
-      if (!_closed) {
-        terminal.write('\r\n\x1b[90m[sesión finalizada, código $code]\x1b[0m\r\n');
-      }
-    });
-  }
 
   /// Reinicia el transporte de esta sesión.
   void restart({required int columns, required int rows}) {
@@ -277,10 +221,6 @@ class TerminalSession {
 
   void _killTransport() {
     _closed = true;
-    try {
-      _pty?.kill();
-    } catch (_) {}
-    _pty = null;
     try {
       _shell?.close();
     } catch (_) {}

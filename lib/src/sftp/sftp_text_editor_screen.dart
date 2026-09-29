@@ -59,6 +59,9 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
   String? _error;
   String _encoding = '';
   int _size = 0;
+  bool _wrap = true;
+  bool _showSearch = false;
+  final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -70,6 +73,7 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -239,6 +243,18 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
                 child: Icon(Icons.circle, size: 8, color: _C.accent),
               ),
             IconButton(
+              tooltip: 'Buscar',
+              icon: const Icon(Icons.search),
+              color: _C.textLo,
+              onPressed: () => setState(() => _showSearch = !_showSearch),
+            ),
+            IconButton(
+              tooltip: 'Ajuste de linea',
+              icon: Icon(_wrap ? Icons.wrap_text : Icons.notes),
+              color: _C.textLo,
+              onPressed: () => setState(() => _wrap = !_wrap),
+            ),
+            IconButton(
               tooltip: 'Guardar',
               icon: const Icon(Icons.save_outlined),
               color: (_dirty && !_saving && _loaded) ? _C.ok : _C.textLo,
@@ -313,10 +329,11 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
     }
     return Column(
       children: [
+        if (_showSearch) _buildSearchBar(),
         Expanded(
           child: TextField(
             controller: _controller,
-            maxLines: null,
+            maxLines: _wrap ? null : 1,
             expands: true,
             keyboardType: TextInputType.multiline,
             textAlignVertical: TextAlignVertical.top,
@@ -352,5 +369,54 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      color: _C.card,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchCtrl,
+              autofocus: true,
+              style: const TextStyle(color: _C.textHi, fontSize: 13),
+              decoration: const InputDecoration(
+                hintText: 'Buscar...',
+                hintStyle: TextStyle(color: _C.textLo),
+                border: InputBorder.none,
+                isDense: true,
+              ),
+              onSubmitted: (_) => _findNext(),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.keyboard_return, size: 18, color: _C.accent),
+            tooltip: 'Siguiente',
+            onPressed: _findNext,
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18, color: _C.textLo),
+            tooltip: 'Cerrar busqueda',
+            onPressed: () => setState(() => _showSearch = false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _findNext() {
+    final q = _searchCtrl.text;
+    if (q.isEmpty) return;
+    final text = _controller.text;
+    final start = _controller.selection.baseOffset < 0 ? 0 : _controller.selection.baseOffset;
+    var i = text.indexOf(q, start);
+    if (i < 0) i = text.indexOf(q);
+    if (i < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sin resultados')));
+      return;
+    }
+    _controller.selection = TextSelection(baseOffset: i, extentOffset: i + q.length);
   }
 }
