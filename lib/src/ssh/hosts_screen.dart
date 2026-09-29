@@ -11,6 +11,7 @@ import 'multi_exec_screen.dart';
 import 'identity_screen.dart';
 import 'identity_service.dart';
 import 'snippets_screen.dart';
+import 'tunnels_screen.dart';
 import 'ssh_credentials_store.dart';
 import '../storage/app_paths.dart';
 import '../sftp/sftp_browser_screen.dart';
@@ -194,8 +195,15 @@ class _HostsScreenState extends State<HostsScreen> {
             onSelected: (val) {
               if (val == 'export') _exportHosts();
               if (val == 'import') _importHosts();
+              if (val == 'tunnels') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TunnelsScreen()),
+                );
+              }
             },
             itemBuilder: (ctx) => [
+              const PopupMenuItem(value: 'tunnels', child: Text('Tuneles SSH (port forwarding)', style: TextStyle(color: _C.textHi))),
               const PopupMenuItem(value: 'export', child: Text('Exportar hosts a fichero', style: TextStyle(color: _C.textHi))),
               const PopupMenuItem(value: 'import', child: Text('Importar hosts de fichero', style: TextStyle(color: _C.textHi))),
             ],
