@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.2.0 (2026-09-29)
+
+### Identidad SSH automatizada (adios a teclear claves)
+- Par de claves Ed25519 generado en el dispositivo (formato OpenSSH openssh-key-v1), almacenado en el directorio de claves de la app.
+- Pantalla 'Identidad SSH' (icono llave en Hosts): ver/copiar la clave publica, regenerar con confirmacion.
+- Menu de 3 puntos en cada host: 'Enviar clave publica' — pide la contrasena UNA vez, instala la clave en authorized_keys (idempotente, sin duplicados) y a partir de entonces ese host no pide contrasena.
+- Fallback automatico: los hosts sin clave propia intentan autenticar con la identidad de la app (terminal, multi-exec y snippets).
+
+### Snippets de comandos
+- Guarda comandos reutilizables (icono rayo en Hosts), ejecucion con un toque en el host elegido, resultado en dialogo con salida seleccionable.
+
+
 ## v2.1.0 (2026-09-29)
 
 ### Editor potente (reescrito)

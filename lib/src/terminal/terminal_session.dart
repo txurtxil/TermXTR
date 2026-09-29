@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:xterm/xterm.dart';
 import 'package:dartssh2/dartssh2.dart';
 import '../ssh/ssh_host.dart';
+import '../ssh/identity_service.dart';
 import '../storage/app_paths.dart';
 import 'terminal_recorder.dart';
 
@@ -103,6 +104,10 @@ class TerminalSession {
         } else {
           terminal.write('\x1b[33m[aviso: no se encuentra la clave $keyPath]\x1b[0m\r\n');
         }
+      }
+
+      if (identities == null) {
+        identities = await IdentityService.loadIdentity();
       }
 
       final knownHosts = await _loadKnownHosts();

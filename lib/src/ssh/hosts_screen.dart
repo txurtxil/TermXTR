@@ -8,6 +8,9 @@ import 'package:share_plus/share_plus.dart';
 import 'ssh_host.dart';
 import 'ssh_hosts_service.dart';
 import 'multi_exec_screen.dart';
+import 'identity_screen.dart';
+import 'identity_service.dart';
+import 'snippets_screen.dart';
 import 'ssh_credentials_store.dart';
 import '../storage/app_paths.dart';
 import '../sftp/sftp_browser_screen.dart';
@@ -148,6 +151,26 @@ class _HostsScreenState extends State<HostsScreen> {
         iconTheme: const IconThemeData(color: _C.textHi),
         actions: [
           IconButton(
+            tooltip: 'Identidad SSH (claves sin password)',
+            icon: const Icon(Icons.vpn_key, color: _C.textLo),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const IdentityScreen()),
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'Snippets de comandos',
+            icon: const Icon(Icons.electric_bolt, color: _C.textLo),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SnippetsScreen()),
+              );
+            },
+          ),
+          IconButton(
             tooltip: 'Ejecutar comando en varios hosts',
             icon: const Icon(Icons.playlist_play, color: _C.textLo),
             onPressed: () {
@@ -261,10 +284,91 @@ class _HostsScreenState extends State<HostsScreen> {
                 ],
               ),
             const Icon(Icons.chevron_right, color: _C.textLo),
+            PopupMenuButton<String>(
+              iconColor: _C.textLo,
+              onSelected: (v) {
+                if (v == 'sendkey') _sendKeyToHost(h);
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                    value: 'sendkey',
+                    child: Text('Enviar clave publica (sin password despues)')),
+              ],
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _sendKeyToHost(SshHost h) async {
+    String? pwd = await SshCredentialsStore.readPassword(h.id);
+    pwd ??= await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final c = TextEditingController();
+        return AlertDialog(
+          backgroundColor: _C.card,
+          title: Text('Contrasena de \${h.name}',
+              style: const TextStyle(color: _C.textHi, fontSize: 15)),
+          content: TextField(
+            controller: c,
+            obscureText: true,
+            autofocus: true,
+            style: const TextStyle(color: _C.textHi),
+            decoration: const InputDecoration(
+                labelText: 'Se usa una sola vez para instalar la clave',
+                labelStyle: TextStyle(color: _C.textLo)),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, c.text),
+                child: const Text('Instalar')),
+          ],
+        );
+      },
+    );
+    if (pwd == null || pwd.isEmpty) return;
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        backgroundColor: _C.card,
+        content: Row(
+          children: [
+            SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: _C.accent)),
+            SizedBox(width: 16),
+            Text('Instalando clave...',
+                style: TextStyle(color: _C.textHi)),
+          ],
+        ),
+      ),
+    );
+    try {
+      await IdentityService.installKeyToHost(h, password: pwd);
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'Clave instalada en \${h.name}: ya no pedira contrasena'),
+        backgroundColor: const Color(0xFF34C759),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Error: \$e'),
+        backgroundColor: const Color(0xFFFF453A),
+      ));
+    }
   }
 
   Future<bool> _confirmDelete(SshHost h) async {

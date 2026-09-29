@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import '../storage/app_paths.dart';
 import 'ssh_hosts_service.dart';
 import 'ssh_credentials_store.dart';
+import 'identity_service.dart';
 import 'ssh_host.dart';
 
 class _C {
@@ -88,6 +89,7 @@ class _MultiExecScreenState extends State<MultiExecScreen> {
       }
       String? pwd;
       if (identities == null) {
+        identities = await IdentityService.loadIdentity();
         pwd = await SshCredentialsStore.readPassword(host.id);
       }
       final client = SSHClient(
