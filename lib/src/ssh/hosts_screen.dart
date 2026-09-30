@@ -13,6 +13,7 @@ import 'identity_service.dart';
 import 'snippets_screen.dart';
 import 'tunnels_screen.dart';
 import '../sftp/transfers_screen.dart';
+import 'power_service.dart';
 import 'ssh_credentials_store.dart';
 import '../storage/app_paths.dart';
 import '../sftp/sftp_browser_screen.dart';
@@ -338,17 +339,263 @@ class _HostsScreenState extends State<HostsScreen> {
               iconColor: _C.textLo,
               onSelected: (v) {
                 if (v == 'sendkey') _sendKeyToHost(h);
+                if (v == 'jump') _pickJumpHost(h);
+                if (v == 'unjump') _clearJump(h);
+                if (v == 'shutdown') _powerAction(h, false);
+                if (v == 'reboot') _powerAction(h, true);
+                if (v == 'prep-power') _preparePower(h);
+                if (v == 'setmac') _setMac(h);
+                if (v == 'wake') _wake(h);
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem(
+              itemBuilder: (_) => [
+                const PopupMenuItem(
                     value: 'sendkey',
                     child: Text('Enviar clave publica (sin password despues)')),
+                const PopupMenuItem(
+                    value: 'jump',
+                    child: Text('Conectar a traves de... (ProxyJump)')),
+                if (h.jumpHostId != null)
+                  const PopupMenuItem(
+                      value: 'unjump', child: Text('Quitar salto ProxyJump')),
+                const PopupMenuItem(
+                    value: 'shutdown', child: Text('Apagar equipo')),
+                const PopupMenuItem(
+                    value: 'reboot', child: Text('Reiniciar equipo')),
+                const PopupMenuItem(
+                    value: 'prep-power',
+                    child: Text('Preparar apagado sin contrasena (una vez)')),
+                if (h.macAddress == null)
+                  const PopupMenuItem(
+                      value: 'setmac',
+                      child: Text('Guardar MAC (Wake-on-LAN)')),
+                if (h.macAddress != null) ...[
+                  const PopupMenuItem(
+                      value: 'wake', child: Text('Encender (Wake-on-LAN)')),
+                  const PopupMenuItem(
+                      value: 'setmac', child: Text('Cambiar MAC')),
+                ],
               ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _wake(SshHost h) async {
+    if (h.macAddress == null || h.macAddress!.isEmpty) return;
+    final ok = await PowerService.wakeOnLan(h.macAddress!, ip: h.hostname);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok
+          ? 'Magic packet enviado a ${h.macAddress} (LAN: puede tardar unos segundos)'
+          : 'No se pudo enviar el magic packet'),
+      backgroundColor: ok ? const Color(0xFF34C759) : const Color(0xFFFF453A),
+    ));
+  }
+
+  Future<void> _setMac(SshHost h) async {
+    final c = TextEditingController(text: h.macAddress ?? '');
+    final mac = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _C.card,
+        title: const Text('MAC para Wake-on-LAN',
+            style: TextStyle(color: _C.textHi, fontSize: 15)),
+        content: TextField(
+          controller: c,
+          autofocus: true,
+          style: const TextStyle(color: _C.textHi),
+          decoration: const InputDecoration(
+              hintText: 'AA:BB:CC:DD:EE:FF',
+              hintStyle: TextStyle(color: _C.textLo)),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, c.text.trim()),
+              child: const Text('Guardar')),
+        ],
+      ),
+    );
+    if (mac == null) return;
+    if (mac.isNotEmpty &&
+        !RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$').hasMatch(mac)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('MAC invalida (usa AA:BB:CC:DD:EE:FF)')));
+      return;
+    }
+    await SshHostsService.instance
+        .update(h.copyWith(macAddress: mac.isEmpty ? null : mac));
+    await SshHostsService.instance.loadFrom(AppPaths.base);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _preparePower(SshHost h) async {
+    final c = TextEditingController();
+    final pwd = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _C.card,
+        title: Text('Contrasena sudo de ${h.name}',
+            style: const TextStyle(color: _C.textHi, fontSize: 15)),
+        content: TextField(
+          controller: c,
+          obscureText: true,
+          autofocus: true,
+          style: const TextStyle(color: _C.textHi),
+          decoration: const InputDecoration(
+              labelText: 'Se usa una sola vez',
+              labelStyle: TextStyle(color: _C.textLo)),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, c.text),
+              child: const Text('Instalar')),
+        ],
+      ),
+    );
+    if (pwd == null || pwd.isEmpty || !mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        backgroundColor: _C.card,
+        content: Row(
+          children: [
+            SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: _C.accent)),
+            SizedBox(width: 16),
+            Text('Instalando regla sudo...',
+                style: TextStyle(color: _C.textHi)),
+          ],
+        ),
+      ),
+    );
+    final r = await PowerService.preparePasswordless(h, password: pwd);
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(r.ok
+          ? 'Listo: ${h.name} se apaga/reinicia sin contrasena'
+          : 'Error: ${r.message}'),
+      backgroundColor:
+          r.ok ? const Color(0xFF34C759) : const Color(0xFFFF453A),
+    ));
+  }
+
+  Future<void> _powerAction(SshHost h, bool reboot) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _C.card,
+        title: Text(reboot ? 'Reiniciar ${h.name}' : 'Apagar ${h.name}',
+            style: const TextStyle(color: _C.textHi)),
+        content: Text(
+            reboot
+                ? 'El equipo se reiniciara ahora.'
+                : 'El equipo se apagara ahora.',
+            style: const TextStyle(color: _C.textLo)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF453A)),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(reboot ? 'Reiniciar' : 'Apagar')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        backgroundColor: _C.card,
+        content: Row(
+          children: [
+            const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: _C.accent)),
+            const SizedBox(width: 16),
+            Text(reboot ? 'Reiniciando...' : 'Apagando...',
+                style: const TextStyle(color: _C.textHi)),
+          ],
+        ),
+      ),
+    );
+    final r =
+        reboot ? await PowerService.reboot(h) : await PowerService.shutdown(h);
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(r.ok ? r.message : 'Error: ${r.message}'),
+      backgroundColor:
+          r.ok ? const Color(0xFF34C759) : const Color(0xFFFF453A),
+    ));
+  }
+
+  Future<void> _clearJump(SshHost h) async {
+    await SshHostsService.instance
+        .update(h.copyWith(clearJump: true));
+    await SshHostsService.instance.loadFrom(AppPaths.base);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _pickJumpHost(SshHost h) async {
+    await SshHostsService.instance.loadFrom(AppPaths.base);
+    final hosts = SshHostsService.instance.hosts
+        .where((x) => x.id != h.id)
+        .toList();
+    if (hosts.isEmpty) return;
+    final jump = await showDialog<SshHost>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        backgroundColor: _C.card,
+        title: Text('Salto para ${h.name} (ProxyJump)',
+            style: const TextStyle(color: _C.textHi)),
+        children: [
+          for (final x in hosts)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, x),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(x.name,
+                        style: const TextStyle(color: _C.textHi)),
+                    Text(
+                        '${x.username}@${x.hostname}${x.port != 22 ? ':${x.port}' : ''}',
+                        style: const TextStyle(
+                            color: _C.textLo, fontSize: 11)),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (jump == null) return;
+    await SshHostsService.instance
+        .update(h.copyWith(jumpHostId: jump.id));
+    await SshHostsService.instance.loadFrom(AppPaths.base);
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('${h.name} ahora conecta a traves de ${jump.name}')));
   }
 
   Future<void> _sendKeyToHost(SshHost h) async {

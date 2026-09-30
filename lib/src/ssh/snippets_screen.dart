@@ -163,7 +163,8 @@ class _SnippetsScreenState extends State<SnippetsScreen> {
   Future<String> _runOn(SshHost host, String command) async {
     SSHSocket? socket;
     try {
-      socket = await SSHSocket.connect(host.hostname, host.port)
+if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('\${host.name} usa ProxyJump: usalo desde la terminal');
+            socket = await SSHSocket.connect(host.hostname, host.port)
           .timeout(const Duration(seconds: 12));
       List<SSHKeyPair>? identities;
       final keyPath = host.keyPath;

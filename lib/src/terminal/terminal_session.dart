@@ -7,6 +7,8 @@ import 'package:dartssh2/dartssh2.dart';
 import '../ssh/ssh_host.dart';
 import '../ssh/identity_service.dart';
 import 'command_history.dart';
+import '../ssh/ssh_credentials_store.dart';
+import '../ssh/ssh_hosts_service.dart';
 import '../storage/app_paths.dart';
 import 'terminal_recorder.dart';
 
@@ -151,13 +153,69 @@ class TerminalSession {
 
   // ── Transporte SSH: dartssh2 ────────────────────────────────────────
 
+  /// Abre un canal direct-tcpip hacia [host] a traves de su host salto.
+  /// El cliente del salto se cierra solo cuando el canal muere.
+  Future<SSHSocket> _openJumpChannel(SshHost host) async {
+    final jumpId = host.jumpHostId!;
+    SshHost? jump;
+    for (final h in SshHostsService.instance.hosts) {
+      if (h.id == jumpId) {
+        jump = h;
+        break;
+      }
+    }
+    if (jump == null) throw StateError('Host salto no encontrado');
+
+    final jumpSocket = await SSHSocket.connect(jump.hostname, jump.port)
+        .timeout(const Duration(seconds: 12));
+    List<SSHKeyPair>? jumpIdentities;
+    final jk = jump.keyPath;
+    if (jk != null && jk.trim().isNotEmpty) {
+      final jf = await AppPaths.resolveKey(jk.trim());
+      if (jf != null) {
+        jumpIdentities = SSHKeyPair.fromPem(await jf.readAsString());
+      }
+    }
+    String? jumpPwd;
+    if (jumpIdentities == null) {
+      jumpIdentities = await IdentityService.loadIdentity();
+      jumpPwd = await SshCredentialsStore.readPassword(jump.id);
+    }
+    final jumpClient = SSHClient(
+      jumpSocket,
+      username: jump.username,
+      identities: jumpIdentities,
+      onPasswordRequest: () async => jumpPwd,
+      onVerifyHostKey: (t, f) async => true,
+      keepAliveInterval: const Duration(seconds: 15),
+      handshakeTimeout: const Duration(seconds: 15),
+      authTimeout: const Duration(seconds: 15),
+    );
+    final channel =
+        await jumpClient.forwardLocal(host.hostname, host.port);
+    unawaited(channel.done.whenComplete(() {
+      try {
+        jumpClient.close();
+      } catch (_) {}
+    }));
+    return channel;
+  }
+
   Future<void> _startSsh(int columns, int rows) async {
     final host = sourceHost;
     unawaited(CommandHistory.load(host.id));
     terminal.write('\x1b[90mConectando a ${host.username}@${host.hostname}:${host.port}...\x1b[0m\r\n');
     try {
-      final socket = await SSHSocket.connect(host.hostname, host.port)
-          .timeout(const Duration(seconds: 12));
+      // v2.7.0: ProxyJump — el transporte puede ser un canal direct-tcpip
+      // a traves del host salto (SSHForwardChannel implementa SSHSocket).
+      late SSHSocket socket;
+      if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) {
+        terminal.write('\x1b[90m[proxyjump]\x1b[0m\r\n');
+        socket = await _openJumpChannel(host);
+      } else {
+        socket = await SSHSocket.connect(host.hostname, host.port)
+            .timeout(const Duration(seconds: 12));
+      }
 
       List<SSHKeyPair>? identities;
       final keyPath = host.keyPath;

@@ -1,5 +1,26 @@
 # Changelog
 
+## v2.8.0 (2026-09-30)
+
+### Gestión de energía remota
+- Menú de cada host: "Apagar equipo" y "Reiniciar equipo" (con
+  confirmación) vía SSH + sudo.
+- "Preparar apagado sin contraseña (una vez)": instala la regla sudoers
+  NOPASSWD (/etc/sudoers.d/termxtr-power) usando la contraseña una sola
+  vez; después apagar/reiniciar no pide nada.
+- Detección de éxito: si la conexión se corta, el comando se aplicó.
+
+### Wake-on-LAN (preparado para usar)
+- Guardar la MAC del equipo en su perfil (menú del host, validada).
+- "Encender (Wake-on-LAN)": magic packet UDP (x2) por broadcast o IP
+  dirigida. Requiere estar en la LAN del equipo (o reenvío de puertos).
+
+### v2.7.0 (incluido en este release)
+- ProxyJump: "Conectar a través de..." en el menú del host; el transporte
+  es un canal direct-tcpip por el host salto. Solo en terminal por ahora
+  (los otros motores avisan con mensaje claro).
+
+
 ## v2.6.0 (2026-09-29)
 
 ### Transferencias entre equipos con telemetría en vivo
