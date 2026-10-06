@@ -33,3 +33,4 @@ __pycache__/
 *.key
 *.bak_android
 *.backup
+rootfs_local/
