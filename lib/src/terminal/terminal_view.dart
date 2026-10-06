@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
@@ -29,7 +30,7 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
   final List<TerminalSession> _sessions = [];
   int _activeIndex = 0;
   static const int _maxSessions = 5;
-  static const String _appVersion = 'v14.24';
+  static const String _appVersion = 'v2.9.0';
 
   // Canal con el lado nativo para el widget de escritorio (XTR Hosts).
   static const MethodChannel _widgetCh = MethodChannel('xtr/widget');
@@ -93,7 +94,9 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
       // Android mata el proceso al minimizar y las sesiones mueren con el
       // (el ServerAliveInterval no sirve si el proceso ya no existe).
       _keepAlive = prefs.getBool('keepAliveService') ?? true;
-      if (_keepAlive) {
+      // KeepAlive y widget son Android-only: en Windows no existe el canal
+      // nativo (MissingPluginException) y el proceso no lo necesita.
+      if (_keepAlive && Platform.isAndroid) {
         try { await _keepAliveCh.invokeMethod('start'); } catch (_) {}
       }
 
@@ -106,7 +109,7 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
       await ClipboardVault.instance.loadFrom(AppPaths.base);
       await SshHostsService.instance.loadFrom(AppPaths.base);
       await SftpFavoritesService.instance.loadFrom(AppPaths.base);
-      _initWidgetChannel();
+      if (Platform.isAndroid) _initWidgetChannel();
 
       await Future.delayed(const Duration(milliseconds: 300));
       if (!mounted) return;
@@ -318,26 +321,28 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
                     setModalState(() => _showHostsOnStartup = value);
                   },
                 ),
-                SwitchListTile(
-                  activeColor: Colors.greenAccent, secondary: const Icon(Icons.bolt, color: Colors.greenAccent),
-                  title: const Text('Mantener sesiones en 2º plano', style: TextStyle(color: Colors.white)), subtitle: const Text('Servicio en primer plano + wake lock (notificación persistente)', style: TextStyle(color: Colors.white54)),
-                  value: _keepAlive,
-                  onChanged: (bool value) async {
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool('keepAliveService', value);
-                    try { await _keepAliveCh.invokeMethod(value ? 'start' : 'stop'); } catch (_) {}
-                    setState(() => _keepAlive = value);
-                    setModalState(() => _keepAlive = value);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.battery_saver, color: Colors.orangeAccent),
-                  title: const Text('Excluir de optimización de batería', style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Evita que Android/Samsung mate la app en segundo plano', style: TextStyle(color: Colors.white54)),
-                  onTap: () async {
-                    try { await _keepAliveCh.invokeMethod('batterySettings'); } catch (_) {}
-                  },
-                ),
+                if (Platform.isAndroid)
+                  SwitchListTile(
+                    activeColor: Colors.greenAccent, secondary: const Icon(Icons.bolt, color: Colors.greenAccent),
+                    title: const Text('Mantener sesiones en 2º plano', style: TextStyle(color: Colors.white)), subtitle: const Text('Servicio en primer plano + wake lock (notificación persistente)', style: TextStyle(color: Colors.white54)),
+                    value: _keepAlive,
+                    onChanged: (bool value) async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool('keepAliveService', value);
+                      try { await _keepAliveCh.invokeMethod(value ? 'start' : 'stop'); } catch (_) {}
+                      setState(() => _keepAlive = value);
+                      setModalState(() => _keepAlive = value);
+                    },
+                  ),
+                if (Platform.isAndroid)
+                  ListTile(
+                    leading: const Icon(Icons.battery_saver, color: Colors.orangeAccent),
+                    title: const Text('Excluir de optimización de batería', style: TextStyle(color: Colors.white)),
+                    subtitle: const Text('Evita que Android/Samsung mate la app en segundo plano', style: TextStyle(color: Colors.white54)),
+                    onTap: () async {
+                      try { await _keepAliveCh.invokeMethod('batterySettings'); } catch (_) {}
+                    },
+                  ),
                 const SizedBox(height: 8),
               ],
             );

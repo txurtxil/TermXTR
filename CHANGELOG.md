@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.9.0 (2026-10-07)
+
+### Versión Windows de escritorio
+- La app compila y corre en Windows: mismo gestor de hosts SSH/SFTP,
+  pestañas, editor SFTP, grabadora, portapapeles, keybar, sugerencia
+  fantasma, ProxyJump, historial por host, transferencias y backup.
+- Ajustes de Android (keepalive, optimización de batería) y widget de
+  escritorio ocultos automáticamente fuera de Android; los canales
+  nativos no se tocan en Windows (sin MissingPluginException).
+- Build del binario Windows vía GitHub Actions (runner windows-latest):
+  al etiquetar v* se genera `termxtr-windows-<tag>.zip` y se adjunta a
+  la release. Descomprimir y ejecutar `linux_container.exe` (SmartScreen:
+  «Más información → Ejecutar de todas formas», binario sin firmar).
+- Los datos viven en `%APPDATA%\com.example\linux_container\xtr`; los
+  JSON de backup de hosts de Android se importan igual.
+
+
 ## v2.8.0 (2026-09-30)
 
 ### Gestión de energía remota

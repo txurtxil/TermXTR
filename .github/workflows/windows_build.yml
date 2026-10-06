@@ -1,0 +1,67 @@
+# TermXTR — build de escritorio Windows.
+# Se dispara al empujar un tag v* (la release de Android la crea quien
+# etiqueta; este workflow crea la release si aun no existe y adjunta el
+# zip de Windows). El binario Windows NO se puede compilar desde Linux.
+name: windows_build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # El repo solo tenia la plataforma Android. flutter create es
+      # ADITIVO: genera windows/ (runner, CMake, icons) sin tocar lib/.
+      - name: Generar runner de Windows
+        run: flutter create --platforms windows --project-name linux_container .
+
+      - name: Dependencias
+        run: flutter pub get
+
+      - name: Compilar (release)
+        run: flutter build windows --release
+
+      - name: Empaquetar
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $dest = "termxtr-windows-$tag"
+          Copy-Item "build/windows/x64/runner/Release" -Recurse -Destination $dest
+          Compress-Archive -Path $dest -DestinationPath "$dest.zip"
+
+      # La release puede no existir aun: la creamos con el zip; si existe,
+      # subimos con --clobber. Reintentos por si la creo otro proceso.
+      - name: Publicar en la release del tag
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $zip = "termxtr-windows-$tag.zip"
+          $ok = $false
+          for ($i = 1; $i -le 6; $i++) {
+            gh release view $tag --repo txurtxil/TermXTR 2>$null
+            if ($LASTEXITCODE -eq 0) {
+              gh release upload $tag $zip --clobber --repo txurtxil/TermXTR
+            } else {
+              gh release create $tag $zip --title "TermXTR $tag" --repo txurtxil/TermXTR `
+                --notes "Version Windows: descomprime y ejecuta linux_container.exe"
+            }
+            if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+            Write-Host "Reintento $i/6..."
+            Start-Sleep -Seconds 20
+          }
+          if (-not $ok) { exit 1 }
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

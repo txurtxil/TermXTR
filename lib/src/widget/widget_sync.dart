@@ -11,6 +11,7 @@
 // romper la app.
 
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,6 +23,9 @@ class WidgetSync {
   static const MethodChannel _ch = MethodChannel('xtr/widget');
 
   static Future<void> push() async {
+    // El widget de escritorio solo existe en Android: fuera de ahí ni se
+    // escribe el espejo ni se toca el canal (no existe el plugin nativo).
+    if (!Platform.isAndroid) return;
     try {
       final hosts = SshHostsService.instance.hosts
           .map((h) => <String, dynamic>{
