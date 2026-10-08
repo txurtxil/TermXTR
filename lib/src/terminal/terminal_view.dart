@@ -586,7 +586,8 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
                     final data = await Clipboard.getData(Clipboard.kTextPlain);
                     if (data?.text != null && data!.text!.isNotEmpty) s.terminal.textInput(data.text!);
                   }, onSelectAll: _selectAll,
-                  child: TerminalView(s.terminal, key: viewKey, controller: s.controller, focusNode: focusNode, autofocus: true, backgroundOpacity: 1.0, deleteDetection: true, keyboardType: TextInputType.visiblePassword, scrollController: s.scrollController, textStyle: TerminalStyle(fontSize: _fontSize, fontFamily: 'monospace')),
+                  child: TerminalView(s.terminal, key: viewKey, controller: s.controller, focusNode: focusNode, autofocus: true, backgroundOpacity: 1.0, deleteDetection: true, keyboardType: TextInputType.visiblePassword, hardwareKeyboardOnly: Platform.isWindows, // v2.9.0: en Windows el IME no entrega caracteres; fuerza listener de teclado fisico. En Android sigue false (teclado virtual por InputConnection).
+                  scrollController: s.scrollController, textStyle: TerminalStyle(fontSize: _fontSize, fontFamily: 'monospace')),
                 ),
               );
 
