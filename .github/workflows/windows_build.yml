@@ -34,6 +34,20 @@ jobs:
       - name: Compilar (release)
         run: flutter build windows --release
 
+      # El exe enlaza contra el runtime de Visual C++ (MSVCP140...), que
+      # existe en el runner pero NO en un Windows limpio: sin esto el
+      # usuario ve "no se encontro MSVCP140.dll". Se copian junto al exe
+      # para que funcione con doble click sin instalar ningun redist.
+      - name: Incluir runtime de Visual C++
+        shell: pwsh
+        run: |
+          $rel = "build/windows/x64/runner/Release"
+          foreach ($dll in @("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll")) {
+            $src = "C:\Windows\System32\$dll"
+            if (Test-Path $src) { Copy-Item $src $rel } else { Write-Host "AVISO: no esta $dll" }
+          }
+          Get-ChildItem $rel -Filter *.dll | Select-Object -ExpandProperty Name
+
       - name: Empaquetar
         shell: pwsh
         run: |
