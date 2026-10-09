@@ -17,9 +17,12 @@ class SshHost {
   /// v2.8.0: MAC del equipo, para Wake-on-LAN (formato AA:BB:CC:DD:EE:FF).
   String? macAddress;
 
+  /// v2.10.0: grupo de hosts (ej. 'Desarrollo', 'Producción'). null = sin grupo.
+  String? group;
+
   SshHost({
     required this.id, required this.name, required this.hostname, this.port = 22,
-    required this.username, this.keyPath, this.initialPath, this.osTag = 'generic', this.lastUsed, this.jumpHostId, this.macAddress,
+    required this.username, this.keyPath, this.initialPath, this.osTag = 'generic', this.lastUsed, this.jumpHostId, this.macAddress, this.group,
   });
 
   // v14.24: los comandos shell (toSshCommand/sshpass) desaparecen con el
@@ -33,6 +36,7 @@ class SshHost {
         if (initialPath != null && initialPath!.isNotEmpty) 'initialPath': initialPath,
       if (jumpHostId != null && jumpHostId!.isNotEmpty) 'jumpHostId': jumpHostId,
       if (macAddress != null && macAddress!.isNotEmpty) 'macAddress': macAddress,
+        if (group != null && group!.isNotEmpty) 'group': group,
         'osTag': osTag, if (lastUsed != null) 'lastUsed': lastUsed!.toIso8601String(),
       };
 
@@ -48,11 +52,12 @@ class SshHost {
         lastUsed: j['lastUsed'] != null ? DateTime.tryParse(j['lastUsed'] as String) : null,
         jumpHostId: j['jumpHostId'] as String?,
         macAddress: j['macAddress'] as String?,
+        group: j['group'] as String?,
       );
 
   SshHost copyWith({
     String? name, String? hostname, int? port, String? username,
-    String? keyPath, String? initialPath, String? osTag, String? jumpHostId, bool clearJump = false, String? macAddress,
+    String? keyPath, String? initialPath, String? osTag, String? jumpHostId, bool clearJump = false, String? macAddress, String? group, bool clearGroup = false,
   }) {
     return SshHost(
       id: id, name: name ?? this.name, hostname: hostname ?? this.hostname, port: port ?? this.port,
@@ -60,6 +65,7 @@ class SshHost {
       initialPath: initialPath ?? this.initialPath, osTag: osTag ?? this.osTag, lastUsed: lastUsed,
       jumpHostId: clearJump ? null : (jumpHostId ?? this.jumpHostId),
       macAddress: macAddress ?? this.macAddress,
+      group: clearGroup ? null : (group ?? this.group),
     );
   }
 }

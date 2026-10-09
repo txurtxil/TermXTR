@@ -77,7 +77,7 @@ class _MultiExecScreenState extends State<MultiExecScreen> {
     final sw = Stopwatch()..start();
     SSHSocket? socket;
     try {
-if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('\${host.name} usa ProxyJump: usalo desde la terminal');
+if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${host.name} usa ProxyJump: usalo desde la terminal');
             socket = await SSHSocket.connect(host.hostname, host.port)
           .timeout(const Duration(seconds: 12));
       List<SSHKeyPair>? identities;

@@ -1,5 +1,46 @@
 # Changelog
 
+## v2.10.0 (2026-10-09)
+
+### Grupos de hosts
+- Los hosts se organizan en grupos libres ("Desarrollo", "Produccion"...).
+  Los grupos son un campo del host: cero migracion, los hosts existentes
+  quedan en "Sin grupo".
+- Pantalla de hosts: secciones colapsables por grupo con contador y color.
+  Mantener pulsada una cabecera: renombrar, cambiar color, exportar solo
+  ese grupo o eliminarlo (sus hosts pasan a "Sin grupo").
+- Menú del host: "Mover a grupo..." (existente o nuevo). El editor de host
+  tiene desplegable de grupo + boton para crear uno nuevo al vuelo.
+- Boton de carpeta en la AppBar: gestor de grupos (conteo, color, renombre,
+  borrado).
+- Colores por grupo persistentes en ssh_groups.json; si no hay color
+  guardado, se deriva uno determinista del nombre (mismo nombre = mismo
+  color en cualquier dispositivo). El buscador tambien filtra por grupo.
+
+### Backup/export mejorado (esquema v3)
+- Exportar todo o un solo grupo (termxtr_hosts_<grupo>.json).
+- Import con preview: clasifica cada host como nuevo / actualizable (mismo
+  id) / duplicado (misma maquina, otro id) y deja elegir: omitir
+  duplicados, actualizarlos o importar todo como nuevos. Antes de escribir
+  nada.
+- El backup incluye groupMeta (colores) y sigue leyendo backups v2 (sin
+  grupos). Formato versionado: "version": 3.
+
+### Fixes
+- BUG REAL heredado: 5 strings con el escape \$ en el fuente hacian que
+  la interpolacion no ocurriera. El backup v2.4.0 NUNCA exportaba ni
+  restauraba snippets (la ruta '${AppPaths.base}' no interpolaba) y 3
+  textos mostraban '${h.name}' literal. Corregido en hosts_screen.dart;
+  mismo patron corregido en transfer_engine.dart, multi_exec_screen.dart
+  y snippets_screen.dart (mensajes de error).
+
+### Pendiente de probar en dispositivo
+- Crear/mover/renombrar/borrar grupos; colapsar secciones.
+- Exportar por grupo; import de backup v3 con duplicados (las 3
+  estrategias); import de backup v2 antiguo.
+- Backup de snippets de verdad (antes salia vacio siempre).
+
+
 ## v2.9.0 (2026-10-07)
 
 ### Versión Windows de escritorio
