@@ -201,10 +201,15 @@ class TerminalSession {
     return channel;
   }
 
+  /// v2.10.1: 'hostname:puerto' cuando se rechaza la conexion porque la
+  /// huella del host cambio frente a la guardada en known_hosts.
+  String? _hostKeyRejectInfo;
+
   Future<void> _startSsh(int columns, int rows) async {
     final host = sourceHost;
     unawaited(CommandHistory.load(host.id));
     terminal.write('\x1b[90mConectando a ${host.username}@${host.hostname}:${host.port}...\x1b[0m\r\n');
+    _hostKeyRejectInfo = null;
     try {
       // v2.7.0: ProxyJump — el transporte puede ser un canal direct-tcpip
       // a traves del host salto (SSHForwardChannel implementa SSHSocket).
@@ -267,7 +272,9 @@ class TerminalSession {
             await _saveKnownHosts(knownHosts);
             return true;
           }
-          // Huella cambiada: se rechaza (la sesión muere con mensaje).
+          // v2.10.1: huella cambiada -> rechazo explicito; el catch de
+          // _startSsh lo distingue del error generico y explica que hacer.
+          _hostKeyRejectInfo = hostKey;
           return false;
         },
       );
@@ -309,6 +316,12 @@ class TerminalSession {
         _shell!.write(utf8.encode('cd "$initial" 2>/dev/null || cd\n'));
       }
     } catch (e) {
+      if (_hostKeyRejectInfo != null) {
+        terminal.write('\r\n\x1b[31m[conexión rechazada: la huella SSH de $_hostKeyRejectInfo cambió]\x1b[0m\r\n');
+        terminal.write('\x1b[90mSi el servidor fue reinstalado, borra la entrada antigua en Hosts → ⋮ → Hosts conocidos y reconecta.\x1b[0m\r\n');
+        terminal.write('\x1b[90mSi NO esperabas este cambio, no continues: podria ser un ataque (MITM).\x1b[0m\r\n');
+        return;
+      }
       final msg = e.toString().replaceAll('\n', ' ');
       terminal.write('\r\n\x1b[31m[conexión fallida: $msg]\x1b[0m\r\n');
       if (password == null || password!.isEmpty) {

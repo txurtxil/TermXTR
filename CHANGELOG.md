@@ -1,5 +1,24 @@
 # Changelog
 
+## v2.10.1 (2026-10-11)
+
+### Diagnostico de conexiones: huella cambiada vs error generico
+- Cuando la huella SSH del servidor cambia respecto a la guardada, la
+  terminal ahora dice exactamente eso (host:puerto) y como arreglarlo,
+  en vez del enganoso "Connection closed before authentication".
+- Menu Hosts -> ... -> "Hosts conocidos (SSH)": lista las huellas
+  guardadas (accept-new), permite ver la huella completa (tocar), copiarla
+  (mantener) y borrarla. Al reconectar, la entrada se acepta y regenera
+  sola.
+- Contexto: el rechazo ante huella cambiada es intencional (anti-MITM);
+  lo que faltaba era el mensaje claro y la forma de limpiar sin
+  reinstalar la app.
+
+### Pendiente de probar en dispositivo
+- Reproducir el caso real (huella cambiada) y confirmar el mensaje nuevo.
+- Borrar una entrada desde la nueva pantalla y reconectar (accept-new).
+
+
 ## v2.10.0 (2026-10-09)
 
 ### Grupos de hosts
