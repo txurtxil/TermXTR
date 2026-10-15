@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_selector/file_selector.dart';
@@ -13,6 +15,8 @@ import 'identity_service.dart';
 import 'snippets_screen.dart';
 import 'tunnels_screen.dart';
 import 'known_hosts_screen.dart';
+import 'host_map_screen.dart';
+import '../terminal/terminal_session.dart';
 import '../sftp/transfers_screen.dart';
 import 'power_service.dart';
 import 'ssh_credentials_store.dart';
@@ -55,17 +59,43 @@ class _HostsScreenState extends State<HostsScreen> {
   /// v2.10.0: grupos colapsados (clave '' = 'Sin grupo').
   final Set<String> _collapsed = {};
 
+  /// v2.11.0: accesibilidad por host (null = aun sin comprobar).
+  final Map<String, bool> _reach = {};
+  Timer? _reachTimer;
+
   @override
   void initState() {
     super.initState();
     _svc.addListener(_onChange);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkReach());
+    _reachTimer = Timer.periodic(const Duration(seconds: 30), (_) => _checkReach());
   }
 
   @override
   void dispose() {
+    _reachTimer?.cancel();
     _svc.removeListener(_onChange);
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  /// v2.11.0: TCP-check ligero (puerto del host, 2s) para pintar el
+  /// estado de encendido en el icono Wake-on-LAN. No es SSH completo:
+  /// solo comprueba que algo escucha.
+  Future<void> _checkReach() async {
+    for (final h in _svc.hosts) {
+      var ok = false;
+      Socket? s;
+      try {
+        s = await Socket.connect(h.hostname, h.port, timeout: const Duration(seconds: 2));
+        ok = true;
+      } catch (_) {}
+      s?.destroy();
+      if (!mounted) return;
+      if (_reach[h.id] != ok) {
+        setState(() => _reach[h.id] = ok);
+      }
+    }
   }
 
   void _onChange() {
@@ -365,6 +395,12 @@ class _HostsScreenState extends State<HostsScreen> {
             onSelected: (val) {
               if (val == 'export') _exportHosts();
               if (val == 'import') _importHosts();
+              if (val == 'map') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HostMapScreen()),
+                );
+              }
               if (val == 'knownhosts') {
                 Navigator.push(
                   context,
@@ -381,6 +417,7 @@ class _HostsScreenState extends State<HostsScreen> {
             itemBuilder: (ctx) => [
               const PopupMenuItem(value: 'tunnels', child: Text('Tuneles SSH (port forwarding)', style: TextStyle(color: _C.textHi))),
               const PopupMenuItem(value: 'knownhosts', child: Text('Hosts conocidos (SSH)', style: TextStyle(color: _C.textHi))),
+              const PopupMenuItem(value: 'map', child: Text('Mapa de hosts', style: TextStyle(color: _C.textHi))),
               const PopupMenuItem(value: 'export', child: Text('Exportar hosts a fichero', style: TextStyle(color: _C.textHi))),
               const PopupMenuItem(value: 'import', child: Text('Importar hosts de fichero', style: TextStyle(color: _C.textHi))),
             ],
@@ -456,12 +493,30 @@ class _HostsScreenState extends State<HostsScreen> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // v2.10.2: encendido directo desde la fila (solo si hay MAC).
+            // v2.11.0: encendido/apagado segun estado real: verde = el
+            // equipo responde (tap -> apagar, con la confirmacion de
+            // _powerAction), rojo = no responde (tap -> Wake-on-LAN).
             if (h.macAddress != null && h.macAddress!.isNotEmpty)
               IconButton(
-                icon: const Icon(Icons.power_settings_new, color: Color(0xFF34C759), size: 20),
-                tooltip: 'Encender (Wake-on-LAN)',
-                onPressed: () => _wake(h),
+                icon: Icon(
+                  Icons.power_settings_new,
+                  size: 20,
+                  color: _reach[h.id] == true
+                      ? const Color(0xFF34C759)
+                      : _reach[h.id] == false
+                          ? const Color(0xFFFF453A)
+                          : _C.textLo,
+                ),
+                tooltip: _reach[h.id] == true ? 'Apagar equipo' : 'Encender (Wake-on-LAN)',
+                onPressed: () async {
+                  if (_reach[h.id] == true) {
+                    await _powerAction(h, false);
+                  } else {
+                    await _wake(h);
+                    Future.delayed(const Duration(seconds: 10), _checkReach);
+                  }
+                  _checkReach();
+                },
               ),
             if (widget.rootfsPath != null)
               Stack(
@@ -482,6 +537,7 @@ class _HostsScreenState extends State<HostsScreen> {
               iconColor: _C.textLo,
               onSelected: (v) {
                 if (v == 'move') _pickGroup(h);
+                if (v == 'audit') _auditHost(h);
                 if (v == 'sendkey') _sendKeyToHost(h);
                 if (v == 'jump') _pickJumpHost(h);
                 if (v == 'unjump') _clearJump(h);
@@ -495,6 +551,9 @@ class _HostsScreenState extends State<HostsScreen> {
                 const PopupMenuItem(
                     value: 'move',
                     child: Text('Mover a grupo...')),
+                const PopupMenuItem(
+                    value: 'audit',
+                    child: Text('Auditar servicios (mapa de red)')),
                 const PopupMenuItem(
                     value: 'sendkey',
                     child: Text('Enviar clave publica (sin password despues)')),
@@ -767,6 +826,135 @@ class _HostsScreenState extends State<HostsScreen> {
     }
     await _svc.assignGroup(h.id, target.isEmpty ? null : target);
     if (mounted) setState(() {});
+  }
+
+  /// v2.11.0: conecta por SSH y guarda en el perfil del host lo que ve:
+  /// gateway, IP LAN, vecinos ARP y servicios escuchando. El mapa de
+  /// hosts pinta esos datos. La politica de known_hosts es la misma que
+  /// en la terminal (accept-new; huella cambiada = error explicito).
+  Future<void> _auditHost(SshHost h) async {
+    var pwd = await SshCredentialsStore.readPassword(h.id);
+    pwd ??= await _promptPassword(h, 'Auditar servicios');
+    if (pwd == null || pwd.isEmpty) return;
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: Card(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))),
+    );
+    SSHClient? client;
+    try {
+      List<SSHKeyPair>? identities;
+      final keyPath = h.keyPath;
+      if (keyPath != null && keyPath.trim().isNotEmpty) {
+        final keyFile = await AppPaths.resolveKey(keyPath.trim());
+        if (keyFile != null) {
+          identities = SSHKeyPair.fromPem(await keyFile.readAsString());
+        }
+      }
+      identities ??= await IdentityService.loadIdentity();
+      final socket = await SSHSocket.connect(h.hostname, h.port, timeout: const Duration(seconds: 10));
+      client = SSHClient(
+        socket,
+        username: h.username,
+        identities: identities,
+        onPasswordRequest: () async => pwd,
+        onUserInfoRequest: (req) async => req.prompts.map((p) => p.promptText.toLowerCase().contains('password') ? (pwd ?? '') : '').toList(),
+        onVerifyHostKey: (type, fp) async {
+          final known = await TerminalSession.loadKnownHosts();
+          final key = '${h.hostname}:${h.port}';
+          final saved = known[key];
+          if (saved == null) {
+            known[key] = '$type:${base64Encode(fp)}';
+            await TerminalSession.saveKnownHosts(known);
+            return true;
+          }
+          if (saved == '$type:${base64Encode(fp)}') return true;
+          throw StateError('Huella SSH cambiada para $key');
+        },
+        handshakeTimeout: const Duration(seconds: 15),
+      );
+      const cmd =
+          "echo XTR_A; ip -4 route show default 2>/dev/null; echo XTR_B; ip -4 -br addr 2>/dev/null; echo XTR_C; ip neigh show 2>/dev/null; echo XTR_D; (sudo -n ss -tulpn 2>/dev/null || ss -tulpn 2>/dev/null || netstat -tulpn 2>/dev/null); echo XTR_Z";
+      final result = await client.run(cmd).timeout(const Duration(seconds: 25));
+      final output = utf8.decode(result, allowMalformed: true);
+      h.audit = _parseAudit(output);
+      await _svc.update(h);
+      final services = (h.audit!['services'] as List).length;
+      final arp = (h.audit!['arp'] as Map).length;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Auditoria guardada: $services servicios, $arp vecinos')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Auditoria fallida: ${e.toString().replaceAll('\n', ' ')}')));
+      }
+    } finally {
+      client?.close();
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<String?> _promptPassword(SshHost h, String title) async {
+    final c = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _C.card,
+        title: Text('$title: ${h.name}', style: const TextStyle(color: _C.textHi, fontSize: 15)),
+        content: TextField(
+          controller: c, autofocus: true, obscureText: true,
+          style: const TextStyle(color: _C.textHi),
+          decoration: const InputDecoration(hintText: 'Contrasena SSH', hintStyle: TextStyle(color: _C.textLo)),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, c.text), child: const Text('Aceptar')),
+        ],
+      ),
+    );
+  }
+
+  /// Parsea la salida del comando de auditoria (secciones XTR_A..XTR_D).
+  Map<String, dynamic> _parseAudit(String out) {
+    String? gateway;
+    String? lanIp;
+    final arp = <String, String>{};
+    final services = <Map<String, dynamic>>[];
+    var section = '';
+    for (final raw in out.split('\n')) {
+      final line = raw.trim();
+      if (line.isEmpty) continue;
+      if (line == 'XTR_A' || line == 'XTR_B' || line == 'XTR_C' || line == 'XTR_D') {
+        section = line.substring(4);
+        continue;
+      }
+      if (line == 'XTR_Z') break;
+      if (section == 'A') {
+        gateway ??= RegExp(r'default via ([0-9.]+)').firstMatch(line)?.group(1);
+      } else if (section == 'B') {
+        final m = RegExp(r'\b((?!127\.)[0-9]{1,3}(?:\.[0-9]{1,3}){3})/\d+\b').firstMatch(line);
+        lanIp ??= m?.group(1);
+      } else if (section == 'C') {
+        final m = RegExp(r'^([0-9.]+)\s+.*?lladdr\s+([0-9a-fA-F:]{11,})').firstMatch(line);
+        if (m != null) arp[m.group(1)!] = m.group(2)!;
+      } else if (section == 'D') {
+        final m = RegExp(r'^(tcp|udp)\s+\S+\s+\d+\s+\d+\s+[^ ]*:([0-9]+)\b').firstMatch(line);
+        if (m != null) {
+          final prog = RegExp(r"users:\(\('([^']+)'").firstMatch(line)?.group(1) ?? '';
+          services.add({'proto': m.group(1), 'port': int.parse(m.group(2)!), 'program': prog});
+        }
+      }
+    }
+    services.sort((a, b) => (a['port'] as int).compareTo(b['port'] as int));
+    return {
+      'at': DateTime.now().toIso8601String(),
+      'gateway': gateway,
+      'lanIp': lanIp,
+      'arp': arp,
+      'services': services,
+    };
   }
 
   Future<void> _wake(SshHost h) async {

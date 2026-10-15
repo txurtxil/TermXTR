@@ -1,5 +1,40 @@
 # Changelog
 
+## v2.11.0 (2026-10-16)
+
+### Icono de energia con estado real (encender/apagar)
+- El icono de la fila del host ahora refleja accesibilidad: VERDE = el
+  equipo responde (tocarlo APAGA, con la confirmacion existente),
+  ROJO = no responde (tocarlo ENCIENDE por Wake-on-LAN), gris = aun
+  sin comprobar. Se rechequea solo cada 30 s (TCP-check de 2 s al
+  puerto del host) y tras encender/apagar.
+
+### Auditar servicios (menu de 3 puntos de cada host)
+- Conecta por SSH con las mismas credenciales/claves que la terminal
+  (politica known_hosts igual: accept-new; huella cambiada = error
+  explicito) y ejecuta ip route + ip addr + ip neigh + ss -tulpn.
+- Guarda gateway, IP LAN, vecinos ARP y servicios escuchando en el
+  perfil del host (campo audit, incluido en el backup/export).
+
+### Mapa de hosts (Hosts -> ... -> Mapa de hosts)
+- Routers arriba, tarjetas de host abajo, lineas de conexion medidas en
+  el layout real. Cada tarjeta: nombre, IP, franja de color de grupo,
+  un LED por servicio (color segun tipo de puerto: 22 verde, web azul,
+  BD morado...), gateway y "Conecta con: ..." cruzando ARP entre hosts.
+- Tocar una tarjeta abre el detalle completo (servicios y tabla ARP).
+- Las tarjetas se rellenan con "Auditar servicios"; sin auditar se ven
+  en gris con el consejo.
+
+### Interno
+- loadKnownHosts/saveKnownHosts pasan a ser publicos y estaticos
+  (los comparten terminal, auditoria y futuras piezas).
+
+### Pendiente de probar en dispositivo
+- Colores del icono al encender/apagar de verdad (latencia del WOL).
+- Auditoria en un host con sudo (ss -p muestra procesos) y sin el.
+- Mapa con varios hosts auditados: lineas, LEDs y "conecta con".
+
+
 ## v2.10.2 (2026-10-16)
 
 ### Wake-on-LAN visible

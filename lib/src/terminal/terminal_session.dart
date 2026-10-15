@@ -237,7 +237,7 @@ class TerminalSession {
         identities = await IdentityService.loadIdentity();
       }
 
-      final knownHosts = await _loadKnownHosts();
+      final knownHosts = await TerminalSession.loadKnownHosts();
       final hostKey = '${host.hostname}:${host.port}';
 
       _ssh = SSHClient(
@@ -269,7 +269,7 @@ class TerminalSession {
           final saved = knownHosts[hostKey];
           if (saved == null || saved == fingerprint) {
             knownHosts[hostKey] = fingerprint;
-            await _saveKnownHosts(knownHosts);
+            await TerminalSession.saveKnownHosts(knownHosts);
             return true;
           }
           // v2.10.1: huella cambiada -> rechazo explicito; el catch de
@@ -331,7 +331,9 @@ class TerminalSession {
     }
   }
 
-  Future<Map<String, String>> _loadKnownHosts() async {
+  // v2.11.0: publico y estatico; tambien lo usa la auditoria de
+  // hosts_screen (politica accept-new compartida terminal/SFTP/auditoria).
+  static Future<Map<String, String>> loadKnownHosts() async {
     try {
       final f = File('${AppPaths.base}/ssh_known_hosts.json');
       if (!await f.exists()) return {};
@@ -342,7 +344,7 @@ class TerminalSession {
     }
   }
 
-  Future<void> _saveKnownHosts(Map<String, String> hosts) async {
+  static Future<void> saveKnownHosts(Map<String, String> hosts) async {
     try {
       await File('${AppPaths.base}/ssh_known_hosts.json')
           .writeAsString(jsonEncode(hosts));

@@ -20,9 +20,14 @@ class SshHost {
   /// v2.10.0: grupo de hosts (ej. 'Desarrollo', 'Producción'). null = sin grupo.
   String? group;
 
+  /// v2.11.0: ultimo resultado de "Auditar servicios" (gateway, IP LAN,
+  /// vecinos ARP y servicios escuchando). El mapa de hosts lo pinta de
+  /// aqui. Se incluye en el backup/export del host.
+  Map<String, dynamic>? audit;
+
   SshHost({
     required this.id, required this.name, required this.hostname, this.port = 22,
-    required this.username, this.keyPath, this.initialPath, this.osTag = 'generic', this.lastUsed, this.jumpHostId, this.macAddress, this.group,
+    required this.username, this.keyPath, this.initialPath, this.osTag = 'generic', this.lastUsed, this.jumpHostId, this.macAddress, this.group, this.audit,
   });
 
   // v14.24: los comandos shell (toSshCommand/sshpass) desaparecen con el
@@ -37,6 +42,7 @@ class SshHost {
       if (jumpHostId != null && jumpHostId!.isNotEmpty) 'jumpHostId': jumpHostId,
       if (macAddress != null && macAddress!.isNotEmpty) 'macAddress': macAddress,
         if (group != null && group!.isNotEmpty) 'group': group,
+        if (audit != null) 'audit': audit,
         'osTag': osTag, if (lastUsed != null) 'lastUsed': lastUsed!.toIso8601String(),
       };
 
@@ -53,6 +59,7 @@ class SshHost {
         jumpHostId: j['jumpHostId'] as String?,
         macAddress: j['macAddress'] as String?,
         group: j['group'] as String?,
+        audit: j['audit'] as Map<String, dynamic>?,
       );
 
   SshHost copyWith({
