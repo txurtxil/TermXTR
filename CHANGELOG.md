@@ -1,5 +1,25 @@
 # Changelog
 
+## v2.10.2 (2026-10-16)
+
+### Wake-on-LAN visible
+- Icono de encendido directo en la fila del host (verde) cuando el host
+  tiene MAC guardada. Ya no hace falta abrir el menu de 3 puntos; el menu
+  conserva la opcion igualmente.
+
+### Copiar / pegar en terminal
+- Copiar YA NO borra la seleccion (igual que Termux): permite re-copiar o
+  ampliar y copiar de nuevo; se limpia tocando fuera o con la X de la
+  barra.
+- Feedback al copiar: "Copiado (N caracteres)" + vibracion corta.
+- Feedback al pegar: "Pegado (N caracteres)"; si el portapapeles esta
+  vacio avisa en vez de hacerlo en silencio.
+
+### Pendiente de probar en dispositivo
+- Boton de encendido en la fila (con MAC guardada) y apagado/reinicio.
+- Copiar (seleccion permanece) y pegar con/sin contenido en portapapeles.
+
+
 ## v2.10.1 (2026-10-11)
 
 ### Diagnostico de conexiones: huella cambiada vs error generico

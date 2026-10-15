@@ -456,6 +456,13 @@ class _HostsScreenState extends State<HostsScreen> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // v2.10.2: encendido directo desde la fila (solo si hay MAC).
+            if (h.macAddress != null && h.macAddress!.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.power_settings_new, color: Color(0xFF34C759), size: 20),
+                tooltip: 'Encender (Wake-on-LAN)',
+                onPressed: () => _wake(h),
+              ),
             if (widget.rootfsPath != null)
               Stack(
                 clipBehavior: Clip.none,

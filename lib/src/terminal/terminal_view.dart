@@ -194,10 +194,17 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
   void _changeFont(double delta) { setState(() { _fontSize = (_fontSize + delta).clamp(_minFont, _maxFont); }); }
 
   void _copySelection() {
+    // v2.10.2: copiar YA NO borra la seleccion (como Termux): permite
+    // re-copiar o ampliar y copiar de nuevo; se limpia tocando fuera o
+    // con la X de la barra. Feedback con nº de caracteres + haptico.
     final sel = _active.controller.selection;
     if (sel != null) {
       final text = _active.terminal.buffer.getText(sel);
-      if (text.isNotEmpty) { Clipboard.setData(ClipboardData(text: text)); _active.controller.clearSelection(); _toast('Copiado al portapapeles'); }
+      if (text.isNotEmpty) {
+        Clipboard.setData(ClipboardData(text: text));
+        HapticFeedback.selectionClick();
+        _toast('Copiado (${text.length} caracteres)');
+      }
     }
   }
   
@@ -276,9 +283,15 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
   }
 
   Future<void> _pasteClipboard() async {
+    // v2.10.2: feedback al pegar y aviso si el portapapeles esta vacio
+    // (antes pegaba en silencio y parecia que no pasaba nada).
     final data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text != null && data!.text!.isNotEmpty) {
-      _active.terminal.textInput(data.text!);
+    final text = data?.text;
+    if (text != null && text.isNotEmpty) {
+      _active.terminal.textInput(text);
+      _toast('Pegado (${text.length} caracteres)');
+    } else {
+      _toast('Portapapeles vacio');
     }
   }
 
