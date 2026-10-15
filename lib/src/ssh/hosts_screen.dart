@@ -959,7 +959,21 @@ class _HostsScreenState extends State<HostsScreen> {
 
   Future<void> _wake(SshHost h) async {
     if (h.macAddress == null || h.macAddress!.isEmpty) return;
-    final ok = await PowerService.wakeOnLan(h.macAddress!, ip: h.hostname);
+    // v2.11.1: el magic packet debe ir por BROADCAST. Dirigido a la IP
+    // del host falla con la maquina apagada (la ARP no resuelve y el
+    // paquete se descarta). Se envia al broadcast dirigido de la subred
+    // /24 deducido del hostname (si es IPv4) y ademas al broadcast
+    // general, para cubrir routers que filtran 255.255.255.255.
+    var targets = <String>['255.255.255.255'];
+    final parts = h.hostname.split('.');
+    if (parts.length == 4 && parts.every((p) => int.tryParse(p) != null && int.parse(p) <= 255)) {
+      final bcast = '${parts[0]}.${parts[1]}.${parts[2]}.255';
+      if (!targets.contains(bcast)) targets.insert(0, bcast);
+    }
+    var ok = false;
+    for (final t in targets) {
+      ok = await PowerService.wakeOnLan(h.macAddress!, ip: t) || ok;
+    }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok

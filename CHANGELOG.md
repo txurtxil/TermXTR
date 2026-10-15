@@ -1,5 +1,28 @@
 # Changelog
 
+## v2.11.1 (2026-10-16)
+
+### Fix Wake-on-LAN (fallaba con la maquina apagada)
+- BUG REAL: el magic packet se enviaba DIRIGIDO A LA IP del host. Con la
+  maquina apagada la ARP no resuelve y el paquete se descarta: nunca
+  llegaba. Ahora se envia por BROADCAST: al broadcast dirigido de la
+  subred /24 deducido del hostname (p.ej. 192.168.10.255 para un host
+  192.168.10.x) y ademas al broadcast general 255.255.255.255, para
+  cubrir routers que filtran el general.
+
+### Checklist si el WOL sigue sin funcionar (nada en la app lo arregla)
+- El equipo debe estar por CABLE (el Wi-Fi del equipo no despierta).
+- BIOS/UEFI: "Wake on LAN" / "Power on by PCIe" activo; si no despierta
+  desde apagado (S5), desactivar ErP/EuP.
+- SO: ethtool eth0 | grep Wake-on  -> debe decir "g". Si dice "d":
+  sudo ethtool -s eth0 wol g  (y persistirlo: se resetea al reiniciar).
+- El telefono debe estar en la misma red (sin VLAN, sin red de invitados,
+  y el AP sin "aislamiento de clientes" que bloquee el broadcast).
+
+### Pendiente de probar en dispositivo
+- Encender un equipo real apagado desde la app (misma Wi-Fi/LAN).
+
+
 ## v2.11.0 (2026-10-16)
 
 ### Icono de energia con estado real (encender/apagar)
