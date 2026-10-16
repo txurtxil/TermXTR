@@ -145,13 +145,22 @@ class PowerService {
     RawDatagramSocket? udp;
     try {
       udp = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+      // v2.11.3: BUG REAL — sin broadcastEnabled (SO_BROADCAST) el envio a
+      // una direccion broadcast NO lanza excepcion: send() devuelve 0 y el
+      // paquete muere en silencio dentro del telefono (la app decia
+      // "Magic packet enviado" sin haber enviado nada). El wol.py de z1
+      // si ponia este flag; por eso funcionaba desde z1 y no desde la app.
+      udp.broadcastEnabled = true;
       final target = ip != null && ip.isNotEmpty
           ? InternetAddress(ip)
           : InternetAddress('255.255.255.255');
-      udp.send(Uint8List.fromList(packet), target, 9);
-      await Future.delayed(const Duration(milliseconds: 200));
-      udp.send(Uint8List.fromList(packet), target, 9);
-      return true;
+      var sent = 0;
+      for (var i = 0; i < 3; i++) {
+        sent += udp.send(Uint8List.fromList(packet), target, 9);
+        if (i < 2) await Future.delayed(const Duration(milliseconds: 200));
+      }
+      // send() devuelve 0 si el sistema rechazo el datagrama: no mentir.
+      return sent > 0;
     } catch (_) {
       return false;
     } finally {

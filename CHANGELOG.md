@@ -1,5 +1,24 @@
 # Changelog
 
+## v2.11.3 (2026-10-16)
+
+### Fix Wake-on-LAN definitivo: faltaba SO_BROADCAST (BUG REAL)
+- Diagnostico con tcpdump en z1: el paquete del movil NUNCA llegaba a la
+  red aunque la app dijera "Magic packet enviado".
+- Causa: RawDatagramSocket de Dart no activaba el flag de broadcast
+  (SO_BROADCAST). En Linux/Android, enviar a una direccion broadcast sin
+  ese flag NO lanza excepcion: send() devuelve 0 y el datagrama muere en
+  silencio dentro del telefono. El wol.py de z1 si ponia el flag; por
+  eso funcionaba desde z1 y no desde la app.
+- Fix: udp.broadcastEnabled = true + se comprueba el retorno de send()
+  (3 intentos). Si el sistema rechaza el envio, la app lo dice de verdad.
+- Nota: los fixes anteriores de v2.11.1/2.11.2 (broadcast de subred +
+  255.255.255.255) siguen aplicando; este era el fallo que los tapaba.
+
+### Pendiente de probar en dispositivo
+- Encender bc250 desde el Samsung con la v2.11.3 (misma Wi-Fi).
+
+
 ## v2.11.2 (2026-10-16)
 
 ### Apagado/reinicio mas seguros
