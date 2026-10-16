@@ -1086,12 +1086,13 @@ class _HostsScreenState extends State<HostsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _C.card,
-        title: Text(reboot ? 'Reiniciar ${h.name}' : 'Apagar ${h.name}',
+        icon: const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF9F0A)),
+        title: Text(reboot ? 'Reiniciar ${h.name}?' : 'Apagar ${h.name}?',
             style: const TextStyle(color: _C.textHi)),
         content: Text(
             reboot
-                ? 'El equipo se reiniciara ahora.'
-                : 'El equipo se apagara ahora.',
+                ? 'El equipo se reiniciara ahora. Las sesiones SSH abiertas se cerraran.'
+                : 'El equipo se apagara AHORA y no hay vuelta atras: solo podras encenderlo de nuevo con Wake-on-LAN (si esta configurado) o fisicamente.',
             style: const TextStyle(color: _C.textLo)),
         actions: [
           TextButton(

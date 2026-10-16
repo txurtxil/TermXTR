@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.11.2 (2026-10-16)
+
+### Apagado/reinicio mas seguros
+- La confirmacion de apagar/reiniciar (icono de energia o menu) ahora es
+  explicita: icono de advertencia y texto que recuerda que APAGAR no tiene
+  vuelta atras (solo WOL o fisicamente). Antes el dialogo era facil de
+  aceptar sin leer.
+
+### Nota Wake-on-LAN desde movil
+- El fix de v2.11.1 (magic packet por broadcast) es imprescindible para
+  que funcione desde el movil: las APKs anteriores enviaban dirigido a la
+  IP, que falla con la maquina apagada.
+
+
 ## v2.11.1 (2026-10-16)
 
 ### Fix Wake-on-LAN (fallaba con la maquina apagada)
