@@ -184,6 +184,16 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
     }
   }
 
+  String _reportText() {
+    final b = StringBuffer();
+    for (final r in _results) {
+      b.writeln('=== ${r.cmd} ===');
+      b.writeln(r.output);
+      b.writeln();
+    }
+    return b.toString().trim();
+  }
+
   /// Quita el eco del propio comando y el prompt ">" final del CLI.
   String _cleanCli(String raw, String cmd) {
     final lines = sanitizeCliOutput(raw).split('\n');
@@ -448,6 +458,14 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
         iconTheme: const IconThemeData(color: _C.textHi),
         title: const Text('Router · comandos LAN',
             style: TextStyle(color: _C.textHi, fontSize: 16)),
+        actions: [
+          if (_results.isNotEmpty)
+            IconButton(
+              tooltip: 'Copiar informe completo',
+              icon: const Icon(Icons.copy_all, color: _C.textLo),
+              onPressed: () => _copyOutput(context, _reportText()),
+            ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(12),

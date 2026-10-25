@@ -304,6 +304,14 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
         iconTheme: const IconThemeData(color: _C.textHi),
         title: const Text('Cambiar contraseña',
             style: TextStyle(color: _C.textHi, fontSize: 16)),
+        actions: [
+          if (_results.isNotEmpty)
+            IconButton(
+              tooltip: 'Copiar todos los resultados',
+              icon: const Icon(Icons.copy_all, color: _C.textLo),
+              onPressed: () => _copyAll(context),
+            ),
+        ],
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -582,5 +590,37 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
         ),
       ),
     );
+  }
+
+  void _copyAll(BuildContext context) {
+    final b = StringBuffer();
+    for (final e in _results.entries) {
+      final name = e.key == 'router'
+          ? 'Router (${_router.hostnameCtrl.text})'
+          : () {
+              for (final h in _hosts) {
+                if (h.id == e.key) return h.name;
+              }
+              return e.key;
+            }();
+      b.writeln('=== $name ===');
+      b.writeln(e.value.output);
+      b.writeln();
+    }
+    _copyToClipboard(context, b.toString().trim());
+  }
+
+  Future<void> _copyToClipboard(BuildContext context, String text) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      final ok = (await Clipboard.getData(Clipboard.kTextPlain))?.text == text;
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(ok ? 'Copiado al portapapeles (${_results.length} resultados)'
+                           : 'Copia fallida')));
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copia fallida')));
+    }
   }
 }

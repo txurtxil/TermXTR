@@ -434,18 +434,21 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
               _scriptTile(ctx, s, 'Portapapeles guardados', '', icon: Icons.content_paste_go, customAction: () { Navigator.pop(ctx); _openClipboardVault(s); }),
               _menuHeader('Sesión'),
               _scriptTile(ctx, s, 'Autocompletar (Doble Tab)', '\t\t', icon: Icons.keyboard_tab),
-              SwitchListTile(
-                activeColor: Colors.greenAccent,
-                secondary: const Icon(Icons.auto_awesome, color: Colors.amberAccent),
-                title: const Text('Sugerencias de comandos (fantasma)', style: TextStyle(color: Colors.white)),
-                subtitle: const Text('Autocompletar con el historial, difuminado junto al cursor', style: TextStyle(color: Colors.white54)),
-                value: _suggestionsEnabled,
-                onChanged: (bool value) async {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool('cmdSuggestions', value);
-                  TerminalSession.suggestionsEnabled = value;
-                  setState(() => _suggestionsEnabled = value);
-                },
+              StatefulBuilder(
+                builder: (sheetCtx, setSheet) => SwitchListTile(
+                  activeColor: Colors.greenAccent,
+                  secondary: const Icon(Icons.auto_awesome, color: Colors.amberAccent),
+                  title: const Text('Sugerencias de comandos (fantasma)', style: TextStyle(color: Colors.white)),
+                  subtitle: const Text('Autocompletar con el historial, difuminado junto al cursor', style: TextStyle(color: Colors.white54)),
+                  value: _suggestionsEnabled,
+                  onChanged: (bool value) async {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('cmdSuggestions', value);
+                    TerminalSession.suggestionsEnabled = value;
+                    setState(() => _suggestionsEnabled = value);
+                    setSheet(() {});
+                  },
+                ),
               ),
               _scriptTile(ctx, s, 'Limpiar terminal (clear)', 'clear\n', icon: Icons.cleaning_services),
               _scriptTile(ctx, s, 'Reiniciar sesión actual', '', icon: Icons.restart_alt, customAction: () {
