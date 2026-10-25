@@ -122,20 +122,16 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
 
   /// Comando remoto para un host Linux. Secreto nunca en claro parseable.
   String _linuxCommand(SshHost host, String oldP, String newP) {
-    String script;
-    if (_mode == 'self') {
-      // passwd del usuario con el que se conecta (sin root; sin TTY el
-      // getpass de passwd cae a stdin).
-      script = "printf '%s\\n' \"\$(echo ${_b64(oldP)} | base64 -d)\" "
-          "\"\$(echo ${_b64(newP)} | base64 -d)\" "
-          "\"\$(echo ${_b64(newP)} | base64 -d)\" | passwd";
-    } else {
-      // Otro usuario (o root) via sudo: la vieja contrasena es la del
-      // sudo. "user:new" tambien viaja en base64 dentro del sh -c.
-      final userNew = _b64('${_otherUserCtrl.text.trim()}:$newP');
-      script = "echo \"\$(echo ${_b64(oldP)} | base64 -d)\" | "
-          "sudo -S -p '' sh -c 'echo $userNew | base64 -d | chpasswd'";
-    }
+    final target = _mode == 'self' ? host.username : _otherUserCtrl.text.trim();
+    // v2.13.1: passwd interactivo SIN PTY FALLA en Ubuntu 24.04 ("Authentication
+    // token manipulation error"): el getpass de passwd NO cae a stdin en un
+    // exec channel (verificado en z1). Via sudo SIEMPRE: la vieja contrasena
+    // hace de sudo password (los hosts de este proyecto tienen sudo) y
+    // chpasswd cambia cualquier cuenta sin TTY. "user:new" viaja base64
+    // dentro del sh -c.
+    final userNew = _b64('$target:$newP');
+    final script = "echo \"\$(echo ${_b64(oldP)} | base64 -d)\" | "
+        "sudo -S -p '' sh -c 'echo \$userNew | base64 -d | chpasswd'";
     // El propio script viaja base64; el marcador de exito lo imprime la
     // shell EXTERNA (no el script) para fiarnos del codigo real.
     return 'echo ${_b64(script)} | base64 -d | bash; echo "XTR_EXIT:\$?"';
@@ -318,7 +314,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                       value: 'self',
                       groupValue: _mode,
                       onChanged: (v) => setState(() => _mode = v!),
-                      title: const Text('Cada usuario cambia la suya (passwd)',
+                      title: const Text('La cuenta de conexión de cada host (vía sudo)',
                           style: TextStyle(color: _C.textHi, fontSize: 13)),
                       activeColor: _C.accent,
                     ),

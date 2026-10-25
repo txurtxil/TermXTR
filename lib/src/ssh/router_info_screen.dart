@@ -62,8 +62,6 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
   final _passCtrl = TextEditingController();
   final _customCtrl = TextEditingController();
   bool _hidePass = true;
-
-  SSHClient? _client;
   bool _connecting = false;
   bool _runningBatch = false;
   final _results = <_CmdResult>[];
@@ -76,21 +74,22 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
     _userCtrl.dispose();
     _passCtrl.dispose();
     _customCtrl.dispose();
-    unawaited(_client?.close());
     super.dispose();
   }
 
-  bool get _connected => _client != null;
-
-  Future<SSHClient?> _ensureClient() async {
-    if (_client != null) return _client;
+  // v2.13.1: el SSH del Comtrend NO admite un segundo canal exec en la
+  // misma conexion (el primero responde y los siguientes cuelgan para
+  // siempre: sintoma "Leyendo LAN... 1/11" parado). Por eso NO hay sesion
+  // persistente: CONEXION NUEVA POR COMANDO, como un ssh de terminal por
+  // linea (mismo patron probado de MultiExecScreen).
+  Future<SSHClient?> _connectOnce() async {
     setState(() => _connecting = true);
     try {
       final port = int.tryParse(_portCtrl.text.trim()) ?? 22;
       final socket = await SSHSocket.connect(_hostCtrl.text.trim(), port)
           .timeout(const Duration(seconds: 12));
       final pass = _passCtrl.text;
-      final client = SSHClient(
+      return SSHClient(
         socket,
         username: _userCtrl.text.trim(),
         onPasswordRequest: () async => pass,
@@ -98,12 +97,9 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
             .map((p) => p.promptText.toLowerCase().contains('password') ? pass : '')
             .toList(),
         onVerifyHostKey: (type, fingerprint) async => true,
-        keepAliveInterval: const Duration(seconds: 15),
         handshakeTimeout: const Duration(seconds: 12),
         authTimeout: const Duration(seconds: 12),
       );
-      _client = client;
-      return client;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -115,26 +111,48 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
     }
   }
 
-  Future<_CmdResult> _exec(String cmd) async {
-    final sw = Stopwatch()..start();
-    final client = await _ensureClient();
-    if (client == null) {
-      return _CmdResult(cmd, false, '(sin conexion)', sw.elapsed);
-    }
-    try {
-      // -1 como exit code: dartssh2 no expone el codigo de salida en run();
-      // el CLI Comtrend escribe los errores en stdout de todas formas, asi
-      // que la salida cruda es la fuente de verdad.
-      final bytes = await client
-          .run(cmd)
-          .timeout(const Duration(seconds: 45));
-      final out = utf8.decode(bytes, allowMalformed: true).trim();
-      return _CmdResult(cmd, true, out.isEmpty ? '(sin salida)' : out, sw.elapsed);
-    } catch (e) {
-      return _CmdResult(cmd, false, e.toString(), sw.elapsed);
+  Future<void> _probe() async {
+    final c = await _connectOnce();
+    if (c != null) {
+      unawaited(c.close());
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Conexion OK')));
+      }
     }
   }
 
+  Future<_CmdResult> _exec(String cmd) async {
+    final sw = Stopwatch()..start();
+    SSHSocket? socket;
+    try {
+      final port = int.tryParse(_portCtrl.text.trim()) ?? 22;
+      socket = await SSHSocket.connect(_hostCtrl.text.trim(), port)
+          .timeout(const Duration(seconds: 12));
+      final pass = _passCtrl.text;
+      final client = SSHClient(
+        socket,
+        username: _userCtrl.text.trim(),
+        onPasswordRequest: () async => pass,
+        onUserInfoRequest: (req) async => req.prompts
+            .map((p) => p.promptText.toLowerCase().contains('password') ? pass : '')
+            .toList(),
+        onVerifyHostKey: (type, fingerprint) async => true,
+        handshakeTimeout: const Duration(seconds: 12),
+        authTimeout: const Duration(seconds: 12),
+      );
+      // dartssh2 no expone el codigo de salida en run(); el CLI Comtrend
+      // escribe los errores en stdout, asi que la salida cruda manda.
+      final bytes = await client.run(cmd).timeout(const Duration(seconds: 30));
+      final out = utf8.decode(bytes, allowMalformed: true).trim();
+      client.close();
+      unawaited(socket.close());
+      return _CmdResult(cmd, true, out.isEmpty ? '(sin salida)' : out, sw.elapsed);
+    } catch (e) {
+      try { socket?.close(); } catch (_) {}
+      return _CmdResult(cmd, false, e.toString(), sw.elapsed);
+    }
+  }
   Future<void> _runBatch() async {
     if (_runningBatch) return;
     setState(() {
@@ -165,12 +183,6 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
     });
   }
 
-  Future<void> _disconnect() async {
-    final c = _client;
-    _client = null;
-    if (c != null) unawaited(c.close());
-    if (mounted) setState(() {});
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -182,14 +194,6 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
         iconTheme: const IconThemeData(color: _C.textHi),
         title: const Text('Router · comandos LAN',
             style: TextStyle(color: _C.textHi, fontSize: 16)),
-        actions: [
-          if (_connected)
-            IconButton(
-              tooltip: 'Desconectar',
-              icon: const Icon(Icons.link_off, color: _C.err),
-              onPressed: _disconnect,
-            ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(12),
@@ -199,7 +203,6 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
               flex: 3,
               child: TextField(
                 controller: _hostCtrl,
-                enabled: !_connected,
                 style: const TextStyle(color: _C.textHi, fontSize: 13),
                 decoration: _dec('Router (host)', icon: Icons.dns),
               ),
@@ -208,7 +211,6 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
             Expanded(
               child: TextField(
                 controller: _portCtrl,
-                enabled: !_connected,
                 keyboardType: TextInputType.number,
                 style: const TextStyle(color: _C.textHi, fontSize: 13),
                 decoration: _dec('Puerto'),
@@ -220,7 +222,6 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
             Expanded(
               child: TextField(
                 controller: _userCtrl,
-                enabled: !_connected,
                 style: const TextStyle(color: _C.textHi, fontSize: 13),
                 decoration: _dec('Usuario', icon: Icons.person),
               ),
@@ -231,7 +232,6 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
               child: TextField(
                 controller: _passCtrl,
                 obscureText: _hidePass,
-                enabled: !_connected,
                 style: const TextStyle(color: _C.textHi, fontSize: 13),
                 decoration: _dec('Contraseña', icon: Icons.lock).copyWith(
                   suffixIcon: IconButton(
@@ -247,9 +247,8 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
           ]),
           const SizedBox(height: 8),
           Row(children: [
-            if (!_connected)
-              Expanded(
-                child: OutlinedButton.icon(
+            Expanded(
+              child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: _C.accent)),
                   icon: _connecting
@@ -261,18 +260,10 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
                       : const Icon(Icons.cable, color: _C.accent),
                   label: Text(_connecting ? 'Conectando…' : 'Probar conexion',
                       style: const TextStyle(color: _C.accent)),
-                  onPressed: _connecting
-                      ? null
-                      : () async {
-                          final c = await _ensureClient();
-                          if (c != null && mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Conexion OK')));
-                          }
-                        },
+                  onPressed: _connecting ? null : _probe,
                 ),
               ),
-            if (!_connected) const SizedBox(width: 8),
+            const SizedBox(width: 8),
             Expanded(
               flex: 2,
               child: FilledButton.icon(
