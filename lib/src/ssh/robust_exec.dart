@@ -106,3 +106,65 @@ String sanitizeCliOutput(String raw, {int maxLines = 500}) {
   }
   return lines.join('\n');
 }
+
+/// Sesion shell interactiva: algunos CLIs de router (Broadcom/Comtrend)
+/// IGNORAN el comando del channel "exec" y solo muestran su prompt ">"
+/// esperando stdin. Hay que abrir shell, escribir el/los comandos por
+/// stdin y leer hasta silencio (idle) o timeout. Cierra el canal desde el
+/// cliente, igual que robustExec.
+Future<RobustResult> robustShell(
+  SSHClient client,
+  String input, {
+  Duration timeout = const Duration(seconds: 30),
+  Duration idleTimeout = const Duration(seconds: 3),
+}) async {
+  final session = await client.shell();
+  final buf = StringBuffer();
+  var sent = false;
+  String? streamError;
+  final completer = Completer<void>();
+  Timer? totalTimer;
+  Timer? idleTimer;
+
+  void finish() {
+    totalTimer?.cancel();
+    idleTimer?.cancel();
+    if (!completer.isCompleted) completer.complete();
+  }
+
+  void onData(List<int> d) {
+    buf.write(utf8.decode(d, allowMalformed: true));
+    // el idle solo cuenta tras enviar el comando (el prompt inicial no
+    // debe dispararlo antes de tiempo)
+    if (sent) {
+      idleTimer?.cancel();
+      idleTimer = Timer(idleTimeout, finish);
+    }
+  }
+
+  final subOut = session.stdout.listen(
+    onData,
+    onError: (e) { streamError ??= e.toString(); finish(); },
+    onDone: finish,
+  );
+  final subErr = session.stderr.listen(
+    onData,
+    onError: (e) { streamError ??= e.toString(); finish(); },
+    onDone: () {},
+  );
+  totalTimer = Timer(timeout, finish);
+
+  await Future.delayed(const Duration(milliseconds: 800));
+  sent = true;
+  session.stdin.add(utf8.encode(input.endsWith('\n') ? input : '$input\n'));
+
+  var closedByServer = false;
+  await completer.future.then((_) => closedByServer = true);
+  try { session.close(); } catch (_) {}
+  await subOut.cancel();
+  await subErr.cancel();
+
+  var out = buf.toString();
+  if (streamError != null) out += '\n[stderr] $streamError';
+  return RobustResult(out.trim(), closedByServer, !closedByServer);
+}

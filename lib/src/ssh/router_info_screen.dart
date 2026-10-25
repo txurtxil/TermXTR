@@ -35,18 +35,21 @@ class _CmdResult {
 /// Bateria inicial "informe de la LAN". Sintaxis tipica Broadcom; lo que
 /// no exista en este firmware devuelve error y se ajusta aqui o al vuelo
 /// con el campo de comando personalizado.
+// Bateria VERIFICADA contra el CLI real del router (25-oct): "show" sin
+// subcomando imprime la lista valida; la anterior mezclaba sintaxis linux
+// y casi todo daba "command error!".
 const _kLanReport = [
-  'show version',
+  'show status',
   'show interface',
-  'show ip',
+  'show arp',
+  'show dhcp',
+  'show lan',
   'show route',
-  'arp show',
-  'dhcp show',
   'show dns',
-  'show nat',
-  'show firewall',
+  'show wan',
+  'show portforward',
   'show ppp',
-  'uptime',
+  'show upnp',
 ];
 
 class RouterInfoScreen extends StatefulWidget {
@@ -63,6 +66,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
   final _passCtrl = TextEditingController();
   bool _savePass = false;
   final _customCtrl = TextEditingController();
+  final _pingCtrl = TextEditingController(text: '192.168.10.28');
   bool _hidePass = true;
   bool _connecting = false;
   bool _runningBatch = false;
@@ -119,6 +123,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
     _userCtrl.dispose();
     _passCtrl.dispose();
     _customCtrl.dispose();
+    _pingCtrl.dispose();
     super.dispose();
   }
 
@@ -160,13 +165,72 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
     }
   }
 
+  /// Quita el eco del propio comando y el prompt ">" final del CLI.
+  String _cleanCli(String raw, String cmd) {
+    final lines = sanitizeCliOutput(raw).split('\n');
+    final cleaned = <String>[];
+    for (final l in lines) {
+      if (l.trim() == cmd.trim()) continue;
+      if (l.trim() == '>') continue;
+      cleaned.add(l);
+    }
+    return cleaned.join('\n').trim();
+  }
+
+
+  Future<void> _runPing() async {
+    final ip = _pingCtrl.text.trim();
+    if (ip.isEmpty) return;
+    // El CLI no tiene ping, pero tiene un shell linux oculto ("sh"):
+    // entramos y lanzamos ping desde el propio router (o cerca).
+    final sw = Stopwatch()..start();
+    SSHSocket? socket;
+    try {
+      final port = int.tryParse(_portCtrl.text.trim()) ?? 22;
+      socket = await SSHSocket.connect(_hostCtrl.text.trim(), port)
+          .timeout(const Duration(seconds: 12));
+      final pass = _passCtrl.text;
+      final client = SSHClient(
+        socket,
+        username: _userCtrl.text.trim(),
+        onPasswordRequest: () async => pass,
+        onUserInfoRequest: (req) async => req.prompts
+            .map((p) => p.promptText.toLowerCase().contains('password') ? pass : '')
+            .toList(),
+        onVerifyHostKey: (type, fingerprint) async => true,
+        handshakeTimeout: const Duration(seconds: 12),
+        authTimeout: const Duration(seconds: 12),
+      );
+      final r = await robustShell(client, 'sh\nping -c 4 $ip',
+          timeout: const Duration(seconds: 40),
+          idleTimeout: const Duration(seconds: 5));
+      client.close();
+      unawaited(socket.close());
+      await _persistCreds();
+      var out = sanitizeCliOutput(r.output);
+      if (out.isEmpty) out = '(sin salida)';
+      if (!mounted) return;
+      setState(() {
+        _results.add(_CmdResult('ping $ip', true, out, sw.elapsed));
+        _expanded.add(_results.length - 1);
+      });
+    } catch (e) {
+      try { socket?.close(); } catch (_) {}
+      if (!mounted) return;
+      setState(() {
+        _results.add(_CmdResult('ping $ip', false, e.toString(), sw.elapsed));
+        _expanded.add(_results.length - 1);
+      });
+    }
+  }
+
   Future<void> _probe() async {
     // La autenticacion es perezosa: hay que abrir un canal con un comando
-    // real. Si la contrasena es mala, robustExec lanza y cae en el catch.
+    // real. Si la contrasena es mala, robustShell lanza y cae en el catch.
     final c = await _connectOnce();
     if (c == null) return;
     try {
-      final r = await robustExec(c, 'show version',
+      final r = await robustShell(c, 'show status',
           timeout: const Duration(seconds: 15),
           idleTimeout: const Duration(seconds: 3));
       c.close();
@@ -207,16 +271,15 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
         handshakeTimeout: const Duration(seconds: 12),
         authTimeout: const Duration(seconds: 12),
       );
-      // robustExec: completa por cierre del canal, silencio tras datos
-      // (el CLI vuelve a prompt sin cerrar) o timeout; el canal se cierra
-      // desde el cliente. run() quedaria esperando al servidor eternamente.
-      final r = await robustExec(client, cmd,
+      // El CLI ignora el "exec" y solo saca su prompt ">": hay que abrir
+      // sesion shell y escribir el comando por stdin (robustShell).
+      final r = await robustShell(client, cmd,
           timeout: const Duration(seconds: 30),
-          idleTimeout: const Duration(seconds: 4));
+          idleTimeout: const Duration(seconds: 3));
       client.close();
       unawaited(socket.close());
       await _persistCreds();
-      var out = sanitizeCliOutput(r.output);
+      var out = _cleanCli(r.output, cmd);
       if (r.timedOut && out.isEmpty) out = '(sin salida)';
       return _CmdResult(cmd, true, out.isEmpty ? '(sin salida)' : out, sw.elapsed);
     } catch (e) {
@@ -391,6 +454,35 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
             ),
             onSubmitted: (_) => _runCustom(),
           ),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _pingCtrl,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(
+                    color: _C.textHi, fontFamily: 'monospace', fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: 'Ping desde el router a IP de la LAN…',
+                  hintStyle: const TextStyle(color: _C.textLo, fontSize: 13),
+                  filled: true,
+                  fillColor: _C.card,
+                  isDense: true,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none),
+                ),
+                onSubmitted: (_) => _runPing(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filled(
+              style: IconButton.styleFrom(backgroundColor: _C.accent),
+              icon: const Icon(Icons.network_ping, color: Colors.white),
+              tooltip: 'Ping desde el router',
+              onPressed: _runPing,
+            ),
+          ]),
           const SizedBox(height: 4),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 4),

@@ -216,35 +216,38 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
 
   Future<_PwResult> _runOnRouter(String oldP, String newP) async {
     final sw = Stopwatch()..start();
-    SSHSocket? socket;
-    try {
+    // El CLI del router IGNORA el channel exec y solo muestra su prompt:
+    // hay que usar sesion shell y escribir el comando por stdin
+    // (robustShell). Conexion NUEVA por comando (el SSH del router no
+    // admite dos canales seguidos en la misma conexion).
+    Future<String> cli(String cmd) async {
       final port = int.tryParse(_router.portCtrl.text.trim()) ?? 22;
-      socket = await SSHSocket.connect(_router.hostnameCtrl.text.trim(), port)
+      final s = await SSHSocket.connect(_router.hostnameCtrl.text.trim(), port)
           .timeout(const Duration(seconds: 12));
-      final client = SSHClient(
-        socket,
+      final c = SSHClient(
+        s,
         username: _router.userCtrl.text.trim(),
         onPasswordRequest: () async => oldP,
         onUserInfoRequest: (req) async => req.prompts
             .map((p) => p.promptText.toLowerCase().contains('password') ? oldP : '')
             .toList(),
         onVerifyHostKey: (type, fingerprint) async => true,
-        keepAliveInterval: const Duration(seconds: 15),
         handshakeTimeout: const Duration(seconds: 12),
         authTimeout: const Duration(seconds: 12),
       );
-      final rr1 = await robustExec(client, _routerCommand(oldP, newP),
-          timeout: const Duration(seconds: 30), idleTimeout: const Duration(seconds: 4));
-      var out1 = sanitizeCliOutput(rr1.output);
-      // persistencia del CLI es dudosa); se intenta y se muestra lo que responda.
+      final r = await robustShell(c, cmd,
+          timeout: const Duration(seconds: 30), idleTimeout: const Duration(seconds: 3));
+      c.close();
+      unawaited(s.close());
+      return sanitizeCliOutput(r.output);
+    }
+
+    try {
+      final out1 = await cli(_routerCommand(oldP, newP));
       var out2 = '';
       try {
-        final rr2 = await robustExec(client, 'config save',
-            timeout: const Duration(seconds: 20), idleTimeout: const Duration(seconds: 3));
-        out2 = rr2.output;
+        out2 = await cli('config save');
       } catch (_) {}
-      client.close();
-      unawaited(socket.close());
       final out = [out1, if (out2.isNotEmpty) 'config save: $out2']
           .join('\n');
       // El CLI no documenta codigos de error estables: se muestra la
@@ -252,7 +255,6 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
       // usuario confirma visualmente (un solo admin, un solo router).
       return _PwResult.ok(out.isEmpty ? '(sin salida: verifica en el router)' : out, sw.elapsed);
     } catch (e) {
-      try { socket?.close(); } catch (_) {}
       return _PwResult.fail(e.toString(), sw.elapsed);
     }
   }
