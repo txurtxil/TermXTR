@@ -8,6 +8,7 @@
 // solo en memoria del State, jamas se guarda.
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dartssh2/dartssh2.dart';
 import 'robust_exec.dart';
@@ -198,47 +199,28 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
   Future<void> _runPing() async {
     final ip = _pingCtrl.text.trim();
     if (ip.isEmpty) return;
-    // El CLI no tiene ping, pero tiene un shell linux oculto ("sh"):
-    // entramos y lanzamos ping desde el propio router (o cerca).
+    // El CLI del router no trae ping y su "sh" no cede un shell usable:
+    // sondeo TCP desde el propio movil (LAN). Comprueba si el host
+    // responde y que puertos comunes tiene abiertos.
     final sw = Stopwatch()..start();
-    SSHSocket? socket;
-    try {
-      final port = int.tryParse(_portCtrl.text.trim()) ?? 22;
-      socket = await SSHSocket.connect(_hostCtrl.text.trim(), port)
-          .timeout(const Duration(seconds: 12));
-      final pass = _passCtrl.text;
-      final client = SSHClient(
-        socket,
-        username: _userCtrl.text.trim(),
-        onPasswordRequest: () async => pass,
-        onUserInfoRequest: (req) async => req.prompts
-            .map((p) => p.promptText.toLowerCase().contains('password') ? pass : '')
-            .toList(),
-        onVerifyHostKey: (type, fingerprint) async => true,
-        handshakeTimeout: const Duration(seconds: 12),
-        authTimeout: const Duration(seconds: 12),
-      );
-      final r = await robustShell(client, 'sh\nping -c 4 $ip',
-          timeout: const Duration(seconds: 40),
-          idleTimeout: const Duration(seconds: 5));
-      client.close();
-      unawaited(socket.close());
-      await _persistCreds();
-      var out = sanitizeCliOutput(r.output);
-      if (out.isEmpty) out = '(sin salida)';
-      if (!mounted) return;
-      setState(() {
-        _results.add(_CmdResult('ping $ip', true, out, sw.elapsed));
-        _expanded.add(_results.length - 1);
-      });
-    } catch (e) {
-      try { socket?.close(); } catch (_) {}
-      if (!mounted) return;
-      setState(() {
-        _results.add(_CmdResult('ping $ip', false, e.toString(), sw.elapsed));
-        _expanded.add(_results.length - 1);
-      });
+    const ports = [22, 80, 443, 445, 3389, 8080];
+    final buf = StringBuffer('sondeo TCP a $ip desde el movil\n');
+    for (final p in ports) {
+      Socket? s;
+      try {
+        s = await Socket.connect(ip, p, timeout: const Duration(seconds: 2));
+        buf.writeln('puerto \$p: ABIERTO');
+      } catch (_) {
+        buf.writeln('puerto \$p: cerrado/filtrado');
+      } finally {
+        s?.destroy();
+      }
     }
+    if (!mounted) return;
+    setState(() {
+      _results.add(_CmdResult('ping \$ip', true, buf.toString(), sw.elapsed));
+      _expanded.add(_results.length - 1);
+    });
   }
 
   Future<void> _probe() async {
@@ -480,7 +462,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
                 style: const TextStyle(
                     color: _C.textHi, fontFamily: 'monospace', fontSize: 13),
                 decoration: InputDecoration(
-                  hintText: 'Ping desde el router a IP de la LAN…',
+                  hintText: 'Ping (sondeo TCP) a IP de la LAN…',
                   hintStyle: const TextStyle(color: _C.textLo, fontSize: 13),
                   filled: true,
                   fillColor: _C.card,
@@ -496,7 +478,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
             IconButton.filled(
               style: IconButton.styleFrom(backgroundColor: _C.accent),
               icon: const Icon(Icons.network_ping, color: Colors.white),
-              tooltip: 'Ping desde el router',
+              tooltip: 'Ping / sondeo TCP desde el movil',
               onPressed: _runPing,
             ),
           ]),
@@ -565,7 +547,10 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SelectableText(
+                  // NO SelectableText aqui: dentro de ExpansionTile pinta una
+                  // caja gris solida al reconstruirse (rebuild durante el
+                  // lote). Text plano + boton copiar con verificacion.
+                  Text(
                     r.output,
                     style: TextStyle(
                       color: r.ok ? _C.textHi : _C.err,
