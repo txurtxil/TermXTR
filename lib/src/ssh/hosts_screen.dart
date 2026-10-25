@@ -338,6 +338,29 @@ class _HostsScreenState extends State<HostsScreen> {
         title: const Text('Hosts', style: TextStyle(color: _C.textHi)),
         iconTheme: const IconThemeData(color: _C.textHi),
         actions: [
+          IconButton(
+            tooltip: 'Grupos de hosts',
+            icon: const Icon(Icons.folder_shared, color: _C.textLo),
+            onPressed: () => _groupsManager(),
+          ),
+          IconButton(
+            tooltip: 'Cola de transferencias entre equipos',
+            icon: const Icon(Icons.swap_horiz, color: _C.textLo),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TransfersScreen()),
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'Cerrar todas las conexiones SFTP',
+            icon: const Icon(Icons.link_off, color: _C.textLo),
+            onPressed: () async {
+              await SftpConnectionPool.instance.disconnectAll();
+              if (mounted) setState(() {});
+            },
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: _C.textLo),
             color: _C.card,
@@ -385,9 +408,6 @@ class _HostsScreenState extends State<HostsScreen> {
               const PopupMenuItem(value: 'multiexec', child: ListTile(dense: true, leading: Icon(Icons.playlist_play, color: _C.textLo), title: Text('Ejecutar comando en varios hosts', style: TextStyle(color: _C.textHi)))),
               const PopupMenuItem(value: 'snippets', child: ListTile(dense: true, leading: Icon(Icons.electric_bolt, color: _C.textLo), title: Text('Snippets de comandos', style: TextStyle(color: _C.textHi)))),
               const PopupMenuItem(value: 'identity', child: ListTile(dense: true, leading: Icon(Icons.vpn_key, color: _C.textLo), title: Text('Identidad SSH (claves sin password)', style: TextStyle(color: _C.textHi)))),
-              const PopupMenuItem(value: 'transfers', child: ListTile(dense: true, leading: Icon(Icons.swap_horiz, color: _C.textLo), title: Text('Cola de transferencias entre equipos', style: TextStyle(color: _C.textHi)))),
-              const PopupMenuItem(value: 'groups', child: ListTile(dense: true, leading: Icon(Icons.folder_shared, color: _C.textLo), title: Text('Grupos de hosts', style: TextStyle(color: _C.textHi)))),
-              const PopupMenuItem(value: 'sftp_close', child: ListTile(dense: true, leading: Icon(Icons.link_off, color: _C.textLo), title: Text('Cerrar todas las conexiones SFTP', style: TextStyle(color: _C.textHi)))),
               const PopupMenuDivider(),
               const PopupMenuItem(value: 'tunnels', child: ListTile(dense: true, leading: Icon(Icons.alt_route, color: _C.textLo), title: Text('Tuneles SSH (port forwarding)', style: TextStyle(color: _C.textHi)))),
               const PopupMenuItem(value: 'knownhosts', child: ListTile(dense: true, leading: Icon(Icons.verified_user, color: _C.textLo), title: Text('Hosts conocidos (SSH)', style: TextStyle(color: _C.textHi)))),

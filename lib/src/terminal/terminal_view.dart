@@ -576,17 +576,15 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
                       Icon(s.sourceHost != null ? Icons.dns_rounded : Icons.computer, size: 14, color: s.sourceHost != null ? Colors.lightBlueAccent : Colors.tealAccent),
                       const SizedBox(width: 8),
                       Text(s.name, style: TextStyle(color: isActive ? Colors.white : Colors.white54, fontSize: 13, fontWeight: isActive ? FontWeight.bold : FontWeight.normal)),
-                      if (_sessions.length > 1) ...[
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: () => _closeSession(i),
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), shape: BoxShape.circle),
-                            child: const Icon(Icons.close, size: 12, color: Colors.white70),
-                          ),
-                        )
-                      ]
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _closeSession(i),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), shape: BoxShape.circle),
+                          child: const Icon(Icons.close, size: 12, color: Colors.white70),
+                        ),
+                      ),
                     ],
                   ),
                 ),

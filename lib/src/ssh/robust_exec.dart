@@ -91,7 +91,7 @@ Future<RobustResult> robustExec(
 /// reescritura de lineas con \r y espacios de relleno. Sin esto la salida
 /// de algunos CLIs de router se ve como un bloque gris ilegible.
 String sanitizeCliOutput(String raw, {int maxLines = 500}) {
-  var s = raw.replaceAll(RegExp(r'\x1B\[[0-9;?]*[ -/]*[@-~]'), '');
+  var s = raw.replaceAll('\x00', '').replaceAll(RegExp(r'\x1B\[[0-9;?]*[ -/]*[@-~]'), '');
   s = s.replaceAll('\x1B(B', '').replaceAll('\x1B)0', '').replaceAll('\x0F', '');
   final lines = s
       .split('\n')

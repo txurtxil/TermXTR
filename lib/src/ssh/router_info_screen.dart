@@ -539,17 +539,39 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
         subtitle: Text('${r.duration.inMilliseconds} ms',
             style: const TextStyle(color: _C.textLo, fontSize: 10)),
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: SelectableText(
-                r.output,
-                style: TextStyle(
-                  color: r.ok ? _C.textHi : _C.err,
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Container(
+              width: double.infinity,
+              color: _C.bg,
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    r.output,
+                    style: TextStyle(
+                      color: r.ok ? _C.textHi : _C.err,
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.copy, size: 14, color: _C.textLo),
+                      tooltip: 'Copiar salida',
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: r.output));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Salida copiada')));
+                        }
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
