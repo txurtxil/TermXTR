@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:share_plus/share_plus.dart';
@@ -68,6 +69,7 @@ class _HostsScreenState extends State<HostsScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCollapsed();
     _svc.addListener(_onChange);
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkReach());
     _reachTimer = Timer.periodic(const Duration(seconds: 30), (_) => _checkReach());
@@ -619,7 +621,10 @@ class _HostsScreenState extends State<HostsScreen> {
     final total = _svc.hostsInGroup(name).length;
     final collapsed = _collapsed.contains(name);
     return InkWell(
-      onTap: () => setState(() => collapsed ? _collapsed.remove(name) : _collapsed.add(name)),
+      onTap: () {
+        setState(() => collapsed ? _collapsed.remove(name) : _collapsed.add(name));
+        _saveCollapsed();
+      },
       onLongPress: name.isEmpty ? null : () => _groupMenu(name),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
@@ -635,6 +640,22 @@ class _HostsScreenState extends State<HostsScreen> {
         ),
       ),
     );
+  }
+
+  /// v2.13.10: recuerda que grupos dejas plegados (SharedPreferences).
+  Future<void> _saveCollapsed() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setStringList('hostsGroupsCollapsed', _collapsed.toList());
+    } catch (_) {}
+  }
+
+  Future<void> _loadCollapsed() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      _collapsed.addAll(p.getStringList('hostsGroupsCollapsed') ?? []);
+    } catch (_) {}
+    if (mounted) setState(() {});
   }
 
   /// Menu de un grupo (mantener pulsada la cabecera): renombrar, color,

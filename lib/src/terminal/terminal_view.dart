@@ -434,6 +434,19 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
               _scriptTile(ctx, s, 'Portapapeles guardados', '', icon: Icons.content_paste_go, customAction: () { Navigator.pop(ctx); _openClipboardVault(s); }),
               _menuHeader('Sesión'),
               _scriptTile(ctx, s, 'Autocompletar (Doble Tab)', '\t\t', icon: Icons.keyboard_tab),
+              SwitchListTile(
+                activeColor: Colors.greenAccent,
+                secondary: const Icon(Icons.auto_awesome, color: Colors.amberAccent),
+                title: const Text('Sugerencias de comandos (fantasma)', style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Autocompletar con el historial, difuminado junto al cursor', style: TextStyle(color: Colors.white54)),
+                value: _suggestionsEnabled,
+                onChanged: (bool value) async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool('cmdSuggestions', value);
+                  TerminalSession.suggestionsEnabled = value;
+                  setState(() => _suggestionsEnabled = value);
+                },
+              ),
               _scriptTile(ctx, s, 'Limpiar terminal (clear)', 'clear\n', icon: Icons.cleaning_services),
               _scriptTile(ctx, s, 'Reiniciar sesión actual', '', icon: Icons.restart_alt, customAction: () {
                 Navigator.pop(ctx);
@@ -637,20 +650,59 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
                   if (_sftpOpened.contains(s)) Offstage(offstage: !sftpOpen, child: SftpBrowserScreen(host: s.sourceHost!, rootfsPath: AppPaths.base, embedded: true, onOpenTerminal: (_) => setState(() => _sftpOpen.remove(s)))),
                 ],
               );
-              // v2.5.0: sugerencia fantasma de comando (fish-style)
-              return Column(
-                children: [
-                  Expanded(child: pane),
-                  ValueListenableBuilder<String?>(
-                    valueListenable: s.suggestionNotify,
-                    builder: (_, sug, __) {
-                      if (!_suggestionsEnabled || sug == null || sug.isEmpty || s.currentLine.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      return _suggestionBar(s);
-                    },
-                  ),
-                ],
+              // v2.13.10: sugerencia fantasma DENTRO del terminal, difuminada
+              // junto al cursor (antes era una barra bajo el terminal, que
+              // molestaba). Tocar el fantasma acepta la sugerencia.
+              return ValueListenableBuilder<String?>(
+                valueListenable: s.suggestionNotify,
+                builder: (_, sug, __) {
+                  final String? ghost = (!_suggestionsEnabled ||
+                          sug == null ||
+                          sug.isEmpty ||
+                          s.currentLine.isEmpty ||
+                          !sug.startsWith(s.currentLine))
+                      ? null
+                      : sug.substring(s.currentLine.length);
+                  if (ghost == null || ghost.isEmpty) return pane;
+                  final tp = TextPainter(
+                    text: TextSpan(
+                        text: 'M',
+                        style: TextStyle(fontSize: _fontSize, fontFamily: 'monospace')),
+                    textDirection: TextDirection.ltr,
+                  )..layout();
+                  final cw = tp.width;
+                  const padL = 6.0;
+                  const padT = 4.0;
+                  final left = padL + s.terminal.buffer.cursorX * cw;
+                  final top = padT + s.terminal.buffer.cursorY * tp.height;
+                  return Stack(
+                    children: [
+                      pane,
+                      Positioned(
+                        left: left,
+                        top: top,
+                        child: GestureDetector(
+                          onTap: () => s.acceptSuggestion(),
+                          child: Container(
+                            color: Colors.transparent,
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: Text(
+                              ghost,
+                              maxLines: 1,
+                              overflow: TextOverflow.clip,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.28),
+                                fontFamily: 'monospace',
+                                fontSize: _fontSize,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               );
             }).toList(),
           ),
