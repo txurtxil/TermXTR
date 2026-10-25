@@ -8,6 +8,7 @@
 // solo en memoria del State, jamas se guarda.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartssh2/dartssh2.dart';
@@ -199,26 +200,28 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
   Future<void> _runPing() async {
     final ip = _pingCtrl.text.trim();
     if (ip.isEmpty) return;
-    // El CLI del router no trae ping y su "sh" no cede un shell usable:
-    // sondeo TCP desde el propio movil (LAN). Comprueba si el host
-    // responde y que puertos comunes tiene abiertos.
     final sw = Stopwatch()..start();
     const ports = [22, 80, 443, 445, 3389, 8080];
-    final buf = StringBuffer('sondeo TCP a $ip desde el movil\n');
-    for (final p in ports) {
+    // Paralelo: un socket TCP por puerto, con su latencia.
+    final results = await Future.wait(ports.map((p) async {
+      final psw = Stopwatch()..start();
       Socket? s;
+      var open = false;
       try {
         s = await Socket.connect(ip, p, timeout: const Duration(seconds: 2));
-        buf.writeln('puerto \$p: ABIERTO');
-      } catch (_) {
-        buf.writeln('puerto \$p: cerrado/filtrado');
-      } finally {
-        s?.destroy();
-      }
+        open = true;
+      } catch (_) {}
+      psw.stop();
+      s?.destroy();
+      return MapEntry(p, open ? 'ABIERTO (${psw.elapsedMilliseconds} ms)' : 'cerrado/filtrado');
+    }));
+    final buf = StringBuffer('sondeo TCP a $ip desde el movil\n');
+    for (final e in results) {
+      buf.writeln('puerto ${e.key}: ${e.value}');
     }
     if (!mounted) return;
     setState(() {
-      _results.add(_CmdResult('ping \$ip', true, buf.toString(), sw.elapsed));
+      _results.add(_CmdResult('ping $ip', true, buf.toString(), sw.elapsed));
       _expanded.add(_results.length - 1);
     });
   }
@@ -294,15 +297,132 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
       _results.clear();
       _expanded.clear();
     });
-    for (final cmd in _kLanReport) {
-      final r = await _exec(cmd);
+    // UNA sola conexion y sesion shell: los 11 comandos se escriben de
+    // golpe por stdin (linea a linea el CLI los va ejecutando). Abrir 11
+    // conexiones rapidas hacia el SSH de este router hace que algunas
+    // peticiones se pierdan ("(sin salida)"). La salida completa se parte
+    // despues por las lineas-eco de cada comando.
+    final swAll = Stopwatch()..start();
+    try {
+      final port = int.tryParse(_portCtrl.text.trim()) ?? 22;
+      final socket = await SSHSocket.connect(_hostCtrl.text.trim(), port)
+          .timeout(const Duration(seconds: 12));
+      final pass = _passCtrl.text;
+      final client = SSHClient(
+        socket,
+        username: _userCtrl.text.trim(),
+        onPasswordRequest: () async => pass,
+        onUserInfoRequest: (req) async => req.prompts
+            .map((p) => p.promptText.toLowerCase().contains('password') ? pass : '')
+            .toList(),
+        onVerifyHostKey: (type, fingerprint) async => true,
+        handshakeTimeout: const Duration(seconds: 12),
+        authTimeout: const Duration(seconds: 12),
+      );
+      final session = await client.shell();
+      final buf = StringBuffer();
+      final firstData = Completer<void>();
+      final done = Completer<void>();
+      late final Timer maxTimer;
+      Timer? idle;
+      void kickIdle() {
+        idle?.cancel();
+        idle = Timer(const Duration(seconds: 6), () { if (!done.isCompleted) done.complete(); });
+      }
+      final subOut = session.stdout.listen(
+        (d) {
+          buf.write(utf8.decode(d, allowMalformed: true));
+          if (!firstData.isCompleted) firstData.complete();
+          kickIdle();
+        },
+        onError: (e) { if (!firstData.isCompleted) firstData.complete(); },
+      );
+      final subErr = session.stderr.listen(
+          (d) { buf.write(utf8.decode(d, allowMalformed: true)); kickIdle(); });
+      maxTimer = Timer(const Duration(seconds: 75), () { if (!done.isCompleted) done.complete(); });
+      await firstData.future.timeout(const Duration(milliseconds: 2500), onTimeout: () {});
+      session.stdin.add(utf8.encode('${_kLanReport.join('\n')}\n'));
+      kickIdle();
+      await done.future;
+      maxTimer.cancel();
+      idle?.cancel();
+      await subOut.cancel();
+      await subErr.cancel();
+      try { session.close(); } catch (_) {}
+      client.close();
+      unawaited(socket.close());
+      await _persistCreds();
+
+      // reparte la salida por comando usando las lineas-eco
+      final segments = _splitByEcho(buf.toString(), _kLanReport);
+      final parsed = <_CmdResult>[];
+      for (var i = 0; i < _kLanReport.length; i++) {
+        final out = _cleanCli(segments[i], _kLanReport[i]);
+        parsed.add(_CmdResult(_kLanReport[i], true,
+            out.isEmpty ? '(sin salida)' : out, swAll.elapsed));
+      }
+      // tarjeta resumen para el administrador: lo mas util arriba del todo
+      parsed.insert(0, _CmdResult('RESUMEN LAN', true, _buildSummary(parsed), swAll.elapsed));
       if (!mounted) return;
       setState(() {
-        _results.add(r);
-        _expanded.add(_results.length - 1);
+        _results.addAll(parsed);
+        _expanded.add(0);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _results.add(_CmdResult('informe', false, e.toString(), swAll.elapsed));
       });
     }
     if (mounted) setState(() => _runningBatch = false);
+  }
+
+  /// Parte la salida completa del lote: cada linea que coincide con un
+  /// comando (eco de la propia entrada) abre su segmento.
+  List<String> _splitByEcho(String raw, List<String> cmds) {
+    final segs = List<String>.filled(cmds.length, '');
+    var idx = -1;
+    for (final rawLine in raw.split('\n')) {
+      // el eco llega pegado al prompt: ">show status"
+      var line = rawLine.replaceAll('\r', '').trim();
+      if (line.startsWith('>')) line = line.substring(1).trim();
+      final hit = cmds.indexOf(line);
+      if (hit >= 0) {
+        idx = hit;
+        continue;
+      }
+      if (idx >= 0) segs[idx] = (segs[idx] + '\n' + line).trimLeft();
+    }
+    return segs;
+  }
+
+  /// Resumen de administrador: equipos en ARP, leases DHCP y linea WAN.
+  String _buildSummary(List<_CmdResult> parsed) {
+    String seg(String cmd) {
+      for (final r in parsed) {
+        if (r.cmd == cmd) return r.output;
+      }
+      return '';
+    }
+
+    final arp = seg('show arp');
+    final dhcp = seg('show dhcp');
+    final wan = seg('show wan');
+    final ipRe = RegExp(r'\b(\d{1,3}\.){3}\d{1,3}\b');
+    final arpIps = ipRe.allMatches(arp).length;
+    final dhcpIps = ipRe.allMatches(dhcp).length;
+    var wanLine = '';
+    for (final l in wan.split('\n')) {
+      if (ipRe.hasMatch(l) && !l.contains('0.0.0.0')) {
+        wanLine = l.trim();
+        break;
+      }
+    }
+    final b = StringBuffer()
+      ..writeln('equipos con entrada ARP: $arpIps')
+      ..writeln('leases DHCP visibles: $dhcpIps');
+    if (wanLine.isNotEmpty) b.writeln('WAN: $wanLine');
+    return b.toString().trim();
   }
 
   Future<void> _runCustom() async {
