@@ -165,6 +165,23 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
     }
   }
 
+
+  Future<void> _copyOutput(BuildContext context, String text) async {
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      await Clipboard.setData(ClipboardData(text: text));
+      final ok = (await Clipboard.getData(Clipboard.kTextPlain))?.text == text;
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(ok ? 'Salida copiada al portapapeles'
+                           : 'Copia fallida: mantén pulsado el texto y usa el menú del sistema')));
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Copia fallida: mantén pulsado el texto y usa el menú del sistema')));
+    }
+  }
+
   /// Quita el eco del propio comando y el prompt ">" final del CLI.
   String _cleanCli(String raw, String cmd) {
     final lines = sanitizeCliOutput(raw).split('\n');
@@ -548,7 +565,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  SelectableText(
                     r.output,
                     style: TextStyle(
                       color: r.ok ? _C.textHi : _C.err,
@@ -562,13 +579,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
                       visualDensity: VisualDensity.compact,
                       icon: const Icon(Icons.copy, size: 14, color: _C.textLo),
                       tooltip: 'Copiar salida',
-                      onPressed: () async {
-                        await Clipboard.setData(ClipboardData(text: r.output));
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Salida copiada')));
-                        }
-                      },
+                      onPressed: () => _copyOutput(context, r.output),
                     ),
                   ),
                 ],

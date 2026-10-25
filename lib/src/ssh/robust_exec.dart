@@ -142,19 +142,30 @@ Future<RobustResult> robustShell(
     }
   }
 
+  // El CLI tarda en estar listo: hay que esperar a su primer salida (el
+  // prompt ">") antes de escribir el comando; si se envia demasiado
+  // pronto, algunos firmwares lo pierden y el comando nunca se ejecuta
+  // (sintoma: "(sin salida)" en todas las tarjetas).
+  final firstData = Completer<void>();
   final subOut = session.stdout.listen(
-    onData,
-    onError: (e) { streamError ??= e.toString(); finish(); },
+    (d) {
+      onData(d);
+      if (!firstData.isCompleted) firstData.complete();
+    },
+    onError: (e) { streamError ??= e.toString(); if (!firstData.isCompleted) firstData.complete(); finish(); },
     onDone: finish,
   );
   final subErr = session.stderr.listen(
-    onData,
-    onError: (e) { streamError ??= e.toString(); finish(); },
+    (d) {
+      onData(d);
+      if (!firstData.isCompleted) firstData.complete();
+    },
+    onError: (e) { streamError ??= e.toString(); if (!firstData.isCompleted) firstData.complete(); },
     onDone: () {},
   );
   totalTimer = Timer(timeout, finish);
 
-  await Future.delayed(const Duration(milliseconds: 800));
+  await firstData.future.timeout(const Duration(milliseconds: 2500), onTimeout: () {});
   sent = true;
   session.stdin.add(utf8.encode(input.endsWith('\n') ? input : '$input\n'));
 
