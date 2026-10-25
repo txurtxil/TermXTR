@@ -25,6 +25,7 @@ import 'dart:convert';
 
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../storage/app_paths.dart';
 import 'ssh_hosts_service.dart';
@@ -190,9 +191,10 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
         timeout: const Duration(seconds: 45),
         idleTimeout: const Duration(seconds: 6),
       );
-      var out = rr.output;
-      final ok = out.contains('XTR_EXIT:0');
-      out = out.replaceAll(RegExp(r'XTR_EXIT:\d+'), '').trim();
+      final ok = rr.output.contains('XTR_EXIT:0');
+      var out = sanitizeCliOutput(rr.output)
+          .replaceAll(RegExp(r'XTR_EXIT:\d+'), '')
+          .trim();
       if (rr.timedOut) out += '\n(aviso: canal cerrado por timeout del cliente)';
       if (out.isEmpty) out = ok ? '(cambiada)' : '(sin salida)';
       client.close();
@@ -233,7 +235,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
       );
       final rr1 = await robustExec(client, _routerCommand(oldP, newP),
           timeout: const Duration(seconds: 30), idleTimeout: const Duration(seconds: 4));
-      var out1 = rr1.output;
+      var out1 = sanitizeCliOutput(rr1.output);
       // persistencia del CLI es dudosa); se intenta y se muestra lo que responda.
       var out2 = '';
       try {
@@ -300,6 +302,17 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
         iconTheme: const IconThemeData(color: _C.textHi),
         title: const Text('Cambiar contraseña',
             style: TextStyle(color: _C.textHi, fontSize: 16)),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: _C.accent),
+            icon: const Icon(Icons.key),
+            label: Text('Cambiar en $targets equipos'),
+            onPressed: targets == 0 ? null : _submit,
+          ),
+        ),
       ),
       body: _loadingHosts
           ? const Center(child: CircularProgressIndicator(color: _C.accent))
@@ -422,15 +435,6 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                     activeColor: _C.accent,
                   ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: _C.accent),
-                    icon: const Icon(Icons.key),
-                    label: Text('Cambiar en $targets equipos'),
-                    onPressed: targets == 0 ? null : _submit,
-                  ),
-                ),
                 if (_started) ...[
                   const SizedBox(height: 16),
                   if (_running.isNotEmpty)
@@ -544,13 +548,33 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                   style: const TextStyle(color: _C.textLo, fontSize: 10)),
             ]),
             const SizedBox(height: 6),
-            SelectableText(
-              r.output,
-              style: TextStyle(
-                color: r.ok ? _C.textHi : _C.err,
-                fontFamily: 'monospace',
-                fontSize: 12,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SelectableText(
+                  r.output,
+                  style: TextStyle(
+                    color: r.ok ? _C.textHi : _C.err,
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.copy, size: 14, color: _C.textLo),
+                    tooltip: 'Copiar salida',
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: r.output));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Salida copiada')));
+                      }
+                    },
+                  ),
+                ),
+              ],
             ),
           ],
         ),

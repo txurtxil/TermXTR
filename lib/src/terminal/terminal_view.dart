@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,7 +31,15 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
   final List<TerminalSession> _sessions = [];
   int _activeIndex = 0;
   static const int _maxSessions = 5;
-  static const String _appVersion = 'v2.9.0';
+  static String _appVersion = '';
+  Future<void> _loadVersion() async {
+    try {
+      final p = await PackageInfo.fromPlatform();
+      _appVersion = 'v${p.version}';
+    } catch (_) {
+      _appVersion = '';
+    }
+  }
 
   // Canal con el lado nativo para el widget de escritorio (XTR Hosts).
   static const MethodChannel _widgetCh = MethodChannel('xtr/widget');
@@ -62,6 +71,9 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadVersion().then((_) {
+      if (mounted) setState(() {});
+    });
     _boot();
   }
 
@@ -535,7 +547,7 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
           child: Row(
             children: [
               const SizedBox(width: 8),
-              const Expanded(child: Text('TermXTR $_appVersion', style: TextStyle(color: Colors.white70, fontSize: 14, fontFamily: 'monospace', fontWeight: FontWeight.bold))),
+              Expanded(child: Text('TermXTR $_appVersion', style: TextStyle(color: Colors.white70, fontSize: 14, fontFamily: 'monospace', fontWeight: FontWeight.bold))),
               IconButton(tooltip: 'Hosts SSH / SFTP', onPressed: _openHosts, icon: const Icon(Icons.dns_rounded, color: Colors.lightBlueAccent, size: 22)),
               if (_active.sourceHost != null) IconButton(tooltip: _sftpOpen.contains(_active) ? 'Volver a la shell' : 'SFTP de este host', onPressed: () => _toggleSftp(_active), icon: Icon(_sftpOpen.contains(_active) ? Icons.terminal : Icons.folder_open, color: Colors.amberAccent, size: 22)),
               if (_sessions.length < _maxSessions) IconButton(tooltip: 'Nueva sesión', onPressed: _addSession, icon: const Icon(Icons.add, color: Colors.greenAccent, size: 22)),

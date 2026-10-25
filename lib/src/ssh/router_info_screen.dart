@@ -11,6 +11,8 @@ import 'dart:async';
 
 import 'package:dartssh2/dartssh2.dart';
 import 'robust_exec.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 
 class _C {
@@ -59,6 +61,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
   final _portCtrl = TextEditingController(text: '22');
   final _userCtrl = TextEditingController(text: 'admin');
   final _passCtrl = TextEditingController();
+  bool _savePass = false;
   final _customCtrl = TextEditingController();
   bool _hidePass = true;
   bool _connecting = false;
@@ -67,6 +70,49 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
   final _expanded = <int>{};
 
   @override
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCreds();
+  }
+
+  static const _kHost = 'router_cli_host';
+  static const _kPort = 'router_cli_port';
+  static const _kUser = 'router_cli_user';
+  static const _kPass = 'router_cli_pass';
+
+  Future<void> _loadCreds() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final h = p.getString(_kHost);
+      if (h != null && h.isNotEmpty) _hostCtrl.text = h;
+      final po = p.getString(_kPort);
+      if (po != null && po.isNotEmpty) _portCtrl.text = po;
+      final u = p.getString(_kUser);
+      if (u != null && u.isNotEmpty) _userCtrl.text = u;
+      final pa = p.getString(_kPass);
+      if (pa != null && pa.isNotEmpty) {
+        _passCtrl.text = pa;
+        _savePass = true;
+      }
+      if (mounted) setState(() {});
+    } catch (_) {}
+  }
+
+  Future<void> _persistCreds() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setString(_kHost, _hostCtrl.text.trim());
+      await p.setString(_kPort, _portCtrl.text.trim());
+      await p.setString(_kUser, _userCtrl.text.trim());
+      if (_savePass) {
+        await p.setString(_kPass, _passCtrl.text);
+      } else {
+        await p.remove(_kPass);
+      }
+    } catch (_) {}
+  }
   void dispose() {
     _hostCtrl.dispose();
     _portCtrl.dispose();
@@ -126,6 +172,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
       c.close();
       if (!mounted) return;
       if (r.output.isNotEmpty && !r.output.toLowerCase().contains('denied')) {
+        await _persistCreds();
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Conexion y autenticacion OK')));
       } else {
@@ -168,7 +215,8 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
           idleTimeout: const Duration(seconds: 4));
       client.close();
       unawaited(socket.close());
-      var out = r.output;
+      await _persistCreds();
+      var out = sanitizeCliOutput(r.output);
       if (r.timedOut && out.isEmpty) out = '(sin salida)';
       return _CmdResult(cmd, true, out.isEmpty ? '(sin salida)' : out, sw.elapsed);
     } catch (e) {
@@ -269,6 +317,22 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
               ),
             ),
           ]),
+          Row(children: [
+            SizedBox(
+              width: 24,
+              child: Checkbox(
+                value: _savePass,
+                onChanged: (v) => setState(() => _savePass = v ?? false),
+                activeColor: _C.accent,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+            const Expanded(
+              child: Text('Recordar contraseña en este dispositivo',
+                  style: TextStyle(color: _C.textLo, fontSize: 12)),
+            ),
+          ]),
+          const SizedBox(height: 8),
           const SizedBox(height: 8),
           Row(children: [
             Expanded(

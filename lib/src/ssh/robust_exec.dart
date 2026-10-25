@@ -86,3 +86,23 @@ Future<RobustResult> robustExec(
   final timedOut = !closedByServer;
   return RobustResult(out.trim(), closedByServer, timedOut);
 }
+
+/// Limpia salida cruda de CLIs que "pintan la pantalla": secuencias ANSI,
+/// reescritura de lineas con \r y espacios de relleno. Sin esto la salida
+/// de algunos CLIs de router se ve como un bloque gris ilegible.
+String sanitizeCliOutput(String raw, {int maxLines = 500}) {
+  var s = raw.replaceAll(RegExp(r'\x1B\[[0-9;?]*[ -/]*[@-~]'), '');
+  s = s.replaceAll('\x1B(B', '').replaceAll('\x1B)0', '').replaceAll('\x0F', '');
+  final lines = s
+      .split('\n')
+      .map((l) {
+        final i = l.lastIndexOf('\r');
+        return (i >= 0 ? l.substring(i + 1) : l).trimRight();
+      })
+      .where((l) => l.trim().isNotEmpty)
+      .toList();
+  if (lines.length > maxLines) {
+    return '${lines.take(maxLines).join('\n')}\n… (${lines.length - maxLines} líneas más)';
+  }
+  return lines.join('\n');
+}

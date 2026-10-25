@@ -338,110 +338,62 @@ class _HostsScreenState extends State<HostsScreen> {
         title: const Text('Hosts', style: TextStyle(color: _C.textHi)),
         iconTheme: const IconThemeData(color: _C.textHi),
         actions: [
-          IconButton(
-            tooltip: 'Cola de transferencias entre equipos',
-            icon: const Icon(Icons.swap_horiz, color: _C.textLo),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const TransfersScreen()),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: 'Identidad SSH (claves sin password)',
-            icon: const Icon(Icons.vpn_key, color: _C.textLo),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const IdentityScreen()),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: 'Snippets de comandos',
-            icon: const Icon(Icons.electric_bolt, color: _C.textLo),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SnippetsScreen()),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: 'Ejecutar comando en varios hosts',
-            icon: const Icon(Icons.playlist_play, color: _C.textLo),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const MultiExecScreen()),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: 'Cambiar contraseña',
-            icon: const Icon(Icons.key, color: _C.textLo),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const PasswordChangeScreen()),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: 'Router · comandos LAN',
-            icon: const Icon(Icons.router, color: _C.textLo),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const RouterInfoScreen()),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: 'Cerrar todas las conexiones SFTP',
-            icon: const Icon(Icons.link_off, color: _C.textLo),
-            onPressed: () async {
-              await SftpConnectionPool.instance.disconnectAll();
-              if (mounted) setState(() {});
-            },
-          ),
-          IconButton(
-            tooltip: 'Grupos de hosts',
-            icon: const Icon(Icons.folder_shared, color: _C.textLo),
-            onPressed: _groupsManager,
-          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: _C.textLo),
             color: _C.card,
-            onSelected: (val) {
-              if (val == 'export') _exportHosts();
-              if (val == 'import') _importHosts();
-              if (val == 'map') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const HostMapScreen()),
-                );
+            onSelected: (val) async {
+              if (val == 'passwd') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const PasswordChangeScreen()));
               }
-              if (val == 'knownhosts') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const KnownHostsScreen()),
-                );
+              if (val == 'router') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const RouterInfoScreen()));
+              }
+              if (val == 'multiexec') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const MultiExecScreen()));
+              }
+              if (val == 'snippets') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const SnippetsScreen()));
+              }
+              if (val == 'identity') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const IdentityScreen()));
+              }
+              if (val == 'transfers') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const TransfersScreen()));
+              }
+              if (val == 'groups') {
+                _groupsManager();
+              }
+              if (val == 'sftp_close') {
+                await SftpConnectionPool.instance.disconnectAll();
+                if (mounted) setState(() {});
               }
               if (val == 'tunnels') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const TunnelsScreen()),
-                );
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const TunnelsScreen()));
               }
+              if (val == 'knownhosts') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const KnownHostsScreen()));
+              }
+              if (val == 'map') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const HostMapScreen()));
+              }
+              if (val == 'export') _exportHosts();
+              if (val == 'import') _importHosts();
             },
             itemBuilder: (ctx) => [
-              const PopupMenuItem(value: 'tunnels', child: Text('Tuneles SSH (port forwarding)', style: TextStyle(color: _C.textHi))),
-              const PopupMenuItem(value: 'knownhosts', child: Text('Hosts conocidos (SSH)', style: TextStyle(color: _C.textHi))),
-              const PopupMenuItem(value: 'map', child: Text('Mapa de hosts', style: TextStyle(color: _C.textHi))),
-              const PopupMenuItem(value: 'export', child: Text('Exportar hosts a fichero', style: TextStyle(color: _C.textHi))),
-              const PopupMenuItem(value: 'import', child: Text('Importar hosts de fichero', style: TextStyle(color: _C.textHi))),
+              const PopupMenuItem(value: 'passwd', child: ListTile(dense: true, leading: Icon(Icons.key, color: _C.textLo), title: Text('Cambiar contraseña', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'router', child: ListTile(dense: true, leading: Icon(Icons.router, color: _C.textLo), title: Text('Router · comandos LAN', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'multiexec', child: ListTile(dense: true, leading: Icon(Icons.playlist_play, color: _C.textLo), title: Text('Ejecutar comando en varios hosts', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'snippets', child: ListTile(dense: true, leading: Icon(Icons.electric_bolt, color: _C.textLo), title: Text('Snippets de comandos', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'identity', child: ListTile(dense: true, leading: Icon(Icons.vpn_key, color: _C.textLo), title: Text('Identidad SSH (claves sin password)', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'transfers', child: ListTile(dense: true, leading: Icon(Icons.swap_horiz, color: _C.textLo), title: Text('Cola de transferencias entre equipos', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'groups', child: ListTile(dense: true, leading: Icon(Icons.folder_shared, color: _C.textLo), title: Text('Grupos de hosts', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'sftp_close', child: ListTile(dense: true, leading: Icon(Icons.link_off, color: _C.textLo), title: Text('Cerrar todas las conexiones SFTP', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuDivider(),
+              const PopupMenuItem(value: 'tunnels', child: ListTile(dense: true, leading: Icon(Icons.alt_route, color: _C.textLo), title: Text('Tuneles SSH (port forwarding)', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'knownhosts', child: ListTile(dense: true, leading: Icon(Icons.verified_user, color: _C.textLo), title: Text('Hosts conocidos (SSH)', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'map', child: ListTile(dense: true, leading: Icon(Icons.map, color: _C.textLo), title: Text('Mapa de hosts', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'export', child: ListTile(dense: true, leading: Icon(Icons.upload, color: _C.textLo), title: Text('Exportar hosts a fichero', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'import', child: ListTile(dense: true, leading: Icon(Icons.download, color: _C.textLo), title: Text('Importar hosts de fichero', style: TextStyle(color: _C.textHi)))),
             ],
           ),
         ],
