@@ -1,17 +1,16 @@
 // lib/src/ssh/router_info_screen.dart
 //
-// v2.13.0: MODO COMANDOS ROUTER — consola de exploracion de la LAN via SSH
-// al router (Comtrend GRG-4280us, CLI propio: show/config/iptables/...).
-// No es un host Linux: cada comando se envia tal cual al CLI del router y
-// la salida cruda se muestra tal cual (la sintaxis exacta varia por
-// firmware; lo que falle se ve y se corrige con el comando personalizado).
-// La contrasena del router es VOLATIL: vive solo en memoria del State,
-// jamas se guarda (SshCredentialsStore es solo para hosts).
+// Consola de exploracion de la LAN via SSH al router/gateway (CLI propio:
+// show/config/iptables/...). No es un host Linux: cada comando se envia tal
+// cual al CLI del router y la salida cruda se muestra tal cual (la
+// sintaxis exacta varia por firmware; lo que falle se ve y se corrige con
+// el comando personalizado). La contrasena del router es VOLATIL: vive
+// solo en memoria del State, jamas se guarda.
 
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:dartssh2/dartssh2.dart';
+import 'robust_exec.dart';
 import 'package:flutter/material.dart';
 
 class _C {
@@ -31,7 +30,7 @@ class _CmdResult {
   _CmdResult(this.cmd, this.ok, this.output, this.duration);
 }
 
-/// Bateria inicial "informe de la LAN". Sintaxis Comtrend/Broadcom; lo que
+/// Bateria inicial "informe de la LAN". Sintaxis tipica Broadcom; lo que
 /// no exista en este firmware devuelve error y se ajusta aqui o al vuelo
 /// con el campo de comando personalizado.
 const _kLanReport = [
@@ -77,11 +76,15 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
     super.dispose();
   }
 
-  // v2.13.1: el SSH del Comtrend NO admite un segundo canal exec en la
-  // misma conexion (el primero responde y los siguientes cuelgan para
-  // siempre: sintoma "Leyendo LAN... 1/11" parado). Por eso NO hay sesion
-  // persistente: CONEXION NUEVA POR COMANDO, como un ssh de terminal por
-  // linea (mismo patron probado de MultiExecScreen).
+  // v2.13.2: este SSH de router NO admite un segundo canal exec en la
+  // misma conexion (el primero responde y los siguientes cuelgan: la
+  // sintoma era "Leyendo LAN... 1/11" parado). Por eso NO hay sesion
+  // persistente: CONEXION NUEVA POR COMANDO. Y cada comando se ejecuta
+  // con robustExec: el CLI se queda en prompt sin cerrar el canal, asi
+  // que se completa por silencio (idle) o timeout, cerrando el canal
+  // desde el cliente. La "prueba de conexion" lanza un comando real para
+  // FORZAR la autenticacion (la libreria autentica de forma perezosa al
+  // abrir el primer canal: conectar y cerrar daba OK siempre).
   Future<SSHClient?> _connectOnce() async {
     setState(() => _connecting = true);
     try {
@@ -112,12 +115,28 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
   }
 
   Future<void> _probe() async {
+    // La autenticacion es perezosa: hay que abrir un canal con un comando
+    // real. Si la contrasena es mala, robustExec lanza y cae en el catch.
     final c = await _connectOnce();
-    if (c != null) {
-      unawaited(c.close());
+    if (c == null) return;
+    try {
+      final r = await robustExec(c, 'show version',
+          timeout: const Duration(seconds: 15),
+          idleTimeout: const Duration(seconds: 3));
+      c.close();
+      if (!mounted) return;
+      if (r.output.isNotEmpty && !r.output.toLowerCase().contains('denied')) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Conexion y autenticacion OK')));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Conexion OK pero sin respuesta del CLI: revisa usuario')));
+      }
+    } catch (e) {
+      c.close();
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Conexion OK')));
+            .showSnackBar(SnackBar(content: Text('Autenticacion fallida: $e')));
       }
     }
   }
@@ -141,18 +160,23 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
         handshakeTimeout: const Duration(seconds: 12),
         authTimeout: const Duration(seconds: 12),
       );
-      // dartssh2 no expone el codigo de salida en run(); el CLI Comtrend
-      // escribe los errores en stdout, asi que la salida cruda manda.
-      final bytes = await client.run(cmd).timeout(const Duration(seconds: 30));
-      final out = utf8.decode(bytes, allowMalformed: true).trim();
+      // robustExec: completa por cierre del canal, silencio tras datos
+      // (el CLI vuelve a prompt sin cerrar) o timeout; el canal se cierra
+      // desde el cliente. run() quedaria esperando al servidor eternamente.
+      final r = await robustExec(client, cmd,
+          timeout: const Duration(seconds: 30),
+          idleTimeout: const Duration(seconds: 4));
       client.close();
       unawaited(socket.close());
+      var out = r.output;
+      if (r.timedOut && out.isEmpty) out = '(sin salida)';
       return _CmdResult(cmd, true, out.isEmpty ? '(sin salida)' : out, sw.elapsed);
     } catch (e) {
       try { socket?.close(); } catch (_) {}
       return _CmdResult(cmd, false, e.toString(), sw.elapsed);
     }
   }
+
   Future<void> _runBatch() async {
     if (_runningBatch) return;
     setState(() {
@@ -307,7 +331,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              'CLI propio Comtrend (show/config/iptables/tcpdump/backup…). '
+              'CLI propio del router (show/config/iptables/tcpdump/backup…). '
               'Salida cruda: lo que falle se ve y se ajusta. La contraseña '
               'no se guarda nunca.',
               style: TextStyle(color: _C.textLo, fontSize: 11),

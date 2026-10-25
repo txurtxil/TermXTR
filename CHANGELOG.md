@@ -16,7 +16,7 @@
   255.255.255.255) siguen aplicando; este era el fallo que los tapaba.
 
 ### Pendiente de probar en dispositivo
-- Encender bc250 desde el Samsung con la v2.11.3 (misma Wi-Fi).
+- Encender un host de la LAN desde el movil con la v2.11.3 (misma Wi-Fi).
 
 
 ## v2.11.2 (2026-10-16)

@@ -148,8 +148,9 @@ class PowerService {
       // v2.11.3: BUG REAL — sin broadcastEnabled (SO_BROADCAST) el envio a
       // una direccion broadcast NO lanza excepcion: send() devuelve 0 y el
       // paquete muere en silencio dentro del telefono (la app decia
-      // "Magic packet enviado" sin haber enviado nada). El wol.py de z1
-      // si ponia este flag; por eso funcionaba desde z1 y no desde la app.
+      // "Magic packet enviado" sin haber enviado nada). El script de
+      // referencia wol.py si ponia este flag; por eso funcionaba
+      // desde un equipo de la LAN y no desde la app.
       udp.broadcastEnabled = true;
       final target = ip != null && ip.isNotEmpty
           ? InternetAddress(ip)

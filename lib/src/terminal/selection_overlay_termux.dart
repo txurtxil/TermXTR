@@ -241,7 +241,7 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
     final local = (rt as RenderBox).globalToLocal(global);
     // (rt as dynamic): el `as RenderBox` de la línea anterior promueve el
     // tipo estático de rt a partir de este punto y rompería el acceso
-    // dinámico a getCellOffset (error de compilación visto en z1).
+    // dinámico a getCellOffset (error de compilación visto en build linux).
     final cell = (rt as dynamic).getCellOffset(local) as CellOffset;
     final buffer = widget.terminal.buffer;
     // La selección de xterm es end-exclusive: por eso selectCharacters del

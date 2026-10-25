@@ -1,22 +1,24 @@
 // lib/src/ssh/password_change_screen.dart
 //
-// v2.12.0: cambio de contraseña remota en lote. Una ventana: se marcan
-// varios hosts (y/o el router Comtrend), se escribe la contraseña actual y
-// la nueva, y la app ejecuta el cambio en todos concurrentemente.
+// Cambio de contrasena remota en lote: se marcan varios hosts (y/o el
+// router/gateway con CLI propio), se escribe la contrasena actual y la
+// nueva, y la app ejecuta el cambio en todos concurrentemente.
 //
-// Linux (hosts): la contraseña NUNCA se interpola en un comando remoto en
+// Linux (hosts): la contrasena NUNCA se interpola en un comando remoto en
 // claro con comillas propias: se construye un mini-script local, se
 // base64-encodea entero y el remoto hace `echo <b64> | base64 -d | bash`.
 // Dentro del script, cada secreto viaja como `$(echo <b64> | base64 -d)`,
 // asi que comillas, $, espacios y utf8 en la contrasena no rompen nada.
-// El resultado se decide por `XTR_EXIT:$?` (no por sniffing de texto).
+// passwd interactivo SIN PTY falla (getpass no cae a stdin en un exec
+// channel): por eso el cambio va por `sudo -S sh -c '... chpasswd'`.
+// El resultado se decide por `XTR_EXIT:$?` (no por sniffing de texto) y
+// el canal se cierra desde el cliente en cuanto aparece (robustExec):
+// no dependemos de que el servidor cierre la sesion.
 //
-// Router Comtrend GRG-4280us (CLI propio por SSH, ver 00-SHARED.md):
-// `config account password user "admin" oldpasswd "<vieja>" newpasswd
-// "<nueva>"`. Aqui NO se usa el truco base64 (CLI minimalista, base64 no
-// verificado): escaping basico de " \ $ y salida cruda para confirmacion
-// visual del usuario. Tras el cambio se intenta `config save` (persistencia
-// dudosa en este firmware, aviso en pantalla).
+// Router (CLI propio por SSH): `config account password user "<u>"
+// oldpasswd "<vieja>" newpasswd "<nueva>"`. Aqui NO se usa el truco
+// base64 (CLI minimalista): escaping basico de " \\ $ y salida cruda
+// para confirmacion visual. Tras el cambio se intenta `config save`.
 
 import 'dart:async';
 import 'dart:convert';
@@ -28,6 +30,7 @@ import '../storage/app_paths.dart';
 import 'ssh_hosts_service.dart';
 import 'ssh_credentials_store.dart';
 import 'identity_service.dart';
+import 'robust_exec.dart';
 import 'ssh_host.dart';
 
 class _C {
@@ -125,7 +128,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
     final target = _mode == 'self' ? host.username : _otherUserCtrl.text.trim();
     // v2.13.1: passwd interactivo SIN PTY FALLA en Ubuntu 24.04 ("Authentication
     // token manipulation error"): el getpass de passwd NO cae a stdin en un
-    // exec channel (verificado en z1). Via sudo SIEMPRE: la vieja contrasena
+    // exec channel, verificado en build linux). Via sudo SIEMPRE: la vieja contrasena
     // hace de sudo password (los hosts de este proyecto tienen sudo) y
     // chpasswd cambia cualquier cuenta sin TTY. "user:new" viaja base64
     // dentro del sh -c.
@@ -137,7 +140,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
     return 'echo ${_b64(script)} | base64 -d | bash; echo "XTR_EXIT:\$?"';
   }
 
-  /// Comando para el Comtrend: CLI propio, comillas dobles documentadas.
+  /// Comando para el CLI del router: comillas dobles documentadas.
   String _routerCommand(String oldP, String newP) {
     String esc(String s) =>
         s.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\$', '\\\$');
@@ -180,12 +183,17 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
         handshakeTimeout: const Duration(seconds: 12),
         authTimeout: const Duration(seconds: 12),
       );
-      final bytes = await client
-          .run(_linuxCommand(host, oldP, newP))
-          .timeout(const Duration(seconds: 60));
-      var out = utf8.decode(bytes, allowMalformed: true).trim();
+      final rr = await robustExec(
+        client,
+        _linuxCommand(host, oldP, newP),
+        sentinel: 'XTR_EXIT:',
+        timeout: const Duration(seconds: 45),
+        idleTimeout: const Duration(seconds: 6),
+      );
+      var out = rr.output;
       final ok = out.contains('XTR_EXIT:0');
       out = out.replaceAll(RegExp(r'XTR_EXIT:\d+'), '').trim();
+      if (rr.timedOut) out += '\n(aviso: canal cerrado por timeout del cliente)';
       if (out.isEmpty) out = ok ? '(cambiada)' : '(sin salida)';
       client.close();
       unawaited(socket.close());
@@ -223,16 +231,15 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
         handshakeTimeout: const Duration(seconds: 12),
         authTimeout: const Duration(seconds: 12),
       );
-      final out1 = utf8.decode(
-          await client.run(_routerCommand(oldP, newP)).timeout(const Duration(seconds: 60)),
-          allowMalformed: true).trim();
-      // Persistencia: el "config save" de este firmware es dudoso (ver
-      // 00-SHARED.md 20-oct); se intenta y se muestra lo que responda.
+      final rr1 = await robustExec(client, _routerCommand(oldP, newP),
+          timeout: const Duration(seconds: 30), idleTimeout: const Duration(seconds: 4));
+      var out1 = rr1.output;
+      // persistencia del CLI es dudosa); se intenta y se muestra lo que responda.
       var out2 = '';
       try {
-        out2 = utf8.decode(
-            await client.run('config save').timeout(const Duration(seconds: 30)),
-            allowMalformed: true).trim();
+        final rr2 = await robustExec(client, 'config save',
+            timeout: const Duration(seconds: 20), idleTimeout: const Duration(seconds: 3));
+        out2 = rr2.output;
       } catch (_) {}
       client.close();
       unawaited(socket.close());
@@ -357,10 +364,10 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                   onChanged: (v) => setState(() => _router.enabled = v ?? false),
                   activeColor: _C.warn,
                   secondary: const Icon(Icons.router, color: _C.warn),
-                  title: const Text('Router / gateway (CLI Comtrend)',
+                  title: const Text('Router / gateway (CLI propio)',
                       style: TextStyle(color: _C.textHi)),
                   subtitle: const Text(
-                      'config account password user … (00-SHARED.md)',
+                      'config account password user … (comando del CLI)',
                       style: TextStyle(color: _C.textLo, fontSize: 11)),
                 ),
                 if (_router.enabled)
