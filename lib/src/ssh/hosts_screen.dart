@@ -11,6 +11,7 @@ import 'ssh_host.dart';
 import 'ssh_hosts_service.dart';
 import 'multi_exec_screen.dart';
 import 'password_change_screen.dart';
+import 'router_info_screen.dart';
 import 'identity_screen.dart';
 import 'identity_service.dart';
 import 'snippets_screen.dart';
@@ -384,6 +385,16 @@ class _HostsScreenState extends State<HostsScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const PasswordChangeScreen()),
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'Router · comandos LAN',
+            icon: const Icon(Icons.router, color: _C.textLo),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const RouterInfoScreen()),
               );
             },
           ),

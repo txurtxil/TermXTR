@@ -1,0 +1,389 @@
+// lib/src/ssh/router_info_screen.dart
+//
+// v2.13.0: MODO COMANDOS ROUTER — consola de exploracion de la LAN via SSH
+// al router (Comtrend GRG-4280us, CLI propio: show/config/iptables/...).
+// No es un host Linux: cada comando se envia tal cual al CLI del router y
+// la salida cruda se muestra tal cual (la sintaxis exacta varia por
+// firmware; lo que falle se ve y se corrige con el comando personalizado).
+// La contrasena del router es VOLATIL: vive solo en memoria del State,
+// jamas se guarda (SshCredentialsStore es solo para hosts).
+
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:dartssh2/dartssh2.dart';
+import 'package:flutter/material.dart';
+
+class _C {
+  static const bg = Color(0xFF1C1C1E);
+  static const card = Color(0xFF2C2C2E);
+  static const textHi = Color(0xFFEAEAEC);
+  static const textLo = Color(0xFF9A9AA0);
+  static const accent = Color(0xFF5E9BD6);
+  static const err = Color(0xFFFF453A);
+}
+
+class _CmdResult {
+  final String cmd;
+  final bool ok; // false = el comando/devolucion fallo (se muestra igual)
+  final String output;
+  final Duration duration;
+  _CmdResult(this.cmd, this.ok, this.output, this.duration);
+}
+
+/// Bateria inicial "informe de la LAN". Sintaxis Comtrend/Broadcom; lo que
+/// no exista en este firmware devuelve error y se ajusta aqui o al vuelo
+/// con el campo de comando personalizado.
+const _kLanReport = [
+  'show version',
+  'show interface',
+  'show ip',
+  'show route',
+  'arp show',
+  'dhcp show',
+  'show dns',
+  'show nat',
+  'show firewall',
+  'show ppp',
+  'uptime',
+];
+
+class RouterInfoScreen extends StatefulWidget {
+  const RouterInfoScreen({super.key});
+
+  @override
+  State<RouterInfoScreen> createState() => _RouterInfoScreenState();
+}
+
+class _RouterInfoScreenState extends State<RouterInfoScreen> {
+  final _hostCtrl = TextEditingController(text: '192.168.10.1');
+  final _portCtrl = TextEditingController(text: '22');
+  final _userCtrl = TextEditingController(text: 'admin');
+  final _passCtrl = TextEditingController();
+  final _customCtrl = TextEditingController();
+  bool _hidePass = true;
+
+  SSHClient? _client;
+  bool _connecting = false;
+  bool _runningBatch = false;
+  final _results = <_CmdResult>[];
+  final _expanded = <int>{};
+
+  @override
+  void dispose() {
+    _hostCtrl.dispose();
+    _portCtrl.dispose();
+    _userCtrl.dispose();
+    _passCtrl.dispose();
+    _customCtrl.dispose();
+    unawaited(_client?.close());
+    super.dispose();
+  }
+
+  bool get _connected => _client != null;
+
+  Future<SSHClient?> _ensureClient() async {
+    if (_client != null) return _client;
+    setState(() => _connecting = true);
+    try {
+      final port = int.tryParse(_portCtrl.text.trim()) ?? 22;
+      final socket = await SSHSocket.connect(_hostCtrl.text.trim(), port)
+          .timeout(const Duration(seconds: 12));
+      final pass = _passCtrl.text;
+      final client = SSHClient(
+        socket,
+        username: _userCtrl.text.trim(),
+        onPasswordRequest: () async => pass,
+        onUserInfoRequest: (req) async => req.prompts
+            .map((p) => p.promptText.toLowerCase().contains('password') ? pass : '')
+            .toList(),
+        onVerifyHostKey: (type, fingerprint) async => true,
+        keepAliveInterval: const Duration(seconds: 15),
+        handshakeTimeout: const Duration(seconds: 12),
+        authTimeout: const Duration(seconds: 12),
+      );
+      _client = client;
+      return client;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Conexion fallida: $e')));
+      }
+      return null;
+    } finally {
+      if (mounted) setState(() => _connecting = false);
+    }
+  }
+
+  Future<_CmdResult> _exec(String cmd) async {
+    final sw = Stopwatch()..start();
+    final client = await _ensureClient();
+    if (client == null) {
+      return _CmdResult(cmd, false, '(sin conexion)', sw.elapsed);
+    }
+    try {
+      // -1 como exit code: dartssh2 no expone el codigo de salida en run();
+      // el CLI Comtrend escribe los errores en stdout de todas formas, asi
+      // que la salida cruda es la fuente de verdad.
+      final bytes = await client
+          .run(cmd)
+          .timeout(const Duration(seconds: 45));
+      final out = utf8.decode(bytes, allowMalformed: true).trim();
+      return _CmdResult(cmd, true, out.isEmpty ? '(sin salida)' : out, sw.elapsed);
+    } catch (e) {
+      return _CmdResult(cmd, false, e.toString(), sw.elapsed);
+    }
+  }
+
+  Future<void> _runBatch() async {
+    if (_runningBatch) return;
+    setState(() {
+      _runningBatch = true;
+      _results.clear();
+      _expanded.clear();
+    });
+    for (final cmd in _kLanReport) {
+      final r = await _exec(cmd);
+      if (!mounted) return;
+      setState(() {
+        _results.add(r);
+        _expanded.add(_results.length - 1);
+      });
+    }
+    if (mounted) setState(() => _runningBatch = false);
+  }
+
+  Future<void> _runCustom() async {
+    final cmd = _customCtrl.text.trim();
+    if (cmd.isEmpty) return;
+    _customCtrl.clear();
+    final r = await _exec(cmd);
+    if (!mounted) return;
+    setState(() {
+      _results.add(r);
+      _expanded.add(_results.length - 1);
+    });
+  }
+
+  Future<void> _disconnect() async {
+    final c = _client;
+    _client = null;
+    if (c != null) unawaited(c.close());
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _C.bg,
+      appBar: AppBar(
+        backgroundColor: _C.bg,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: _C.textHi),
+        title: const Text('Router · comandos LAN',
+            style: TextStyle(color: _C.textHi, fontSize: 16)),
+        actions: [
+          if (_connected)
+            IconButton(
+              tooltip: 'Desconectar',
+              icon: const Icon(Icons.link_off, color: _C.err),
+              onPressed: _disconnect,
+            ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          Row(children: [
+            Expanded(
+              flex: 3,
+              child: TextField(
+                controller: _hostCtrl,
+                enabled: !_connected,
+                style: const TextStyle(color: _C.textHi, fontSize: 13),
+                decoration: _dec('Router (host)', icon: Icons.dns),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _portCtrl,
+                enabled: !_connected,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: _C.textHi, fontSize: 13),
+                decoration: _dec('Puerto'),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _userCtrl,
+                enabled: !_connected,
+                style: const TextStyle(color: _C.textHi, fontSize: 13),
+                decoration: _dec('Usuario', icon: Icons.person),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: TextField(
+                controller: _passCtrl,
+                obscureText: _hidePass,
+                enabled: !_connected,
+                style: const TextStyle(color: _C.textHi, fontSize: 13),
+                decoration: _dec('Contraseña', icon: Icons.lock).copyWith(
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                        _hidePass ? Icons.visibility : Icons.visibility_off,
+                        color: _C.textLo,
+                        size: 18),
+                    onPressed: () => setState(() => _hidePass = !_hidePass),
+                  ),
+                ),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            if (!_connected)
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: _C.accent)),
+                  icon: _connecting
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: _C.accent))
+                      : const Icon(Icons.cable, color: _C.accent),
+                  label: Text(_connecting ? 'Conectando…' : 'Probar conexion',
+                      style: const TextStyle(color: _C.accent)),
+                  onPressed: _connecting
+                      ? null
+                      : () async {
+                          final c = await _ensureClient();
+                          if (c != null && mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Conexion OK')));
+                          }
+                        },
+                ),
+              ),
+            if (!_connected) const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: _C.accent),
+                icon: _runningBatch
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.dashboard),
+                label: Text(_runningBatch
+                    ? 'Leyendo LAN… ${_results.length}/${_kLanReport.length}'
+                    : 'Informe completo LAN (${_kLanReport.length} comandos)'),
+                onPressed: _runningBatch ? null : _runBatch,
+              ),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _customCtrl,
+            style: const TextStyle(
+                color: _C.textHi, fontFamily: 'monospace', fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'Comando personalizado del CLI (p. ej. "show ?")…',
+              hintStyle: const TextStyle(color: _C.textLo, fontSize: 13),
+              filled: true,
+              fillColor: _C.card,
+              isDense: true,
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.send, color: _C.accent),
+                onPressed: _runCustom,
+              ),
+            ),
+            onSubmitted: (_) => _runCustom(),
+          ),
+          const SizedBox(height: 4),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'CLI propio Comtrend (show/config/iptables/tcpdump/backup…). '
+              'Salida cruda: lo que falle se ve y se ajusta. La contraseña '
+              'no se guarda nunca.',
+              style: TextStyle(color: _C.textLo, fontSize: 11),
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (var i = 0; i < _results.length; i++) _card(i, _results[i]),
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _dec(String hint, {IconData? icon}) => InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: _C.textLo, fontSize: 13),
+        prefixIcon:
+            icon != null ? Icon(icon, color: _C.textLo, size: 18) : null,
+        filled: true,
+        fillColor: _C.card,
+        isDense: true,
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide.none),
+      );
+
+  Widget _card(int i, _CmdResult r) {
+    final open = _expanded.contains(i);
+    return Card(
+      color: _C.card,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ExpansionTile(
+        key: PageStorageKey('rc$i'),
+        initiallyExpanded: true,
+        onExpansionChanged: (v) =>
+            setState(() => v ? _expanded.add(i) : _expanded.remove(i)),
+        backgroundColor: Colors.transparent,
+        collapsedBackgroundColor: Colors.transparent,
+        iconColor: _C.accent,
+        collapsedIconColor: _C.textLo,
+        leading: Icon(
+            r.ok ? (open ? Icons.terminal : Icons.check_circle) : Icons.error,
+            size: 16,
+            color: r.ok ? (open ? _C.accent : _C.accent) : _C.err),
+        title: Text(r.cmd,
+            style: const TextStyle(
+                color: _C.textHi,
+                fontFamily: 'monospace',
+                fontSize: 13)),
+        subtitle: Text('${r.duration.inMilliseconds} ms',
+            style: const TextStyle(color: _C.textLo, fontSize: 10)),
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: SelectableText(
+                r.output,
+                style: TextStyle(
+                  color: r.ok ? _C.textHi : _C.err,
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
