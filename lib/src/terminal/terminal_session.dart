@@ -83,6 +83,11 @@ class TerminalSession {
 
   String currentLine = '';
   String? suggestion;
+
+  /// Interruptor global (persistido en la vista) de la barra de
+  /// sugerencias fish-style. Por defecto DESACTIVADO: varios usuarios la
+  /// encuentran molesta al escribir.
+  static bool suggestionsEnabled = false;
   final suggestionNotify = ValueNotifier<String?>(null);
 
   void _updateSuggestion() {
@@ -120,8 +125,12 @@ class TerminalSession {
         currentLine = currentLine.substring(currentLine.length - 4096);
       }
     }
-    final s = CommandHistory.suggest(sourceHost.id, currentLine);
-    suggestion = (s != null && s != currentLine) ? s : null;
+    if (suggestionsEnabled) {
+      final s = CommandHistory.suggest(sourceHost.id, currentLine);
+      suggestion = (s != null && s != currentLine) ? s : null;
+    } else {
+      suggestion = null;
+    }
     _updateSuggestion();
   }
 

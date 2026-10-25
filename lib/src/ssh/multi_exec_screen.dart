@@ -9,6 +9,7 @@ import 'dart:typed_data';
 
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../storage/app_paths.dart';
 import 'ssh_hosts_service.dart';
@@ -282,7 +283,9 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
               ],
             ),
             const SizedBox(height: 6),
-            SelectableText(
+            // Text plano + copiar verificado (el widget seleccionable ha
+            // dado problemas de renderizado en tarjetas vivas).
+            Text(
               r.output,
               style: TextStyle(
                 color: r.ok ? _C.textHi : _C.err,
@@ -290,9 +293,33 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
                 fontSize: 12,
               ),
             ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.copy, size: 14, color: _C.textLo),
+                tooltip: 'Copiar salida',
+                onPressed: () => _copyOutput(context, r.output),
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _copyOutput(BuildContext context, String text) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      final ok = (await Clipboard.getData(Clipboard.kTextPlain))?.text == text;
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(ok ? 'Salida copiada al portapapeles'
+                           : 'Copia fallida: selecciona el texto manualmente')));
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Copia fallida: selecciona el texto manualmente')));
+    }
   }
 }

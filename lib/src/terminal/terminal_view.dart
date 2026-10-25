@@ -54,6 +54,7 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
   bool _booting = true;
   bool _showHostsOnStartup = false;
   bool _keepAlive = true;
+  bool _suggestionsEnabled = false;
   String? _error;
 
   final Map<int, FocusNode> _focusNodes = {};
@@ -102,6 +103,8 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
     try {
       final prefs = await SharedPreferences.getInstance();
       _showHostsOnStartup = prefs.getBool('showHostsOnStartup') ?? false;
+      _suggestionsEnabled = prefs.getBool('cmdSuggestions') ?? false;
+      TerminalSession.suggestionsEnabled = _suggestionsEnabled;
       // Keep-alive en 2o plano: por defecto ON. Sin un foreground service
       // Android mata el proceso al minimizar y las sesiones mueren con el
       // (el ServerAliveInterval no sirve si el proceso ya no existe).
@@ -344,6 +347,18 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
                     await prefs.setBool('showHostsOnStartup', value);
                     setState(() => _showHostsOnStartup = value);
                     setModalState(() => _showHostsOnStartup = value);
+                  },
+                ),
+                SwitchListTile(
+                  activeColor: Colors.greenAccent, secondary: const Icon(Icons.auto_awesome, color: Colors.amberAccent),
+                  title: const Text('Sugerencias de comandos', style: TextStyle(color: Colors.white)), subtitle: const Text('Autocompletar con el historial del host (fish-style)', style: TextStyle(color: Colors.white54)),
+                  value: _suggestionsEnabled,
+                  onChanged: (bool value) async {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('cmdSuggestions', value);
+                    TerminalSession.suggestionsEnabled = value;
+                    setState(() => _suggestionsEnabled = value);
+                    setModalState(() => _suggestionsEnabled = value);
                   },
                 ),
                 if (Platform.isAndroid)
@@ -629,7 +644,7 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
                   ValueListenableBuilder<String?>(
                     valueListenable: s.suggestionNotify,
                     builder: (_, sug, __) {
-                      if (sug == null || sug.isEmpty || s.currentLine.isEmpty) {
+                      if (!_suggestionsEnabled || sug == null || sug.isEmpty || s.currentLine.isEmpty) {
                         return const SizedBox.shrink();
                       }
                       return _suggestionBar(s);
