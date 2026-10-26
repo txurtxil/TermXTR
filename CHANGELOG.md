@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v2.14.4 (2026-10-26)
+
+### Probar conexion GitHub: la autenticacion ES la prueba (diseno robusto)
+- v2.14.3 abrio la shell sin pty pero el parseo del banner seguia fragil:
+  se completaba el futuro con el PRIMER chunk de stdout y GitHub puede
+  partir el banner en varios mensajes de canal o mandarlo por stderr ->
+  "Conectado pero sin banner de GitHub (respuesta inesperada)".
+- Redisenado: superar client.authenticated contra git@github.com ya es la
+  prueba (GitHub solo autentica claves registradas). El banner "Hi
+  usuario!" es bonus: se acumula stdout+stderr hasta regex-match / cierre
+  de canal (shell.done) / 6s, y da el nombre de usuario si es legible.
+  Sin banner = igualmente verde ("GitHub acepto la clave publica").
+- Errores de sintaxis del parche (regex con CR/LF literales por string no
+  raw; whenComplete metido en lista de subscriptions) pillados por
+  dart analyze en z1 antes de compilar: verificar siempre, no asumir.
+
 ## v2.14.3 (2026-10-26)
 
 ### Probar conexion contra GitHub: sin pty + UX de sesion corregida

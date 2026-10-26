@@ -59,7 +59,6 @@ class _GithubScreenState extends State<GithubScreen> {
   String _fingerprint = '';
   bool _testing = false;
   bool? _testOk;
-  bool _ptyFallback = false;
   String _testMsg = '';
   final TextEditingController _repoCtrl = TextEditingController();
 
@@ -135,9 +134,9 @@ class _GithubScreenState extends State<GithubScreen> {
       _testing = true;
       _testOk = null;
       _testMsg = '';
-      _ptyFallback = false;
     });
     String? user;
+    var authOk = false;
     String error = '';
     try {
       final identities = await IdentityService.loadIdentity();
@@ -169,25 +168,49 @@ class _GithubScreenState extends State<GithubScreen> {
         authTimeout: const Duration(seconds: 15),
       );
       try {
+        // v2.14.4: autenticar contra git@github.com YA ES la prueba: GitHub
+        // solo completa la autenticacion con una clave registrada. El banner
+        // "Hi usuario!" es bonus (da el nombre) y se lee de forma robusta:
+        // puede llegar partido en varios mensajes de canal o por stderr, asi
+        // que se acumula hasta match / cierre de canal / 6s.
         await client.authenticated.timeout(const Duration(seconds: 15));
-        // v2.14.3: pty: null — GitHub no da shell interactivo y rechaza la
-        // peticion pty (SSHChannelRequestError "Failed to start pty") DESPUES
-        // de autenticar bien. Sin pty, como `ssh -T`, contesta el banner
-        // "Hi usuario!".
-        final shell = await client.shell(pty: null);
-        final banner = Completer<String>();
-        final sub = shell.stdout.listen((data) {
-          final s = utf8.decode(data, allowMalformed: true);
-          if (!banner.isCompleted) banner.complete(s);
-        });
-        final raw = await banner.future.timeout(const Duration(seconds: 10),
-            onTimeout: () => '');
-        await sub.cancel();
-        final m = RegExp(r'Hi ([^!\r\n]+)!').firstMatch(raw);
-        if (m != null) {
-          user = m.group(1);
-        } else {
-          error = 'Conectado pero sin banner de GitHub (respuesta inesperada)';
+        authOk = true;
+        try {
+          final shell = await client
+              .shell(pty: null)
+              .timeout(const Duration(seconds: 8));
+          final buf = StringBuffer();
+          final hi = RegExp(r'Hi ([^!\r\n]+)!');
+          final done = Completer<void>();
+          void pump() {
+            if (hi.hasMatch(buf.toString()) && !done.isCompleted) {
+              done.complete();
+            }
+          }
+          final subs = <StreamSubscription>[
+            shell.stdout.listen((d) {
+              buf.write(utf8.decode(d, allowMalformed: true));
+              pump();
+            }),
+            shell.stderr.listen((d) {
+              buf.write(utf8.decode(d, allowMalformed: true));
+              pump();
+            }),
+          ];
+          // Cierre de canal = fin de la espera (no es subscription, no se
+          // cancela; solo despertamos el completer).
+          shell.done.whenComplete(() {
+            if (!done.isCompleted) done.complete();
+          });
+          await done.future
+              .timeout(const Duration(seconds: 6), onTimeout: () {});
+          for (final s in subs) {
+            await s.cancel();
+          }
+          user = hi.firstMatch(buf.toString())?.group(1);
+          // user == null aqui NO es fallo: la autenticacion ya quedo probada.
+        } catch (_) {
+          // GitHub puede rechazar el shell: irrelevante, auth ya superada.
         }
       } finally {
         client.close();
@@ -210,14 +233,6 @@ class _GithubScreenState extends State<GithubScreen> {
           'SSH keys): si difieren, la identidad se regenero — vuelve a '
           '"Copiar clave publica", borra la entrada vieja en GitHub y anade '
           'la nueva.';
-    } on SSHChannelRequestError {
-      // Con pty:null no deberia ocurrir; si aparece, la autenticacion ya
-      // habia pasado (el fallo es al abrir la shell, no al autenticar).
-      user = null;
-      error = 'Autenticacion superada, pero GitHub no acepta abrir shell '
-          '(es su comportamiento: no hay shell interactiva). Todo OK para '
-          'git clone/push/pull por SSH.';
-      _ptyFallback = true;
     } catch (e) {
       final msg = e.toString().toLowerCase();
       if (msg.contains('auth') || msg.contains('closed before')) {
@@ -234,12 +249,15 @@ class _GithubScreenState extends State<GithubScreen> {
     if (!mounted) return;
     setState(() {
       _testing = false;
-      _testOk = user != null || _ptyFallback;
-      _testMsg = user != null
-          ? 'Autenticado en GitHub como $user'
-          : _ptyFallback
-              ? error
-              : error;
+      _testOk = authOk;
+      if (authOk) {
+        _testMsg = user != null
+            ? 'Autenticado en GitHub como $user'
+            : 'GitHub acepto la clave publica (la identidad funciona). '
+                'Sin banner legible, pero la autenticacion es la prueba.';
+      } else {
+        _testMsg = error;
+      }
     });
   }
 
