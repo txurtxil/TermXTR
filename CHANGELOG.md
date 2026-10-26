@@ -1,6 +1,33 @@
 # Changelog
 
 
+## v2.14.2 (2026-10-26)
+
+### FIX CRITICO: identidad SSH invalida desde v2.2.0 (BUG REAL ENCONTRADO EN DIAGNOSTICO)
+- Sintoma en cadena: (1) sesion GitHub -> SSHAuthFailError; (2) pantalla
+  GitHub -> "Probar conexion" -> "Sin identidad SSH en la app".
+- Causa raiz (verificada en z1 con la pila dartssh2 pinneada + ssh-keygen
+  real): el escritor openssh-key-v1 de IdentityService.ensureIdentity()
+  generaba los DOS checkints con valores aleatorios DISTINTOS. El formato
+  exige que sean IGUALES (verificacion de integridad), asi que la clave
+  privada quedaba estructuralmente invalida: fromPem lanzaba
+  SSHKeyDecryptError y loadIdentity() devolvia null. La publica se
+  construia aparte (valida) -> la UI mostraba una clave "buena" que GitHub
+  aceptaba, pero la app nunca pudo firmar con ella. El password de los
+  hosts tapo el fallo en silencio desde v2.2.0: la identidad como auth nunca
+  funciono en dispositivo.
+- Fix: checkints iguales + auto-verificacion (fromPem tras generar; si
+  falla, borra los ficheros y lanza StateError en vez de romper en
+  silencio).
+- Consecuencia para el usuario: la identidad existente en el telefono es
+  invalida e IRREPARABLE -> hay que REGENERAR en la pantalla Identidad SSH.
+  La clave publica cambia: reemplazar la entrada en GitHub y reinstalar
+  la identidad en cualquier host donde se hubiera instalado
+  (authorized_keys).
+- Leccion canonica: un componente que "parece funcionar" (pub visible)
+  puede estar roto silenciosamente detras (priv no parseable). Verificar
+  con la misma pila que consume el componente.
+
 ## v2.14.1 (2026-10-26)
 
 ### Diagnostico de clave GitHub (autoinstalable)

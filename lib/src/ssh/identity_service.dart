@@ -46,10 +46,17 @@ class IdentityService {
     final pubBlob = _join([_str('ssh-ed25519'), _str(pubB)]);
 
     // seccion privada: checkints + strings + padding hasta multiplo de 8
+    // v2.14.2: los DOS checkints deben ser IGUALES (formato
+    // openssh-key-v1). Con dos aleatorios distintos la clave quedaba
+    // estructuralmente invalida: fromPem la rechazaba (SSHKeyDecryptError)
+    // y la sesion caia sin publickey (SSHAuthFailError). El password en
+    // los hosts tapo el fallo desde v2.2.0. Verificado en z1 con la misma
+    // pila dartssh2 pinneada y contra ssh-keygen real.
     final rnd = Random.secure();
     final sec = BytesBuilder();
-    _u32(sec, rnd.nextInt(0xFFFFFFFF));
-    _u32(sec, rnd.nextInt(0xFFFFFFFF));
+    final checkint = rnd.nextInt(0xFFFFFFFF);
+    _u32(sec, checkint);
+    _u32(sec, checkint);
     sec.add(_str('ssh-ed25519'));
     sec.add(_str(pubB));
     sec.add(_str(priv64));
@@ -86,6 +93,17 @@ class IdentityService {
     await _pubFile.writeAsString(
         'ssh-ed25519 ${base64.encode(pubBlob)} $_comment\n',
         flush: true);
+    // v2.14.2: auto-verificacion. Antes la identidad podia quedar rota en
+    // silencio y solo se notaba al conectar. Si fromPem no la acepta,
+    // borramos los dos ficheros para que el siguiente ensureIdentity la
+    // regenere, y avisamos en lugar de fallar en silencio.
+    try {
+      SSHKeyPair.fromPem(sb.toString());
+    } catch (_) {
+      try { await _privFile.delete(); } catch (_) {}
+      try { await _pubFile.delete(); } catch (_) {}
+      throw StateError('Identidad generada no valida: fromPem rechazo la clave');
+    }
     return publicKeyLine();
   }
 
