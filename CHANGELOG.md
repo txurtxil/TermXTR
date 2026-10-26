@@ -1,5 +1,34 @@
 # Changelog
 
+
+## v2.13.12 (2026-10-26)
+
+### Fix seleccion desplazada: ejes X/Y rotos al usar el portapapeles (BUG REAL)
+- Sintoma (reportado por el usuario): la seleccion funcionaba perfecto pero
+  con el uso se descuadraba; clic arriba seleccionaba abajo. Solo se curaba
+  cerrando la sesion y entrando de nuevo, y cada vez fallaba antes.
+- Causa: _focusNodes y _viewKeys en terminal_view.dart estaban indexados por
+  POSICION de pestana (putIfAbsent(i)) y _closeSession nunca los limpiaba.
+  Al cerrar una pestana intermedia, las sesiones supervivientes heredaban el
+  FocusNode y el GlobalKey de OTRA sesion: el overlay de seleccion
+  (selection_overlay_termux.dart) hablaba con el renderTerminal equivocado
+  y mapeaba celda<->pixel con la geometria de otra pestana. Cada ciclo
+  cerrar/reconectar mezclaba mas estado (por eso fallaba cada vez antes).
+- Fix: los dos mapas pasan a clavarse por IDENTIDAD de sesion
+  (Map<TerminalSession, ...>), con limpieza real en _closeSession y el
+  requestFocus del ciclo de vida apuntando a la sesion activa.
+- Nota: la geometria base del overlay (getOffset/getCellOffset/localToGlobal)
+  se verifico contra el fuente de xterm 4.0.0 pinneado (sha256 del
+  pub-cache) y es consistente; no era un problema de calibracion.
+- Matiz conocido que NO se toca en esta version: xterm pinta cada linea en
+  posicion Y truncada a entero mientras el mapeo de toques usa pizeles
+  fraccionales; con offsets de scroll fraccionales puede dar un error de
+  +-1 linea. Se vigila; si el drift persiste tras esta version se
+  instrumenta (log de cellSize/scrollOffset en el recorder).
+
+### Pendiente de probar en dispositivo
+- Seleccionar/copiar con varias pestanas abiertas: cerrar una intermedia y
+  comprobar que la seleccion sigue fiel en las que quedan (Fold 7).
 ## v2.11.3 (2026-10-16)
 
 ### Fix Wake-on-LAN definitivo: faltaba SO_BROADCAST (BUG REAL)
