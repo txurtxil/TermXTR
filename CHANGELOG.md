@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v2.15.1 (2026-10-26)
+
+### Eliminado todo lo GitHub (decision del usuario tras probarlo)
+- "No es util tener github en esta herramienta" (usuario, tras un dia de
+  uso real): se elimina COMPLETO el apartado GitHub de TermXTR.
+- Fuera: pantalla GitHub - SSH (v2.14.x), consola gh (v2.15.0), entrada
+  "GitHub · SSH" del menu ... de Hosts, host auto-creado git@github.com
+  (el usuario lo borra manualmente de su lista; el codigo ya no lo crea).
+- SE CONSERVA el fix v2.14.2 de IdentityService (checkints openssh-key-v1
+  iguales + auto-verificacion): es un bug real del auth por clave para
+  TODOS los hosts, no es de GitHub. Destapado gracias al apartado GitHub,
+  que cumplio su mision de diagnostico aunque la feature no se quedara.
+- Leccion: no todo lo que se construye se queda; el canon guarda el
+  recorrido completo (fallo -> diagnostico -> fix real -> feature
+  descartada por el usuario).
+
 ## v2.15.0 (2026-10-26)
 
 ### Consola gh — gestionar GitHub desde la app (opcion B encargada)
