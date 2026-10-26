@@ -57,8 +57,14 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
   bool _suggestionsEnabled = false;
   String? _error;
 
-  final Map<int, FocusNode> _focusNodes = {};
-  final Map<int, GlobalKey<TerminalViewState>> _viewKeys = {};
+  // v2.13.12: clavados por IDENTIDAD de sesion, no por indice de pestana.
+  // Antes putIfAbsent(i): al cerrar una pestana intermedia los indices
+  // se desplazaban y las sesiones supervivientes heredaban el FocusNode y
+  // el GlobalKey de OTRO — el overlay de seleccion hablaba con el
+  // renderTerminal equivocado (clic arriba -> selecciona abajo) y el
+  // desfase empeoraba tras cada ciclo cerrar/reconectar.
+  final Map<TerminalSession, FocusNode> _focusNodes = {};
+  final Map<TerminalSession, GlobalKey<TerminalViewState>> _viewKeys = {};
   final Set<TerminalSession> _sftpOpened = {};
   final Set<TerminalSession> _sftpOpen = {};
 
@@ -83,7 +89,7 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
     if (state == AppLifecycleState.resumed) {
       Future.delayed(const Duration(milliseconds: 150), () {
         if (mounted) {
-          _focusNodes[_activeIndex]?.requestFocus();
+          _focusNodes[_active]?.requestFocus();
           SystemChannels.textInput.invokeMethod('TextInput.show');
         }
       });
@@ -198,6 +204,9 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
 
   void _closeSession(int index) {
     final s = _sessions[index];
+    // v2.13.12: soltar los objetos clavados por identidad (ver arriba).
+    _focusNodes.remove(s)?.dispose();
+    _viewKeys.remove(s);
     _sftpOpen.remove(s); _sftpOpened.remove(s); s.dispose();
     setState(() {
       _sessions.removeAt(index);
@@ -628,8 +637,8 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
             index: _activeIndex,
             children: _sessions.asMap().entries.map((entry) {
               final i = entry.key; final s = entry.value;
-              final focusNode = _focusNodes.putIfAbsent(i, () => FocusNode());
-              final viewKey = _viewKeys.putIfAbsent(i, () => GlobalKey<TerminalViewState>());
+              final focusNode = _focusNodes.putIfAbsent(s, () => FocusNode());
+              final viewKey = _viewKeys.putIfAbsent(s, () => GlobalKey<TerminalViewState>());
               
               final terminalPane = GestureDetector(
                 behavior: HitTestBehavior.translucent,
