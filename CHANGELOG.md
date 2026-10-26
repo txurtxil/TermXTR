@@ -1,6 +1,26 @@
 # Changelog
 
 
+## v2.14.0 (2026-10-26)
+
+### Apartado GitHub (nueva pantalla)
+- Entrada: menu ... de Hosts -> "GitHub · SSH".
+- Identidad: estado de la clave Ed25519 de la app + boton "Copiar clave
+  publica" (linea OpenSSH lista para pegar en github.com/settings/keys).
+- Conexion: "Probar conexion" abre un SSH real en segundo plano a
+  git@github.com:22 con la misma pila dartssh2 de las sesiones y parsea el
+  banner "Hi usuario!". Resultado verde/rojo con la causa probable mapeada:
+  clave no registrada, huella cambiada (anti-MITM via known_hosts),
+  timeout (con consejo de ssh.github.com:443 para redes que bloquean el
+  22), sin red.
+- Snippets: escribe usuario/repo y toca Clonar/Pull/Push/Fetch -> comando
+  completo con la URL SSH montada, copiado al portapapeles.
+- "Abrir sesion GitHub": terminal normal al host; GitHub imprime el banner
+  de autenticacion y corta (la comprobacion "a ojo" clasica).
+- El host git@github.com se crea solo la primera vez (id fijo
+  'gh-github', grupo 'GitHub') y convive con la lista de hosts: SFTP,
+  terminal, backup y widget lo tratan sin codigo especial.
+
 ## v2.13.12 (2026-10-26)
 
 ### Fix seleccion desplazada: ejes X/Y rotos al usar el portapapeles (BUG REAL)

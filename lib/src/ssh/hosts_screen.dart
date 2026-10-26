@@ -15,6 +15,7 @@ import 'password_change_screen.dart';
 import 'router_info_screen.dart';
 import 'identity_screen.dart';
 import 'identity_service.dart';
+import 'github_screen.dart';
 import 'snippets_screen.dart';
 import 'tunnels_screen.dart';
 import 'known_hosts_screen.dart';
@@ -382,6 +383,21 @@ class _HostsScreenState extends State<HostsScreen> {
               if (val == 'identity') {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const IdentityScreen()));
               }
+              if (val == 'github') {
+                // v2.14.0: apartado GitHub. Al abrir terminal se cierra
+                // esta pantalla y se conecta como desde la lista de hosts.
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => GithubScreen(
+                      onOpenTerminal: (h) {
+                        Navigator.pop(context);
+                        widget.onConnect(h);
+                      },
+                    ),
+                  ),
+                );
+              }
               if (val == 'transfers') {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const TransfersScreen()));
               }
@@ -410,6 +426,7 @@ class _HostsScreenState extends State<HostsScreen> {
               const PopupMenuItem(value: 'multiexec', child: ListTile(dense: true, leading: Icon(Icons.playlist_play, color: _C.textLo), title: Text('Ejecutar comando en varios hosts', style: TextStyle(color: _C.textHi)))),
               const PopupMenuItem(value: 'snippets', child: ListTile(dense: true, leading: Icon(Icons.electric_bolt, color: _C.textLo), title: Text('Snippets de comandos', style: TextStyle(color: _C.textHi)))),
               const PopupMenuItem(value: 'identity', child: ListTile(dense: true, leading: Icon(Icons.vpn_key, color: _C.textLo), title: Text('Identidad SSH (claves sin password)', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'github', child: ListTile(dense: true, leading: Icon(Icons.hub, color: _C.accent), title: Text('GitHub · SSH', style: TextStyle(color: _C.textHi)))),
               const PopupMenuDivider(),
               const PopupMenuItem(value: 'tunnels', child: ListTile(dense: true, leading: Icon(Icons.alt_route, color: _C.textLo), title: Text('Tuneles SSH (port forwarding)', style: TextStyle(color: _C.textHi)))),
               const PopupMenuItem(value: 'knownhosts', child: ListTile(dense: true, leading: Icon(Icons.verified_user, color: _C.textLo), title: Text('Hosts conocidos (SSH)', style: TextStyle(color: _C.textHi)))),
