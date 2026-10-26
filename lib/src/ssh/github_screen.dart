@@ -35,11 +35,7 @@ import 'ssh_host.dart';
 import 'ssh_hosts_service.dart';
 
 class GithubScreen extends StatefulWidget {
-  const GithubScreen({super.key, required this.onOpenTerminal});
-
-  /// Abre una sesion de terminal al host dado (lo cablea HostsScreen con
-  /// su onConnect, que cierra la pila de pantallas y conecta).
-  final void Function(SshHost host) onOpenTerminal;
+  const GithubScreen({super.key});
 
   @override
   State<GithubScreen> createState() => _GithubScreenState();
@@ -63,6 +59,7 @@ class _GithubScreenState extends State<GithubScreen> {
   String _fingerprint = '';
   bool _testing = false;
   bool? _testOk;
+  bool _ptyFallback = false;
   String _testMsg = '';
   final TextEditingController _repoCtrl = TextEditingController();
 
@@ -138,6 +135,7 @@ class _GithubScreenState extends State<GithubScreen> {
       _testing = true;
       _testOk = null;
       _testMsg = '';
+      _ptyFallback = false;
     });
     String? user;
     String error = '';
@@ -172,7 +170,11 @@ class _GithubScreenState extends State<GithubScreen> {
       );
       try {
         await client.authenticated.timeout(const Duration(seconds: 15));
-        final shell = await client.shell();
+        // v2.14.3: pty: null — GitHub no da shell interactivo y rechaza la
+        // peticion pty (SSHChannelRequestError "Failed to start pty") DESPUES
+        // de autenticar bien. Sin pty, como `ssh -T`, contesta el banner
+        // "Hi usuario!".
+        final shell = await client.shell(pty: null);
         final banner = Completer<String>();
         final sub = shell.stdout.listen((data) {
           final s = utf8.decode(data, allowMalformed: true);
@@ -208,6 +210,14 @@ class _GithubScreenState extends State<GithubScreen> {
           'SSH keys): si difieren, la identidad se regenero — vuelve a '
           '"Copiar clave publica", borra la entrada vieja en GitHub y anade '
           'la nueva.';
+    } on SSHChannelRequestError {
+      // Con pty:null no deberia ocurrir; si aparece, la autenticacion ya
+      // habia pasado (el fallo es al abrir la shell, no al autenticar).
+      user = null;
+      error = 'Autenticacion superada, pero GitHub no acepta abrir shell '
+          '(es su comportamiento: no hay shell interactiva). Todo OK para '
+          'git clone/push/pull por SSH.';
+      _ptyFallback = true;
     } catch (e) {
       final msg = e.toString().toLowerCase();
       if (msg.contains('auth') || msg.contains('closed before')) {
@@ -221,10 +231,15 @@ class _GithubScreenState extends State<GithubScreen> {
       }
     }
     if (!mounted) return;
+    if (!mounted) return;
     setState(() {
       _testing = false;
-      _testOk = user != null;
-      _testMsg = user != null ? 'Autenticado en GitHub como $user' : error;
+      _testOk = user != null || _ptyFallback;
+      _testMsg = user != null
+          ? 'Autenticado en GitHub como $user'
+          : _ptyFallback
+              ? error
+              : error;
     });
   }
 
@@ -370,16 +385,13 @@ class _GithubScreenState extends State<GithubScreen> {
             ]),
           ]),
           _section('Sesion', [
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _host == null
-                    ? null
-                    : () => widget.onOpenTerminal(_host!),
-                icon: const Icon(Icons.terminal, size: 18, color: _accent),
-                label: const Text('Abrir sesion GitHub (banner de auth)',
-                    style: TextStyle(color: _accent)),
-              ),
+            const Text(
+              'GitHub no ofrece shell interactivo: una sesion de terminal '
+              'contra git@github.com siempre falla al abrir la pty (es su '
+              'diseno, no un error). La autenticacion se verifica con '
+              '"Probar conexion" y el uso real es git clone/pull/push por '
+              'SSH desde cualquiera de tus hosts.',
+              style: TextStyle(color: _textLo, fontSize: 13),
             ),
           ]),
           const SizedBox(height: 16),

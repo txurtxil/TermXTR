@@ -1,6 +1,25 @@
 # Changelog
 
 
+## v2.14.3 (2026-10-26)
+
+### Probar conexion contra GitHub: sin pty + UX de sesion corregida
+- "Probar conexion" pedia pty (client.shell() con SSHPtyConfig por defecto)
+  y GitHub la rechaza SIEMPRE: no hay shell interactivo. El error
+  ("SSHChannelRequestError: Failed to start pty") saltaba DESPUES de una
+  autenticacion correcta, confundiendo el diagnostico. Ahora shell(pty:
+  null), como `ssh -T git@github.com`: GitHub contesta el banner
+  "Hi usuario!" y se parsea igual.
+- Mapeo robustez: si aun asi llega un SSHChannelRequestError, se informa
+  como "autenticacion superada; GitHub no acepta shell" en vez de rojo
+  crudo.
+- Seccion "Sesion": GitHub no da shell interactivo, asi que el boton
+  "Abrir sesion GitHub (banner de auth)" era un callejon sin salida
+  garantizado (la terminal siempre pediria pty). Sustituido por texto
+  explicativo; GithubScreen ya no recibe onOpenTerminal.
+- Confirmado en dispositivo (Fold 7): tras regenerar la identidad (v2.14.2)
+  la autenticacion contra git@github.com ya pasa; el error era solo el pty.
+
 ## v2.14.2 (2026-10-26)
 
 ### FIX CRITICO: identidad SSH invalida desde v2.2.0 (BUG REAL ENCONTRADO EN DIAGNOSTICO)

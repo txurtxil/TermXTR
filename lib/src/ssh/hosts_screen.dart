@@ -384,18 +384,11 @@ class _HostsScreenState extends State<HostsScreen> {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const IdentityScreen()));
               }
               if (val == 'github') {
-                // v2.14.0: apartado GitHub. Al abrir terminal se cierra
-                // esta pantalla y se conecta como desde la lista de hosts.
+                // v2.14.0: apartado GitHub (v2.14.3: ya no abre terminal;
+                // GitHub no da shell interactiva).
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => GithubScreen(
-                      onOpenTerminal: (h) {
-                        Navigator.pop(context);
-                        widget.onConnect(h);
-                      },
-                    ),
-                  ),
+                  MaterialPageRoute(builder: (_) => const GithubScreen()),
                 );
               }
               if (val == 'transfers') {
