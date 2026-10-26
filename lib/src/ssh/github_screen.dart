@@ -24,6 +24,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cryptography/cryptography.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -59,6 +60,7 @@ class _GithubScreenState extends State<GithubScreen> {
 
   SshHost? _host;
   String _pubKey = '';
+  String _fingerprint = '';
   bool _testing = false;
   bool? _testOk;
   String _testMsg = '';
@@ -94,11 +96,27 @@ class _GithubScreenState extends State<GithubScreen> {
       await svc.add(h);
     }
     final pub = await IdentityService.ensureIdentity();
+    final fp = await _fingerprintOf(pub);
     if (!mounted) return;
     setState(() {
       _host = h;
       _pubKey = pub;
+      _fingerprint = fp;
     });
+  }
+
+  /// Huella OpenSSH (SHA256:...) de una linea publica, para comparar con la
+  /// entrada de GitHub (Settings -> SSH keys muestra la misma huella).
+  static Future<String> _fingerprintOf(String pubLine) async {
+    try {
+      final parts = pubLine.trim().split(RegExp(r'\s+'));
+      if (parts.length < 2) return '';
+      final blob = base64.decode(parts[1]);
+      final hash = await Sha256().hash(blob);
+      return 'SHA256:' + base64.encode(hash.bytes).replaceAll('=', '');
+    } catch (_) {
+      return '';
+    }
   }
 
   void _toast(String msg) {
@@ -180,6 +198,16 @@ class _GithubScreenState extends State<GithubScreen> {
       error = 'Sin conexion a github.com:22 (red?).';
     } on StateError catch (e) {
       error = e.message;
+    } on SSHAuthFailError {
+      // La clave publica que presenta la app no es la que GitHub tiene
+      // registrada (p. ej. tras regenerar la identidad en la pantalla
+      // Identidad despues de anadir la clave a GitHub). La huella visible
+      // en la tarjeta Identidad permite comparar al instante.
+      error = 'GitHub rechazo la clave publica. Compara la huella de la '
+          'tarjeta Identidad con la de tu entrada en GitHub (Settings -> '
+          'SSH keys): si difieren, la identidad se regenero — vuelve a '
+          '"Copiar clave publica", borra la entrada vieja en GitHub y anade '
+          'la nueva.';
     } catch (e) {
       final msg = e.toString().toLowerCase();
       if (msg.contains('auth') || msg.contains('closed before')) {
@@ -263,7 +291,9 @@ class _GithubScreenState extends State<GithubScreen> {
             Text(
               pub.isEmpty
                   ? 'Generando identidad Ed25519…'
-                  : 'Clave Ed25519 de la app lista.\n$pubShort',
+                  : 'Clave Ed25519 de la app lista.\n$pubShort\n'
+                      'Huella: ${_fingerprint.isEmpty ? '…' : _fingerprint}\n'
+                      '(debe coincidir con tu entrada en GitHub)',
               style: const TextStyle(color: _textLo, fontSize: 13),
             ),
             const SizedBox(height: 10),

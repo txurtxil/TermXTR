@@ -1,6 +1,20 @@
 # Changelog
 
 
+## v2.14.1 (2026-10-26)
+
+### Diagnostico de clave GitHub (autoinstalable)
+- La tarjeta Identidad de la pantalla GitHub ahora muestra la HUELLA
+  SHA256:... de la clave de la app (mismo formato que GitHub -> Settings ->
+  SSH keys) para comparar con la entrada registrada en GitHub.
+- Mapeo especifico de SSHAuthFailError: "GitHub rechazo la clave publica"
+  con instruccion de comparar huellas y reemplazar la entrada en GitHub si
+  difieren (causa tipica: regenerar la identidad en la pantalla Identidad
+  DESPUES de anadir la clave a GitHub).
+- Motivacion: primer uso real en dispositivo dio SSHAuthFailError con la
+  clave en GitHub marcada "Never used" = la clave presentada no era la
+  registrada. Con la huella visible el diagnostico es inmediato.
+
 ## v2.14.0 (2026-10-26)
 
 ### Apartado GitHub (nueva pantalla)
