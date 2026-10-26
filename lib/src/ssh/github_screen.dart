@@ -30,6 +30,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../terminal/terminal_session.dart';
+import 'gh_screen.dart';
 import 'identity_service.dart';
 import 'ssh_host.dart';
 import 'ssh_hosts_service.dart';
@@ -401,6 +402,32 @@ class _GithubScreenState extends State<GithubScreen> {
               _chip('Push', () => _copySnippet('git push git@github.com:${_repo}.git')),
               _chip('Fetch', () => _copySnippet('git fetch git@github.com:${_repo}.git')),
             ]),
+          ]),
+          _section('Consola gh', [
+            const Text(
+              'Gestiona GitHub desde la app: esta pantalla se conecta por '
+              'SSH al host que elijas (z1 por defecto, donde gh ya esta '
+              'autenticado) y ejecuta comandos gh de solo lectura: tus '
+              'repos, PRs, issues, releases y CI, con copiar en cada '
+              'resultado.',
+              style: TextStyle(color: _textLo, fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const GhConsoleScreen()),
+                  );
+                },
+                icon: const Icon(Icons.terminal, size: 18, color: _accent),
+                label: const Text('Abrir consola gh',
+                    style: TextStyle(color: _accent)),
+              ),
+            ),
           ]),
           _section('Sesion', [
             const Text(

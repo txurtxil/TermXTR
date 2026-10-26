@@ -1,6 +1,28 @@
 # Changelog
 
 
+## v2.15.0 (2026-10-26)
+
+### Consola gh — gestionar GitHub desde la app (opcion B encargada)
+- Nueva pantalla "GitHub · Consola gh" (entrada desde GitHub · SSH):
+  se conecta por SSH al host elegido (z1 por defecto, donde gh ya esta
+  autenticado como txurtxil) y ejecuta comandos gh de SOLO LECTURA.
+- Receta de conexion copiada de _auditHost (probadisima): contrasena desde
+  SshCredentialsStore con prompt + opcion "Recordar", keyPath del host o
+  identidad de la app como fallback, known_hosts accept-new anti-MITM,
+  reconexion automatica si el canal cae, cliente cerrado al salir.
+- Acciones (todas verificadas en z1, RC=0, no interactivas): Auth
+  (gh auth status), Repos (gh repo list), Mis PRs (gh search prs
+  --author=@me), Mis issues (gh search issues --assignee=@me), Releases y
+  CI runs sobre un campo usuario/repo (gh release list / gh run list).
+  gh pr/issue status descartados: exigen estar dentro de un repo git.
+- Resultados en tarjeta verde/rojo con texto monoespaciado seleccionable y
+  boton copiar. dartssh2 3.3.1: run() devuelve solo stdout; se usa
+  runWithResult() para stdout+stderr+exitCode.
+- Contexto: el usuario recordaba haber "hecho login por otro camino" — era
+  gh CLI (clave githubcli de su cuenta, anadida via personal access token).
+  Dispositivo actual: Xiaomi 15 Ultra (Fold 7 retirado, canon ya al dia).
+
 ## v2.14.4 (2026-10-26)
 
 ### Probar conexion GitHub: la autenticacion ES la prueba (diseno robusto)
