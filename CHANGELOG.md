@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.17.2 (2026-10-27)
+
+### Reiniciar portapapeles en el menu rapido
+- "Reiniciar portapapeles" tambien en Utilidades -> seccion Portapapeles
+  (antes solo en el menu de ajustes). Mismo rescate: timeout 2 s al sistema,
+  reparacion desde el historial interno, pegado directo si no responde.
+
+
 ## v2.17.1 (2026-10-27)
 
 ### Rescate del portapapeles + zip Windows ordenado

@@ -539,6 +539,9 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
               }),
               _scriptTile(ctx, s, 'Copiar toda la sesión', '', icon: Icons.copy_all, customAction: () { Navigator.pop(ctx); _copyEntireSession(s); }),
               _scriptTile(ctx, s, 'Portapapeles guardados', '', icon: Icons.content_paste_go, customAction: () { Navigator.pop(ctx); _openClipboardVault(s); }),
+              // v2.17.2: el rescate del portapapeles tambien en el menu rapido
+              // de Utilidades (antes solo en ajustes); mismo _resetClipboard.
+              _scriptTile(ctx, s, 'Reiniciar portapapeles', '', icon: Icons.restart_alt, customAction: () { Navigator.pop(ctx); _resetClipboard(); }),
               _menuHeader('Sesión'),
               _scriptTile(ctx, s, 'Autocompletar (Doble Tab)', '\t\t', icon: Icons.keyboard_tab),
               StatefulBuilder(
