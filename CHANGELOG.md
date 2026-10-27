@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.17.5 (2026-10-27)
+
+### Build de diagnostico de seleccion (NO es fix)
+- Panel en pantalla dentro del overlay con valores vivos de la seleccion:
+  anclas vivas vs cacheadas, scrollController.offset, cellSize, tamano del
+  box y posiciones calculadas de las asas, mas un registro de eventos con
+  marca de tiempo (seleccion, arrastre con celda deducida, scrolls).
+  Objetivo: capturar en video los numeros exactos del momento en que la
+  seleccion se corrompe tras funcionar bien al principio.
+
+
 ## v2.17.4 (2026-10-27)
 
 ### Seleccion: geometria propia (otro sistema)

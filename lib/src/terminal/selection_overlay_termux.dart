@@ -95,6 +95,23 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   Timer? _autoScrollTimer;
   int _autoScrollDir = 0; // -1 arriba, 0 parado, 1 abajo
 
+  // --- Diagnóstico v2.17.5: panel en pantalla + registro de eventos ------
+  final List<String> _dbg = [];
+  double _dbgLastOffset = -1;
+  CellOffset? _dbgLastCell;
+  bool _dbgDirty = false;
+  Timer? _dbgTimer;
+
+  void _dbgT(String ev) {
+    if (!mounted) return;
+    final t = DateTime.now();
+    final ts =
+        '${t.minute.toString().padLeft(2, '0')}:${t.second.toString().padLeft(2, '0')}.${t.millisecond.toString().padLeft(3, '0')}';
+    _dbg.insert(0, '$ts $ev');
+    if (_dbg.length > 30) _dbg.removeLast();
+    _dbgDirty = true; // el timer refresca el panel (seguro: nunca en build)
+  }
+
   // NOTA v14.22: el doble-toque -> TAB se eliminó. El GestureDetector del
   // panel (terminal_view) abre el menú de Utilidades con ese mismo gesto,
   // así que cada apertura del menú inyectaba un TAB en la shell. El
@@ -109,11 +126,19 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
     widget.controller.addListener(_onController);
     widget.scrollController.addListener(_onViewportChange);
     widget.terminal.addListener(_onViewportChange);
+    _dbgTimer = Timer.periodic(const Duration(milliseconds: 300), (_) {
+      if (!mounted) return;
+      if (_dbgDirty) {
+        _dbgDirty = false;
+        setState(() {});
+      }
+    });
   }
 
   @override
   void dispose() {
     _stopAutoScroll();
+    _dbgTimer?.cancel();
     widget.controller.removeListener(_onController);
     widget.scrollController.removeListener(_onViewportChange);
     widget.terminal.removeListener(_onViewportChange);
@@ -141,13 +166,22 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
         _selStart = n.begin;
         _selEnd = n.end;
       });
-      if (appeared) HapticFeedback.mediumImpact();
+      if (appeared) {
+        HapticFeedback.mediumImpact();
+        _dbgT('SEL ${n.begin} -> ${n.end}');
+      }
     }
   }
 
   // Scroll manual u output nuevo con selección activa: las asas siguen
   // al texto (los anchors se mueven con el buffer).
   void _onViewportChange() {
+    final sc = widget.scrollController;
+    final off = sc.hasClients ? sc.offset : -1.0;
+    if ((off - _dbgLastOffset).abs() > 0.5) {
+      _dbgLastOffset = off;
+      _dbgT('scroll ${off.toStringAsFixed(1)}');
+    }
     if (_hasSelection && mounted && !_dragging) {
       setState(() {});
     }
@@ -227,6 +261,7 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
       _dragFixed = isStartHandle ? _selEnd : _selStart;
     });
     _lastFingerGlobal = d.globalPosition;
+    _dbgT('DRAG ${isStartHandle ? 'INI' : 'FIN'} fijo=$_dragFixed dedo=${d.globalPosition.dx.toStringAsFixed(0)},${d.globalPosition.dy.toStringAsFixed(0)}');
   }
 
   void _updateDrag(DragUpdateDetails d) {
@@ -246,6 +281,7 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   void _cancelDrag() => _finishDrag();
 
   void _finishDrag() {
+    _dbgT('DRAG fin');
     _stopAutoScroll();
     setState(() {
       _dragging = false;
@@ -277,6 +313,10 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
     // paquete hace +1 en x al arrastrar hacia adelante. Al arrastrar el asa
     // de FIN hay que hacer lo mismo o la celda bajo la punta queda fuera
     // del highlight (otra fuente de desincronización asa<->texto).
+    if (cell != _dbgLastCell) {
+      _dbgLastCell = cell;
+      _dbgT('arrastre->$cell (dedo=${global.dx.toStringAsFixed(0)},${global.dy.toStringAsFixed(0)})');
+    }
     final moving =
         fixed.isBeforeOrSame(cell) ? CellOffset(cell.x + 1, cell.y) : cell;
     widget.controller.setSelection(
@@ -389,7 +429,50 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
         widget.child,
         if (_hasSelection) ..._buildHandles(color),
         if (_hasSelection) _buildActionBar(context),
+        // v2.17.5: panel de diagnostico (build de pruebas).
+        _buildDbgPanel(),
       ],
+    );
+  }
+
+  Widget _buildDbgPanel() {
+    if (_dbg.isEmpty) return const SizedBox.shrink();
+    final sc = widget.scrollController;
+    final sel = _liveSel;
+    final box = context.findRenderObject() as RenderBox?;
+    final sp = sel == null ? null : _cellToOverlay(sel.begin);
+    final ep = _cellToOverlay(_lastSelectedCell());
+    final rt = _rt;
+    String f(double v) => v.toStringAsFixed(1);
+    final lines = <String>[
+      'SEL  ${sel?.begin} -> ${sel?.end}',
+      'cache ${_selStart} -> ${_selEnd}',
+      'sc ${sc.hasClients ? f(sc.offset) : '-'}px | celda ${f(_cellW)}x${f(_cellH)} | rt ${rt == null ? 'NULL' : 'ok'}',
+      'box ${box != null && box.hasSize ? '${box.size.width.toStringAsFixed(0)}x${box.size.height.toStringAsFixed(0)}' : '-'}',
+      'pos  ${sp == null ? '-' : '${sp.dx.toStringAsFixed(0)},${sp.dy.toStringAsFixed(0)}'} -> ${ep == null ? '-' : '${ep.dx.toStringAsFixed(0)},${ep.dy.toStringAsFixed(0)}'}',
+      ..._dbg.take(7),
+    ];
+    return Positioned(
+      left: 4,
+      top: 4,
+      child: IgnorePointer(
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          color: Colors.black.withOpacity(0.75),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final l in lines)
+                Text(l,
+                    style: const TextStyle(
+                        color: Colors.yellowAccent,
+                        fontSize: 9,
+                        fontFamily: 'monospace',
+                        height: 1.2)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
