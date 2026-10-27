@@ -344,7 +344,61 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
     }
   }
 
+  // v2.17.1: rescate del portapapeles. Cuando el portapapeles del sistema
+  // se queda bloqueado (otro proceso lo mantiene abierto: gestores de
+  // portapapeles, CLIPBRD_E_CANT_OPEN en Windows...), Clipboard.getData
+  // puede NO VOLVER NUNCA y la unica salida era cerrar la sesion y entrar
+  // de nuevo. _resetClipboard() lo rescata: lectura con timeout corto,
+  // reparacion empujando la ultima entrada de ClipboardVault al sistema y,
+  // si tampoco responde, pegado directo desde el historial interno.
+  bool _clipboardFallback = false;
+
+  Future<void> _resetClipboard() async {
+    String? sys;
+    try {
+      final data = await Future.any<ClipboardData?>([
+        Clipboard.getData(Clipboard.kTextPlain),
+        Future<ClipboardData?>.delayed(const Duration(seconds: 2), () => null),
+      ]);
+      sys = data?.text;
+    } catch (_) {}
+
+    if (sys != null && sys.isNotEmpty) {
+      _clipboardFallback = false;
+      _toast('Portapapeles responde (${sys.length} caracteres)');
+      return;
+    }
+
+    final vault = ClipboardVault.instance;
+    final entry = vault.history.isEmpty ? null : vault.history.first;
+    if (entry == null) {
+      _toast('Sin historial interno que rescatar');
+      return;
+    }
+    final repaired = await vault.forceSystemClipboard(entry);
+    if (repaired) {
+      _clipboardFallback = false;
+      _toast('Portapapeles reiniciado desde el historial (${entry.bytes} B)');
+    } else {
+      _clipboardFallback = true;
+      _toast('Sistema no responde; pegando desde el historial interno');
+    }
+  }
+
   Future<void> _pasteClipboard() async {
+    // v2.17.1: con el rescate activo se pega directo desde el historial
+    // interno (el portapapeles del sistema no responde).
+    if (_clipboardFallback) {
+      final vault = ClipboardVault.instance;
+      final entry = vault.history.isEmpty ? null : vault.history.first;
+      if (entry == null) {
+        _toast('Historial interno vacio');
+        return;
+      }
+      _active.terminal.textInput(entry.text);
+      _toast('Pegado desde historial (${entry.text.length} caracteres)');
+      return;
+    }
     // v2.10.2: feedback al pegar y aviso si el portapapeles esta vacio
     // (antes pegaba en silencio y parecia que no pasaba nada).
     final data = await Clipboard.getData(Clipboard.kTextPlain);
@@ -352,6 +406,11 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
     if (text != null && text.isNotEmpty) {
       _active.terminal.textInput(text);
       _toast('Pegado (${text.length} caracteres)');
+    } else if (ClipboardVault.instance.history.isNotEmpty) {
+      // v2.17.1: vacio/imposible de leer pero hay historial interno: se
+      // activa el rescate solo, sin obligar a resetear a mano.
+      _clipboardFallback = true;
+      _toast('Portapapeles del sistema fallo; usando historial interno');
     } else {
       _toast('Portapapeles vacio');
     }
@@ -377,7 +436,8 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
               mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(leading: const Icon(Icons.keyboard, color: Colors.greenAccent), title: const Text('Configurar teclado', style: TextStyle(color: Colors.white)), subtitle: const Text('Mostrar, ocultar y reordenar teclas', style: TextStyle(color: Colors.white54)), onTap: () { Navigator.pop(ctx); _openKeybarSettings(); }),
-                ListTile(leading: const Icon(Icons.content_paste_go, color: Colors.greenAccent), title: const Text('Portapapeles e historial', style: TextStyle(color: Colors.white)), subtitle: const Text('Clips guardados y texto de la sesión', style: TextStyle(color: Colors.white54)), onTap: () { Navigator.pop(ctx); _openClipboardVault(_active); }),
+                ListTile(leading: const Icon(Icons.content_paste_go, color: Colors.greenAccent), title: const Text('Portapapeles e historial', style: TextStyle(color: Colors.white)), subtitle: const Text('Clips guardados y texto de la sesion', style: TextStyle(color: Colors.white54)), onTap: () { Navigator.pop(ctx); _openClipboardVault(_active); }),
+                ListTile(leading: const Icon(Icons.restart_alt, color: Colors.orangeAccent), title: const Text('Reiniciar portapapeles', style: TextStyle(color: Colors.white)), subtitle: const Text('Rescata el pegado si el sistema no responde', style: TextStyle(color: Colors.white54)), onTap: () { Navigator.pop(ctx); _resetClipboard(); }),
                 ListTile(
                   leading: const Icon(Icons.format_size, color: Colors.greenAccent), title: const Text('Tamaño de fuente', style: TextStyle(color: Colors.white)), subtitle: Text('${_fontSize.toInt()} pt', style: const TextStyle(color: Colors.white54)),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [

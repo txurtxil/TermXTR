@@ -1,5 +1,24 @@
 # Changelog
 
+## v2.17.1 (2026-10-27)
+
+### Rescate del portapapeles + zip Windows ordenado
+- Nuevo "Reiniciar portapapeles" (menu de ajustes de la terminal): cuando
+  Clipboard.getData se queda colgado o devuelve vacio (portapapeles
+  bloqueado por otro proceso, CLIPBRD_E_CANT_OPEN en Windows...), ya no
+  hace falta cerrar la sesion y entrar de nuevo. La accion prueba el
+  sistema con timeout de 2 s; si no responde, repara empujando la ultima
+  entrada de ClipboardVault al portapapeles del sistema, y si tampoco
+  cuela activa el pegado directo desde el historial interno de la app.
+- Pegado robusto automatico: si al pegar el sistema devuelve vacio pero
+  hay historial interno, el rescate se activa solo (avisa con toast).
+- Zip portable de Windows con estructura ordenada: TermXTR.exe + LEEME.txt
+  + runtime de Visual C++ en la raiz, lib/ (flutter_windows.dll cargado
+  por delay-load, registrado por el exe con AddDllDirectory), data/ y
+  log/. El workflow tambien acepta workflow_dispatch para probar la build
+  sin etiquetar (sube el zip como artifact, no toca releases).
+
+
 
 ## v2.17.0 (2026-10-27)
 
