@@ -1,13 +1,14 @@
 # TermXTR — build de escritorio Windows.
-# Se dispara al empujar un tag v* (la release de Android la crea quien
-# etiqueta; este workflow crea la release si aun no existe y adjunta el
-# zip de Windows). El binario Windows NO se puede compilar desde Linux.
+# Tag v* : compila y adjunta el zip a la release de Android (la crea si
+# no existe). workflow_dispatch: misma build para probar sin etiquetar
+# (sube el zip como artifact del run; NO toca releases).
 name: windows_build
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,11 +24,6 @@ jobs:
           channel: stable
           cache: true
 
-      # El repo solo tenia la plataforma Android. flutter create es
-      # ADITIVO: genera windows/ (runner, CMake, icons) sin tocar lib/.
-      - name: Generar runner de Windows
-        run: flutter create --platforms windows --project-name linux_container .
-
       - name: Dependencias
         run: flutter pub get
 
@@ -35,9 +31,8 @@ jobs:
         run: flutter build windows --release
 
       # El exe enlaza contra el runtime de Visual C++ (MSVCP140...), que
-      # existe en el runner pero NO en un Windows limpio: sin esto el
-      # usuario ve "no se encontro MSVCP140.dll". Se copian junto al exe
-      # para que funcione con doble click sin instalar ningun redist.
+      # existe en el runner pero NO en un Windows limpio. Se copian al
+      # Release para empaquetarlos junto al resto de DLL en lib/.
       - name: Incluir runtime de Visual C++
         shell: pwsh
         run: |
@@ -46,36 +41,48 @@ jobs:
             $src = "C:\Windows\System32\$dll"
             if (Test-Path $src) { Copy-Item $src $rel } else { Write-Host "AVISO: no esta $dll" }
           }
-          Get-ChildItem $rel -Filter *.dll | Select-Object -ExpandProperty Name
 
-      - name: Empaquetar
+      # v2.17.1: estructura ordenada del zip portable. Los DLL (incluido
+      # flutter_windows.dll) viven en lib/ y el exe los carga por
+      # delay-load (main.cpp registra el directorio al arrancar).
+      - name: Empaquetar zip ordenado
         shell: pwsh
         run: |
-          $tag = $env:GITHUB_REF_NAME
-          $dest = "termxtr-windows-$tag"
-          Copy-Item "build/windows/x64/runner/Release" -Recurse -Destination $dest
-          Compress-Archive -Path $dest -DestinationPath "$dest.zip"
+          $rel = "build/windows/x64/runner/Release"
+          $ref = ($env:GITHUB_REF_NAME -replace '/', '-')
+          $dest = "termxtr-windows-$ref"
+          New-Item -ItemType Directory -Path $dest, "$dest\lib", "$dest\log" -Force | Out-Null
+          Copy-Item "$rel\linux_container.exe" "$dest\TermXTR.exe"
+          Copy-Item "$rel\data" -Recurse "$dest\data"
+          Get-ChildItem "$rel\*.dll" | Copy-Item -Destination "$dest\lib"
+          @"
+          TermXTR (Windows portable)
+          ==========================
+          TermXTR.exe : la aplicacion (doble click)
+          lib\        : librerias del programa (NO mover; Windows las carga desde ahi)
+          data\       : recursos de Flutter
+          log\        : logs de la aplicacion
 
-      # La release puede no existir aun: la creamos con el zip; si existe,
-      # subimos con --clobber. Reintentos por si la creo otro proceso.
-      - name: Publicar en la release del tag
+          Al ser portable y no firmada, Windows SmartScreen puede avisar la
+          primera vez: "Mas informacion" -> "Ejecutar de todas formas".
+          "@ | Out-File -Encoding utf8 "$dest\LEEME.txt"
+          $zip = "$dest.zip"
+          Compress-Archive -Path $dest -DestinationPath $zip
+          "ZIP=$zip" >> $env:GITHUB_OUTPUT
+
+      - name: Subir zip como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: termxtr-windows
+          path: termxtr-windows-*.zip
+
+      - name: Adjuntar zip a la release (solo tags)
+        if: github.ref_type == 'tag'
         shell: pwsh
-        run: |
-          $tag = $env:GITHUB_REF_NAME
-          $zip = "termxtr-windows-$tag.zip"
-          $ok = $false
-          for ($i = 1; $i -le 6; $i++) {
-            gh release view $tag --repo txurtxil/TermXTR 2>$null
-            if ($LASTEXITCODE -eq 0) {
-              gh release upload $tag $zip --clobber --repo txurtxil/TermXTR
-            } else {
-              gh release create $tag $zip --title "TermXTR $tag" --repo txurtxil/TermXTR `
-                --notes "Version Windows: descomprime y ejecuta linux_container.exe"
-            }
-            if ($LASTEXITCODE -eq 0) { $ok = $true; break }
-            Write-Host "Reintento $i/6..."
-            Start-Sleep -Seconds 20
-          }
-          if (-not $ok) { exit 1 }
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $zip = Get-Item "termxtr-windows-*.zip"
+          gh release create $tag --title "$tag" 2>$null
+          gh release upload $tag $zip --clobber

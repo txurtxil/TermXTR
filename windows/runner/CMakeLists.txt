@@ -20,6 +20,16 @@ add_executable(${BINARY_NAME} WIN32
 # that need different build settings.
 apply_standard_settings(${BINARY_NAME})
 
+# v2.17.1: los DLL (flutter_windows + runtime de Visual C++) se empaquetan
+# en lib/ para ordenar el zip; el exe los carga por delay-load tras
+# registrar ese directorio en main.cpp.
+target_link_options(${BINARY_NAME} PRIVATE
+  "/DELAYLOAD:flutter_windows.dll"
+  "/DELAYLOAD:msvcp140.dll"
+  "/DELAYLOAD:vcruntime140.dll"
+  "/DELAYLOAD:vcruntime140_1.dll"
+)
+
 # Add preprocessor definitions for the build version.
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION=\"${FLUTTER_VERSION}\"")
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_MAJOR=${FLUTTER_VERSION_MAJOR}")
