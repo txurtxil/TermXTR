@@ -35,6 +35,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
 
+import 'clipboard_vault.dart';
+
 class TermuxSelectionOverlay extends StatefulWidget {
   const TermuxSelectionOverlay({
     super.key,
@@ -118,6 +120,11 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   // autocompletado sigue a un toque: primera opción del menú Utilidades
   // y tecla Tab del keybar.
 
+  // v2.17.6: nuestra limpieza del controller (tras capturar el long-press)
+  // dispara _onController con selection==null; sin esta bandera se
+  // interpretaria como un dismiss del usuario y nos borraria la seleccion.
+  bool _ownClearing = false;
+
   bool get _hasSelection => _selStart != null && _selEnd != null;
 
   @override
@@ -151,12 +158,14 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
     if (_dragging) return; // durante el arrastre mandan las asas
     final sel = widget.controller.selection;
     if (sel == null) {
-      if (_hasSelection) {
+      if (_hasSelection && !_ownClearing) {
+        // Clear externo (tap fuera o boton X del paquete): dismiss real.
         setState(() {
           _selStart = null;
           _selEnd = null;
         });
       }
+      _ownClearing = false;
       return;
     }
     final n = sel.normalized;
@@ -168,7 +177,13 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
       });
       if (appeared) {
         HapticFeedback.mediumImpact();
-        _dbgT('SEL ${n.begin} -> ${n.end}');
+        _dbgT('SEL ${n.begin} -> ${n.end} (captura)');
+        // v2.17.6: el paquete ya aporto la palabra inicial; le quitamos la
+        // seleccion para que sus anclas no mueran con el buffer (eso era lo
+        // que congelaba la seleccion tras el auto-scroll) y para que su
+        // pintor no dibuje un segundo highlight.
+        _ownClearing = true;
+        widget.controller.clearSelection();
       }
     }
   }
@@ -203,7 +218,7 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   // (_selStart/_selEnd) para DIBUJAR era la causa de la deriva de las
   // asas: el pintor resuelve las anclas en vivo y las asas no, asi que
   // el resaltado iba bien y las gotas se quedaban abajo "desgastandose".
-  BufferRange? get _liveSel => widget.controller.selection?.normalized;
+  // (v2.17.6) _liveSel eliminado: la seleccion es propia (_selStart/_selEnd).
 
   // v2.17.4: geometria PROPIA del overlay. Las posiciones se calculan
   // directamente en el espacio del overlay desde primitivas propias:
@@ -239,8 +254,9 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
 
   /// Última celda seleccionada (la selección de xterm es end-exclusive).
   CellOffset? _lastSelectedCell() {
-    final sel = _liveSel;
-    if (sel == null) return null;
+    final s0 = _selStart, e0 = _selEnd;
+    if (s0 == null || e0 == null) return null;
+    final sel = s0.isBefore(e0) ? BufferRangeLine(s0, e0) : BufferRangeLine(e0, s0);
     final end = sel.end;
     final start = sel.begin;
     if (end.x > 0) return CellOffset(end.x - 1, end.y);
@@ -287,7 +303,8 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
       _dragging = false;
       _dragFixed = null;
     });
-    _onController(); // resincroniza con la selección final
+    // v2.17.6: sin _onController() — la seleccion es propia y ese resync
+    // veria el controller vacio y borraria la seleccion al soltar.
   }
 
   void _extendSelectionTo(Offset global) {
@@ -308,7 +325,6 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
     final maxRow = widget.terminal.buffer.lines.length - 1;
     if (row > maxRow) row = maxRow;
     final cell = CellOffset(col, row);
-    final buffer = widget.terminal.buffer;
     // La selección de xterm es end-exclusive: por eso selectCharacters del
     // paquete hace +1 en x al arrastrar hacia adelante. Al arrastrar el asa
     // de FIN hay que hacer lo mismo o la celda bajo la punta queda fuera
@@ -317,13 +333,12 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
       _dbgLastCell = cell;
       _dbgT('arrastre->$cell (dedo=${global.dx.toStringAsFixed(0)},${global.dy.toStringAsFixed(0)})');
     }
+    // v2.17.6: seleccion PROPIA en CellOffset (end-exclusive como el
+    // paquete: +1 en x al avanzar hacia adelante). NADA de anclas: las
+    // CellAnchor de xterm viven en las lineas del buffer y se invalidan
+    // con scrolls/reciclados, congelando la seleccion (ver v2.17.5).
     final moving =
         fixed.isBeforeOrSame(cell) ? CellOffset(cell.x + 1, cell.y) : cell;
-    widget.controller.setSelection(
-      buffer.createAnchorFromOffset(fixed),
-      buffer.createAnchorFromOffset(moving),
-    );
-    // BufferRangeLine normaliza al pintar/copiar; aquí guardamos ordenado.
     setState(() {
       if (fixed.isBeforeOrSame(moving)) {
         _selStart = fixed;
@@ -388,32 +403,42 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   // --- Acciones de la barra --------------------------------------------------
 
   void _copySelection() {
-    if (widget.onCopy != null) {
-      widget.onCopy!.call();
-      return;
-    }
-    final sel = widget.controller.selection;
-    if (sel != null) {
-      final text = widget.terminal.buffer.getText(sel);
-      if (text.isNotEmpty) {
-        Clipboard.setData(ClipboardData(text: text));
-      }
-    }
-    widget.controller.clearSelection();
+    // v2.17.6: copia desde la seleccion PROPIA leyendo el buffer, sin
+    // depender de las anclas del paquete. ClipboardVault.copy graba en el
+    // historial interno y en el portapapeles del sistema.
+    final s = _selStart, e = _selEnd;
+    if (s == null || e == null) return;
+    final first = s.isBefore(e) ? s : e;
+    final last = s.isBefore(e) ? e : s;
+    final text = widget.terminal.buffer
+        .getText(BufferRangeLine(first, last));
+    if (text.isEmpty) return;
+    ClipboardVault.instance.copy(text, label: 'seleccion');
+    HapticFeedback.selectionClick();
+    _toast(context, 'Copiado (${text.length} caracteres)');
+    _close();
+  }
+
+  void _toast(BuildContext context, String msg) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger
+      ?..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        content: Text(msg),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+      ));
   }
 
   void _selectAll() {
-    if (widget.onSelectAll != null) {
-      widget.onSelectAll!.call();
-      return;
-    }
-    final buffer = widget.terminal.buffer;
-    final lastY = buffer.lines.length - 1;
+    // v2.17.6: select-all propio (sin anclas del paquete).
+    final lastY = widget.terminal.buffer.lines.length - 1;
     if (lastY < 0) return;
-    widget.controller.setSelection(
-      buffer.createAnchor(0, 0),
-      buffer.createAnchor(widget.terminal.viewWidth - 1, lastY),
-    );
+    setState(() {
+      _selStart = const CellOffset(0, 0);
+      _selEnd = CellOffset(widget.terminal.viewWidth, lastY);
+    });
+    _dbgT('SELECT ALL 0..$lastY');
   }
 
   void _close() => widget.controller.clearSelection();
@@ -427,6 +452,7 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
     return Stack(
       children: [
         widget.child,
+        if (_hasSelection) _buildHighlight(),
         if (_hasSelection) ..._buildHandles(color),
         if (_hasSelection) _buildActionBar(context),
         // v2.17.5: panel de diagnostico (build de pruebas).
@@ -438,7 +464,10 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   Widget _buildDbgPanel() {
     if (_dbg.isEmpty) return const SizedBox.shrink();
     final sc = widget.scrollController;
-    final sel = _liveSel;
+    final s0 = _selStart, e0 = _selEnd;
+    final sel = s0 != null && e0 != null
+        ? (s0.isBefore(e0) ? BufferRangeLine(s0, e0) : BufferRangeLine(e0, s0))
+        : null;
     final box = context.findRenderObject() as RenderBox?;
     final sp = sel == null ? null : _cellToOverlay(sel.begin);
     final ep = _cellToOverlay(_lastSelectedCell());
@@ -476,8 +505,40 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
     );
   }
 
+  // Highlight propio (v2.17.6): rectangulos por fila con la geometria
+  // propia (celda + sc.offset), mismos valores que usan las asas, asi que
+  // no puede desincronizarse con ellas ni con la posicion del texto.
+  Widget _buildHighlight() {
+    final s = _selStart, e = _selEnd;
+    if (s == null || e == null) return const SizedBox.shrink();
+    final first = s.isBefore(e) ? s : e;
+    final last = s.isBefore(e) ? e : s;
+    final sc = widget.scrollController;
+    if (!sc.hasClients) return const SizedBox.shrink();
+    final cw = _cellW, ch = _cellH;
+    final vw = widget.terminal.viewWidth * cw;
+    final maxRow = widget.terminal.buffer.lines.length - 1;
+    final rects = <Rect>[];
+    for (var r = first.y; r <= last.y && r <= maxRow; r++) {
+      final x0 = r == first.y ? first.x * cw : 0.0;
+      final x1 = r == last.y ? (last.x + 1) * cw : vw;
+      if (x1 <= x0) continue;
+      rects.add(Rect.fromLTWH(x0, r * ch - sc.offset, x1 - x0, ch));
+    }
+    if (rects.isEmpty) return const SizedBox.shrink();
+    return IgnorePointer(
+      child: RepaintBoundary(
+        child: CustomPaint(size: Size.infinite, painter: _HighlightPainter(rects)),
+      ),
+    );
+  }
+
   List<Widget> _buildHandles(Color color) {
-    final sel = _liveSel;
+    final sel = _selStart == null || _selEnd == null
+        ? null
+        : (_selStart!.isBefore(_selEnd!)
+            ? BufferRangeLine(_selStart!, _selEnd!)
+            : BufferRangeLine(_selEnd!, _selStart!));
     if (sel == null) return const [];
     final startPos = _cellToOverlay(sel.begin);
     final endCellPos = _cellToOverlay(_lastSelectedCell());
@@ -549,7 +610,10 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
     final maxH = box?.hasSize == true ? box!.size.height : double.infinity;
 
     double top = 8;
-    final liveSel = _liveSel;
+    final s0 = _selStart, e0 = _selEnd;
+    final liveSel = s0 != null && e0 != null
+        ? (s0.isBefore(e0) ? BufferRangeLine(s0, e0) : BufferRangeLine(e0, s0))
+        : null;
     final startPos = _cellToOverlay(liveSel?.begin);
     final endPos = _cellToOverlay(_lastSelectedCell());
     if (startPos != null && endPos != null) {
@@ -628,6 +692,22 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
 
 /// Lágrima tipo asa de selección de Android/Termux: punta arriba en el
 /// centro (24, 4) del box de 48x48, bola debajo.
+class _HighlightPainter extends CustomPainter {
+  _HighlightPainter(this.rects);
+  final List<Rect> rects;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.white.withOpacity(0.22);
+    for (final r in rects) {
+      canvas.drawRect(r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_HighlightPainter old) => true;
+}
+
 class _TeardropPainter extends CustomPainter {
   const _TeardropPainter({required this.color});
 

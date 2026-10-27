@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.17.6 (2026-10-27)
+
+### Seleccion con propiedad total del overlay (fin del congelado)
+- Diagnostico con v2.17.5 (video): la geometria era correcta; el fallo
+  estaba en las anclas del paquete xterm — CellAnchor vive en las lineas
+  del buffer y se invalida al reciclarse/crecer, y el getter selection
+  las resuelve perezosamente dejando de notificar: la seleccion se
+  congelaba tras el auto-scroll ("funciona al principio y luego se
+  corrompe").
+- El overlay ahora es dueno de la seleccion: CellOffset propios por
+  valor en _selStart/_selEnd. El paquete solo aporta la palabra inicial
+  del long-press; se captura y se limpia su controller (sin anclas en el
+  ciclo de interaccion). Highlight propio pintado con la misma geometria
+  que las asas, copia propia via buffer.getText(BufferRangeLine) +
+  ClipboardVault. Arrastre y select-all sin anclas. Panel de diagnostico
+  mantenido una version mas.
+
+
 ## v2.17.5 (2026-10-27)
 
 ### Build de diagnostico de seleccion (NO es fix)
