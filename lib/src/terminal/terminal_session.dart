@@ -231,20 +231,33 @@ class TerminalSession {
             .timeout(const Duration(seconds: 12));
       }
 
+      // v2.16.1: la clave del host y la identidad NO son excluyentes.
+      // Antes: si el host tenia keyPath (aunque fuera un fichero viejo no
+      // autorizado en el servidor), la identidad de la app ni se intentaba
+      // y el password tampoco -> SSHAuthFailError en bucle (visto en z1:
+      // keyPath=id_ed25519.bin caducado). Ahora: keyPath primero, identidad
+      // SIEMPRE como fallback, y password siempre ofrecido.
       List<SSHKeyPair>? identities;
       final keyPath = host.keyPath;
       if (keyPath != null && keyPath.trim().isNotEmpty) {
-        final keyFile = await AppPaths.resolveKey(keyPath.trim());
-        if (keyFile != null) {
-          identities = SSHKeyPair.fromPem(await keyFile.readAsString());
-        } else {
-          terminal.write('\x1b[33m[aviso: no se encuentra la clave $keyPath]\x1b[0m\r\n');
+        try {
+          final keyFile = await AppPaths.resolveKey(keyPath.trim());
+          if (keyFile != null) {
+            identities = SSHKeyPair.fromPem(await keyFile.readAsString());
+          } else {
+            terminal.write('\x1b[33m[aviso: no se encuentra la clave $keyPath; se usa la identidad de la app]\x1b[0m\r\n');
+          }
+        } catch (_) {
+          terminal.write('\x1b[33m[aviso: la clave $keyPath no es valida; se usa la identidad de la app]\x1b[0m\r\n');
         }
       }
 
-      if (identities == null) {
-        identities = await IdentityService.loadIdentity();
-      }
+      try {
+        final id = await IdentityService.loadIdentity();
+        if (id != null && id.isNotEmpty) {
+          identities = [...(identities ?? const <SSHKeyPair>[]), ...id];
+        }
+      } catch (_) {}
 
       final knownHosts = await TerminalSession.loadKnownHosts();
       final hostKey = '${host.hostname}:${host.port}';
@@ -253,13 +266,14 @@ class TerminalSession {
         socket,
         username: host.username,
         identities: identities,
-        onPasswordRequest: identities == null
-            ? () async {
-                final saved = password;
-                if (saved != null && saved.isNotEmpty) return saved;
-                return null;
-              }
-            : null,
+        // v2.16.1: el password guardado se ofrece SIEMPRE como fallback
+        // (antes solo si no habia identidad, lo que dejaba sin metodos a
+        // hosts con identidad no autorizada en el servidor).
+        onPasswordRequest: () async {
+          final saved = password;
+          if (saved != null && saved.isNotEmpty) return saved;
+          return null;
+        },
         onUserInfoRequest: (req) async {
           // Keyboard-interactive: responder con la contraseña guardada a
           // los prompts que la piden (case-insensitive). Otros prompts
@@ -333,10 +347,11 @@ class TerminalSession {
       }
       final msg = e.toString().replaceAll('\n', ' ');
       terminal.write('\r\n\x1b[31m[conexión fallida: $msg]\x1b[0m\r\n');
-      if (password == null || password!.isEmpty) {
-        terminal.write(
-            '\x1b[90mSi el servidor pide contraseña, guárdala en la ficha del host (Hosts → editar).\x1b[0m\r\n');
-      }
+      // v2.16.1: la auth fallida tiene SIEMPRE las mismas 3 causas; se
+      // listan para que el usuario no tenga que adivinar (visto en z1:
+      // keyPath caducado + identidad no autorizada + password ausente).
+      terminal.write(
+          '\x1b[90mCausas típicas: (1) la clave del host no está autorizada en el servidor, (2) la identidad de la app no está en authorized_keys del servidor (copia la pública en \x1b[0m\x1b[33mHosts → ⋮ → Identidad SSH\x1b[0m\x1b[90m), (3) falta la contraseña (guárdala en Hosts → editar).\x1b[0m\r\n');
     }
   }
 

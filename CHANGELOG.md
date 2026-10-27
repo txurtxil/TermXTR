@@ -1,6 +1,27 @@
 # Changelog
 
 
+## v2.16.1 (2026-10-27)
+
+### Fix auth SSH: la identidad ya no queda bloqueada por un keyPath viejo
+- Sintoma (visto en z1 tras la regeneracion de identidad): SSHAuthFailError
+  aunque la clave nueva estuviera en authorized_keys del servidor.
+- Causa 1 (codigo): si el host tenia keyPath (aunque fuera un fichero viejo
+  NO autorizado, p. ej. id_ed25519.bin), la app ofrecia SOLO esa clave; la
+  identidad de la app ni se intentaba, y el password tampoco (el password
+  solo se ofrecia cuando identities==null).
+- Fix: la identidad se anade SIEMPRE como fallback a la clave del host
+  (dartssh2 prueba cada clave), el password guardado se ofrece SIEMPRE, y
+  un keyPath ausente/corrupto cae a la identidad con aviso en la terminal.
+- Causa 2 (infra, resuelta en paralelo): tras regenerar la identidad hay
+  que autorizar la clave NUEVA en cada host (authorized_keys de z1 y
+  bc250 limpiados: solo clave actual de la app + clave de agente; backups
+  .bak-20261027). La app ahora lo recuerda en el propio mensaje de fallo.
+- Detalle de diagnostico: este sshd (OpenSSH 10) NO loguea
+  "Failed publickey" — un intento de clave rechazada aparece como
+  "Connection closed by authenticating user [preauth]". Calibrado
+  en z1 contra un intento real con clave basura.
+
 ## v2.16.0 (2026-10-27)
 
 ### La app como servidor SSH (opcion B, hito 1)
