@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.17.4 (2026-10-27)
+
+### Seleccion: geometria propia (otro sistema)
+- El overlay calcula las posiciones de asas/barra y la conversion
+  dedo->celda DIRECTAMENTE en su propio espacio, desde cellSize +
+  scrollController.offset (el mismo ScrollPosition que usa el pintor del
+  resaltado). Eliminados getOffset(), localToGlobal/globalToLocal contra
+  el RenderTerminal y getCellOffset() dinamico del paquete: las
+  conversiones cruzadas entre objetos de render eran la fuente del
+  descuadre "que no sigue los ejes x e y" y del desgaste progresivo.
+
+
 ## v2.17.3 (2026-10-27)
 
 ### Seleccion sin deriva + pegado unificado

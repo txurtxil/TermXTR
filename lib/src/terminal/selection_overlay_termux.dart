@@ -171,13 +171,24 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   // el resaltado iba bien y las gotas se quedaban abajo "desgastandose".
   BufferRange? get _liveSel => widget.controller.selection?.normalized;
 
+  // v2.17.4: geometria PROPIA del overlay. Las posiciones se calculan
+  // directamente en el espacio del overlay desde primitivas propias:
+  // cellSize (constante) y scrollController.offset (el MISMO ScrollPosition
+  // que usa el pintor del resaltado, asi que ambos no pueden
+  // desincronizarse). Se eliminan getOffset(), localToGlobal/globalToLocal
+  // contra el RenderTerminal y el getCellOffset() dinamico del paquete:
+  // las conversiones cruzadas entre objetos de render eran la fuente del
+  // "descuadre que no sigue los ejes x e y". padding ya es cero (v2.17.3),
+  // asi que el origen del overlay coincide con el del RenderTerminal.
   Offset? _cellToOverlay(CellOffset? cell) {
-    final rt = _rt;
+    if (cell == null) return null;
+    if (cell.y < 0 || cell.x < 0) return null;
+    final sc = widget.scrollController;
+    if (!sc.hasClients) return null;
     final box = context.findRenderObject() as RenderBox?;
-    if (rt == null || box == null || !box.hasSize) return null;
-    final Offset localInTerminal = rt.getOffset(cell) as Offset;
-    final global = (rt as RenderBox).localToGlobal(localInTerminal);
-    return box.globalToLocal(global);
+    if (box == null || !box.hasSize) return null;
+    final cw = _cellW, ch = _cellH;
+    return Offset(cell.x * cw, cell.y * ch - sc.offset);
   }
 
   double get _cellW {
@@ -244,14 +255,23 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   }
 
   void _extendSelectionTo(Offset global) {
-    final rt = _rt;
     final fixed = _dragFixed;
-    if (rt == null || fixed == null) return;
-    final local = (rt as RenderBox).globalToLocal(global);
-    // (rt as dynamic): el `as RenderBox` de la línea anterior promueve el
-    // tipo estático de rt a partir de este punto y rompería el acceso
-    // dinámico a getCellOffset (error de compilación visto en build linux).
-    final cell = (rt as dynamic).getCellOffset(local) as CellOffset;
+    final box = context.findRenderObject() as RenderBox?;
+    final sc = widget.scrollController;
+    if (fixed == null || box == null || !box.hasSize || !sc.hasClients) return;
+    // v2.17.4: unica conversion respecto al PROPIO box del overlay y celda
+    // con la formula inversa de _cellToOverlay (mismo sistema de coordenadas
+    // que dibuja las asas: imposible que se descuadre con ellas).
+    final local = box.globalToLocal(global);
+    final cw = _cellW, ch = _cellH;
+    var col = (local.dx / cw).floor();
+    var row = ((local.dy + sc.offset) / ch).floor();
+    if (col < 0) col = 0;
+    if (col > widget.terminal.viewWidth - 1) col = widget.terminal.viewWidth - 1;
+    if (row < 0) row = 0;
+    final maxRow = widget.terminal.buffer.lines.length - 1;
+    if (row > maxRow) row = maxRow;
+    final cell = CellOffset(col, row);
     final buffer = widget.terminal.buffer;
     // La selección de xterm es end-exclusive: por eso selectCharacters del
     // paquete hace +1 en x al arrastrar hacia adelante. Al arrastrar el asa
@@ -278,9 +298,8 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   // --- Auto-scroll cerca de los bordes --------------------------------------
 
   void _updateAutoScroll(Offset fingerGlobal) {
-    final rt = _rt;
-    if (rt == null) return;
-    final box = rt as RenderBox;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
     final top = box.localToGlobal(Offset.zero).dy;
     final bottom = top + box.size.height;
     final margin = _cellH * _edgeMarginCells;
