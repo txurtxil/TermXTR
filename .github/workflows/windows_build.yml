@@ -54,12 +54,20 @@ jobs:
           New-Item -ItemType Directory -Path $dest, "$dest\lib", "$dest\log" -Force | Out-Null
           Copy-Item "$rel\linux_container.exe" "$dest\TermXTR.exe"
           Copy-Item "$rel\data" -Recurse "$dest\data"
-          Get-ChildItem "$rel\*.dll" | Copy-Item -Destination "$dest\lib"
+          # flutter_windows.dll -> lib/ (delay-load, registrado por el exe)
+          Copy-Item "$rel\flutter_windows.dll" "$dest\lib"
+          # runtime de Visual C++ -> raiz (requisito del loader; no es
+          # delay-loadable, ver CMakeLists)
+          foreach ($dll in @("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll")) {
+            Copy-Item "$rel\$dll" "$dest"
+          }
           @"
           TermXTR (Windows portable)
           ==========================
           TermXTR.exe : la aplicacion (doble click)
-          lib\        : librerias del programa (NO mover; Windows las carga desde ahi)
+          *.dll (raiz) : runtime de Visual C++ (NO mover; Windows los carga
+                         desde la carpeta del exe)
+          lib\        : motor Flutter (NO mover; el exe lo carga desde ahi)
           data\       : recursos de Flutter
           log\        : logs de la aplicacion
 
