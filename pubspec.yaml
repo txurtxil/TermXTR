@@ -1,7 +1,7 @@
 name: linux_container
 description: "TermXTR: terminal SSH/SFTP para Android con editor integrado, grabadora y gestion de hosts."
 publish_to: 'none'
-version: 2.15.1+42
+version: 2.16.0+43
 
 environment:
   sdk: ^3.7.2
@@ -28,3 +28,11 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/ssh/dropbear-arm64
+    - assets/ssh/dropbear-armv7
+    - assets/ssh/dropbear-x86_64
+    - assets/ssh/dropbearkey-arm64
+    - assets/ssh/dropbearkey-armv7
+    - assets/ssh/dropbearkey-x86_64

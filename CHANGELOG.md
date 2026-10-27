@@ -1,6 +1,43 @@
 # Changelog
 
 
+## v2.16.0 (2026-10-27)
+
+### La app como servidor SSH (opcion B, hito 1)
+- TermXTR embebe dropbear 2024.86 (estatico, NDK 28, API 28) compilado
+  para arm64/armv7/x86_64 y expone un sshd en el telefono: menu ... de
+  Hosts -> "Servidor SSH (esta app)".
+- Auth SOLO por clave: la identidad Ed25519 de la app se escribe en
+  authorized_keys en cada arranque; password desactivada en la build
+  (-s, y DROPBEAR_SVR_PASSWORD_AUTH=0: Bionic no tiene crypt()). Sin
+  forwarding de ningun tipo.
+- Parche TermXTR sobre dropbear (src/termxtr_passwd.h, aplicado en
+  common-session.c fill_passwd y svr-chansession.c): passwd sintetico —
+  en Android no-root /system/etc/passdb solo resuelve root/shell y el
+  setuid moriria. Cualquier usuario con clave valida aterriza como el uid
+  de la app, HOME propio (donde vive .ssh/authorized_keys), shell
+  /system/bin/sh.
+- Servicio (SshServerService): extrae el binario por ABI (Abi.current()),
+  host key Ed25519 persistente generada con dropbearkey la primera vez,
+  lanza dropbear -F -E -s -r <hostkey> -p <puerto>, captura el log,
+  autocomprobacion con dropbear -V en el dispositivo antes de darlo por
+  bueno. Pantalla: arrancar/detener, puerto (2222), IPs locales, linea
+  de conexion para el cliente, clave publica para autorizar, log en vivo.
+- BUG REAL DE COMPILACION DOCUMENTADO: con static-PIE (default del
+  toolchain) los binarios Bionic se autoreubicaban al arrancar y
+  SEGFAULTABAN antes de main (en z1 y bajo qemu; hello.c enlazaba
+  no-PIE y vivia). Fix: -fno-PIE / -Wl,-no-pie. Verificado: x86_64 en
+  Linux real y arm64 bajo qemu imprimen "Dropbear v2024.86". armv7 no
+  verificable en z1 (Bionic 32-bit exige pid_max<=65535; el host tiene
+  mas; en Android real no aplica).
+- Limitacion: el servidor vive mientras la app vive. Pendiente: servicio
+  en primer plano (notificacion persistente) y B2 (puente a las sesiones
+  de la app).
+- Contexto de la noche: acceso a z1 recuperado con sudo ip addr add
+  192.168.10.28/32 dev wlp6s0 (el forward 6022 del router apunta a la .28
+  y z1 paso a Wi-Fi .13 al ceder el RJ45 a bc250). Pendiente fijo: reserva
+  DHCP de la MAC Wi-Fi de z1 a la .28.
+
 ## v2.15.1 (2026-10-26)
 
 ### Eliminado todo lo GitHub (decision del usuario tras probarlo)
