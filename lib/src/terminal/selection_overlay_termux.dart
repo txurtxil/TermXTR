@@ -33,6 +33,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:xterm/xterm.dart';
 
 import 'clipboard_vault.dart';
@@ -97,23 +98,6 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   Timer? _autoScrollTimer;
   int _autoScrollDir = 0; // -1 arriba, 0 parado, 1 abajo
 
-  // --- Diagnóstico v2.17.5: panel en pantalla + registro de eventos ------
-  final List<String> _dbg = [];
-  double _dbgLastOffset = -1;
-  CellOffset? _dbgLastCell;
-  bool _dbgDirty = false;
-  Timer? _dbgTimer;
-
-  void _dbgT(String ev) {
-    if (!mounted) return;
-    final t = DateTime.now();
-    final ts =
-        '${t.minute.toString().padLeft(2, '0')}:${t.second.toString().padLeft(2, '0')}.${t.millisecond.toString().padLeft(3, '0')}';
-    _dbg.insert(0, '$ts $ev');
-    if (_dbg.length > 30) _dbg.removeLast();
-    _dbgDirty = true; // el timer refresca el panel (seguro: nunca en build)
-  }
-
   // NOTA v14.22: el doble-toque -> TAB se eliminó. El GestureDetector del
   // panel (terminal_view) abre el menú de Utilidades con ese mismo gesto,
   // así que cada apertura del menú inyectaba un TAB en la shell. El
@@ -133,19 +117,11 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
     widget.controller.addListener(_onController);
     widget.scrollController.addListener(_onViewportChange);
     widget.terminal.addListener(_onViewportChange);
-    _dbgTimer = Timer.periodic(const Duration(milliseconds: 300), (_) {
-      if (!mounted) return;
-      if (_dbgDirty) {
-        _dbgDirty = false;
-        setState(() {});
-      }
-    });
   }
 
   @override
   void dispose() {
     _stopAutoScroll();
-    _dbgTimer?.cancel();
     widget.controller.removeListener(_onController);
     widget.scrollController.removeListener(_onViewportChange);
     widget.terminal.removeListener(_onViewportChange);
@@ -177,7 +153,6 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
       });
       if (appeared) {
         HapticFeedback.mediumImpact();
-        _dbgT('SEL ${n.begin} -> ${n.end} (captura)');
         // v2.17.6: el paquete ya aporto la palabra inicial; le quitamos la
         // seleccion para que sus anclas no mueran con el buffer (eso era lo
         // que congelaba la seleccion tras el auto-scroll) y para que su
@@ -191,12 +166,6 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   // Scroll manual u output nuevo con selección activa: las asas siguen
   // al texto (los anchors se mueven con el buffer).
   void _onViewportChange() {
-    final sc = widget.scrollController;
-    final off = sc.hasClients ? sc.offset : -1.0;
-    if ((off - _dbgLastOffset).abs() > 0.5) {
-      _dbgLastOffset = off;
-      _dbgT('scroll ${off.toStringAsFixed(1)}');
-    }
     if (_hasSelection && mounted && !_dragging) {
       setState(() {});
     }
@@ -277,7 +246,16 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
       _dragFixed = isStartHandle ? _selEnd : _selStart;
     });
     _lastFingerGlobal = d.globalPosition;
-    _dbgT('DRAG ${isStartHandle ? 'INI' : 'FIN'} fijo=$_dragFixed dedo=${d.globalPosition.dx.toStringAsFixed(0)},${d.globalPosition.dy.toStringAsFixed(0)}');
+    // v2.17.7: compensacion de agarre — el punto que se agarra (la punta
+    // del asa) sigue al dedo desde el primer instante. Sin esto, el "aim"
+    // (dedo -56px) hacia saltar la seleccion ~4 filas al empezar a
+    // arrastrar: era el "punto de seleccion roto". Se conserva el lift
+    // como offset fijo dedo->punta, capturado en el agarre.
+    final grabbed = isStartHandle ? _selStart : _selEnd;
+    final aimed = _cellFromGlobal(_aimOf(d.globalPosition));
+    _grabDelta = (grabbed != null && aimed != null)
+        ? CellOffset(grabbed.x - aimed.x, grabbed.y - aimed.y)
+        : const CellOffset(0, 0);
   }
 
   void _updateDrag(DragUpdateDetails d) {
@@ -293,12 +271,91 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   Offset _aimOf(Offset fingerGlobal) =>
       fingerGlobal - const Offset(0, _dragLift);
 
+  // v2.17.7: offset de agarre (celda) para que la punta agarrada siga al
+  // dedo sin saltos desde el primer movimiento.
+  CellOffset _grabDelta = const CellOffset(0, 0);
+
+  // Celda (col, fila absoluta) bajo un punto global, con la geometria
+  // propia del overlay (formula inversa de _cellToOverlay).
+  CellOffset? _cellFromGlobal(Offset global) {
+    final box = context.findRenderObject() as RenderBox?;
+    final sc = widget.scrollController;
+    if (box == null || !box.hasSize || !sc.hasClients) return null;
+    final local = box.globalToLocal(global);
+    final cw = _cellW, ch = _cellH;
+    var col = (local.dx / cw).floor();
+    var row = ((local.dy + sc.offset) / ch).floor();
+    if (col < 0) col = 0;
+    if (col > widget.terminal.viewWidth - 1) col = widget.terminal.viewWidth - 1;
+    if (row < 0) row = 0;
+    final maxRow = widget.terminal.buffer.lines.length - 1;
+    if (row > maxRow) row = maxRow;
+    return CellOffset(col, row);
+  }
+
+  // Long-press propio (v2.17.7): selecciona la palabra bajo el dedo usando
+  // la geometria propia — el paquete seleccionaba una palabra distinta a
+  // donde se pulsaba. Si la linea no tiene caracter de palabra, selecciona
+  // la linea entera (como hace Termux).
+  void _selectWordAt(CellOffset cell) {
+    final buffer = widget.terminal.buffer;
+    if (cell.y >= buffer.lines.length) return;
+    final line = buffer.lines[cell.y];
+    final text = line.getText(0, line.getTrimmedLength());
+    if (text.isEmpty) {
+      setState(() {
+        _selStart = CellOffset(0, cell.y);
+        _selEnd = CellOffset(widget.terminal.viewWidth, cell.y + 1);
+      });
+      HapticFeedback.mediumImpact();
+      return;
+    }
+    var x = cell.x;
+    if (x >= text.length) x = text.length - 1;
+    if (x < 0) x = 0;
+    bool isWordChar(int i) =>
+        RegExp(r'[A-Za-z0-9_/\.~:@%+,=-]').hasMatch(text[i]);
+    if (!isWordChar(x)) {
+      var l = x - 1;
+      var r = x + 1;
+      var found = -1;
+      while (l >= 0 || r < text.length) {
+        if (r < text.length && isWordChar(r)) {
+          found = r;
+          break;
+        }
+        if (l >= 0 && isWordChar(l)) {
+          found = l;
+          break;
+        }
+        l--;
+        r++;
+      }
+      if (found < 0) {
+        setState(() {
+          _selStart = CellOffset(0, cell.y);
+          _selEnd = CellOffset(widget.terminal.viewWidth, cell.y + 1);
+        });
+        HapticFeedback.mediumImpact();
+        return;
+      }
+      x = found;
+    }
+    var a = x;
+    while (a > 0 && isWordChar(a - 1)) a--;
+    var b = x;
+    while (b < text.length && isWordChar(b)) b++;
+    setState(() {
+      _selStart = CellOffset(a, cell.y);
+      _selEnd = CellOffset(b, cell.y);
+    });
+    HapticFeedback.mediumImpact();
+  }
+
   void _endDrag(DragEndDetails d) => _finishDrag();
   void _cancelDrag() => _finishDrag();
 
   void _finishDrag() {
-    _dbgT('DRAG fin');
-    _stopAutoScroll();
     setState(() {
       _dragging = false;
       _dragFixed = null;
@@ -309,30 +366,19 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
 
   void _extendSelectionTo(Offset global) {
     final fixed = _dragFixed;
-    final box = context.findRenderObject() as RenderBox?;
-    final sc = widget.scrollController;
-    if (fixed == null || box == null || !box.hasSize || !sc.hasClients) return;
-    // v2.17.4: unica conversion respecto al PROPIO box del overlay y celda
-    // con la formula inversa de _cellToOverlay (mismo sistema de coordenadas
-    // que dibuja las asas: imposible que se descuadre con ellas).
-    final local = box.globalToLocal(global);
-    final cw = _cellW, ch = _cellH;
-    var col = (local.dx / cw).floor();
-    var row = ((local.dy + sc.offset) / ch).floor();
-    if (col < 0) col = 0;
-    if (col > widget.terminal.viewWidth - 1) col = widget.terminal.viewWidth - 1;
-    if (row < 0) row = 0;
+    if (fixed == null) return;
+    final base = _cellFromGlobal(global);
+    if (base == null) return;
+    // v2.17.7: compensacion de agarre — la punta agarrada sigue al dedo con
+    // el offset capturado al empezar (sin salto inicial del aim).
+    var cx = base.x + _grabDelta.x;
+    var cy = base.y + _grabDelta.y;
+    if (cx < 0) cx = 0;
+    if (cx > widget.terminal.viewWidth - 1) cx = widget.terminal.viewWidth - 1;
+    if (cy < 0) cy = 0;
     final maxRow = widget.terminal.buffer.lines.length - 1;
-    if (row > maxRow) row = maxRow;
-    final cell = CellOffset(col, row);
-    // La selección de xterm es end-exclusive: por eso selectCharacters del
-    // paquete hace +1 en x al arrastrar hacia adelante. Al arrastrar el asa
-    // de FIN hay que hacer lo mismo o la celda bajo la punta queda fuera
-    // del highlight (otra fuente de desincronización asa<->texto).
-    if (cell != _dbgLastCell) {
-      _dbgLastCell = cell;
-      _dbgT('arrastre->$cell (dedo=${global.dx.toStringAsFixed(0)},${global.dy.toStringAsFixed(0)})');
-    }
+    if (cy > maxRow) cy = maxRow;
+    final cell = CellOffset(cx, cy);
     // v2.17.6: seleccion PROPIA en CellOffset (end-exclusive como el
     // paquete: +1 en x al avanzar hacia adelante). NADA de anclas: las
     // CellAnchor de xterm viven en las lineas del buffer y se invalidan
@@ -438,7 +484,6 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
       _selStart = const CellOffset(0, 0);
       _selEnd = CellOffset(widget.terminal.viewWidth, lastY);
     });
-    _dbgT('SELECT ALL 0..$lastY');
   }
 
   void _close() => widget.controller.clearSelection();
@@ -451,59 +496,32 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
 
     return Stack(
       children: [
-        widget.child,
+        // v2.17.7: long-press PROPIO. El detector del paquete vive mas
+        // profundo en el arbol y ganaba el empate de la arena; este
+        // reconocedor acepta antes (380 ms vs 500 ms) y se lleva el gesto.
+        RawGestureDetector(
+          behavior: HitTestBehavior.translucent,
+          gestures: <Type, GestureRecognizerFactory>{
+            _FastLongPressRecognizer:
+                GestureRecognizerFactoryWithHandlers<_FastLongPressRecognizer>(
+              () => _FastLongPressRecognizer(debugOwner: this),
+              (recognizer) {
+                recognizer.onLongPressStart = (details) {
+                  final cell = _cellFromGlobal(details.globalPosition);
+                  if (cell != null) _selectWordAt(cell);
+                };
+              },
+            ),
+          },
+          child: widget.child,
+        ),
         if (_hasSelection) _buildHighlight(),
         if (_hasSelection) ..._buildHandles(color),
         if (_hasSelection) _buildActionBar(context),
-        // v2.17.5: panel de diagnostico (build de pruebas).
-        _buildDbgPanel(),
       ],
     );
   }
 
-  Widget _buildDbgPanel() {
-    if (_dbg.isEmpty) return const SizedBox.shrink();
-    final sc = widget.scrollController;
-    final s0 = _selStart, e0 = _selEnd;
-    final sel = s0 != null && e0 != null
-        ? (s0.isBefore(e0) ? BufferRangeLine(s0, e0) : BufferRangeLine(e0, s0))
-        : null;
-    final box = context.findRenderObject() as RenderBox?;
-    final sp = sel == null ? null : _cellToOverlay(sel.begin);
-    final ep = _cellToOverlay(_lastSelectedCell());
-    final rt = _rt;
-    String f(double v) => v.toStringAsFixed(1);
-    final lines = <String>[
-      'SEL  ${sel?.begin} -> ${sel?.end}',
-      'cache ${_selStart} -> ${_selEnd}',
-      'sc ${sc.hasClients ? f(sc.offset) : '-'}px | celda ${f(_cellW)}x${f(_cellH)} | rt ${rt == null ? 'NULL' : 'ok'}',
-      'box ${box != null && box.hasSize ? '${box.size.width.toStringAsFixed(0)}x${box.size.height.toStringAsFixed(0)}' : '-'}',
-      'pos  ${sp == null ? '-' : '${sp.dx.toStringAsFixed(0)},${sp.dy.toStringAsFixed(0)}'} -> ${ep == null ? '-' : '${ep.dx.toStringAsFixed(0)},${ep.dy.toStringAsFixed(0)}'}',
-      ..._dbg.take(7),
-    ];
-    return Positioned(
-      left: 4,
-      top: 4,
-      child: IgnorePointer(
-        child: Container(
-          padding: const EdgeInsets.all(6),
-          color: Colors.black.withOpacity(0.75),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final l in lines)
-                Text(l,
-                    style: const TextStyle(
-                        color: Colors.yellowAccent,
-                        fontSize: 9,
-                        fontFamily: 'monospace',
-                        height: 1.2)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   // Highlight propio (v2.17.6): rectangulos por fila con la geometria
   // propia (celda + sc.offset), mismos valores que usan las asas, asi que
@@ -692,6 +710,17 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
 
 /// Lágrima tipo asa de selección de Android/Termux: punta arriba en el
 /// centro (24, 4) del box de 48x48, bola debajo.
+// Reconocedor de long-press con deadline mas corto que el del paquete
+// xterm (500 ms): aceptando a los 380 ms gana la arena de gestos y es este
+// overlay quien decide la palabra inicial, con la geometria propia.
+class _FastLongPressRecognizer extends LongPressGestureRecognizer {
+  _FastLongPressRecognizer({Object? debugOwner})
+      : super(
+          debugOwner: debugOwner,
+          duration: const Duration(milliseconds: 380),
+        );
+}
+
 class _HighlightPainter extends CustomPainter {
   _HighlightPainter(this.rects);
   final List<Rect> rects;

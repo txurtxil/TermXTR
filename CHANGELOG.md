@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.17.7 (2026-10-27)
+
+### Seleccion: sin panel + agarre sin salto + long-press propio
+- Eliminado el panel de diagnostico en pantalla (v2.17.5) y todo su
+  soporte: la seleccion propia de v2.17.6 funciona y el panel estorbaba.
+- Compensacion de agarre: al empezar a arrastrar un asa, el punto que se
+  agarra (la punta del asa) sigue al dedo desde el primer instante. Antes
+  el "aim" (dedo -56px) hacia saltar la seleccion ~4 filas al iniciar el
+  arrastre. El lift se conserva como offset fijo capturado en el agarre.
+- Long-press PROPIO: reconocedor con deadline de 380 ms (el del paquete
+  xterm tiene 500 ms y vivia mas profundo en el arbol, ganando el empate
+  de la arena), asi que la palabra inicial se decide aqui, con la
+  geometria propia, sobre el texto real de la linea. Fin del "long-press
+  selecciona una palabra distinta de donde pulso".
+
+
 ## v2.17.6 (2026-10-27)
 
 ### Seleccion con propiedad total del overlay (fin del congelado)
