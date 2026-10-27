@@ -1,6 +1,28 @@
 # Changelog
 
 
+## v2.17.0 (2026-10-27)
+
+### Abrir varios hosts en pestanas (multi-seleccion) + exit cierra la pestana
+- Multi-seleccion en Hosts: el menu del host (⋮) gana "Seleccionar varios".
+  Los tiles pasan a modo check (circulo azul al marcar), la barra inferior
+  muestra contador con botones "Abrir N" y cerrar (el FAB + se oculta en
+  este modo). Al confirmar se conectan todos en pestanas (pop unico,
+  sesiones creadas con la logica habitual de clave/password y tope de
+  maxSessions con aviso "Abiertas X de Y"), quedando activa la primera
+  pestana; el resto arrancan al tocarlas. Long-press sigue abriendo el
+  editor (no se robo el gesto).
+- "exit" cierra la pestana: TerminalSession gana onSessionEnded; el onDone
+  del shell (que solo se dispara cuando cierra el REMOTO; el cierre manual
+  pone _closed y no dispara nada) escribe "[sesion finalizada]" y a los
+  1,2 s la vista cierra la pestana, como un navegador.
+- Refactor: _connectToHost factoriza _createSession (password guardada +
+  hook de cierre + tope de sesiones), reutilizado por _connectToHost (uno)
+  y _connectHosts (varios).
+- Un error de asercion al parchear (bottomNavigationBar insertado en el
+  tile en vez del Scaffold) lo pillo dart analyze en z1 antes de compilar:
+  verificar siempre, no asumir.
+
 ## v2.16.1 (2026-10-27)
 
 ### Fix auth SSH: la identidad ya no queda bloqueada por un keyPath viejo

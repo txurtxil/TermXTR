@@ -48,8 +48,10 @@ class HostsScreen extends StatefulWidget {
   final void Function(SshHost host) onConnect;
   final String? rootfsPath;
   final void Function(SshHost host)? onOpenTerminalFromSftp;
+  // v2.17.0: multi-seleccion — abrir varios hosts en pestanas a la vez.
+  final void Function(List<SshHost> hosts)? onConnectMany;
 
-  const HostsScreen({super.key, required this.onConnect, this.rootfsPath, this.onOpenTerminalFromSftp});
+  const HostsScreen({super.key, required this.onConnect, this.rootfsPath, this.onOpenTerminalFromSftp, this.onConnectMany});
 
   @override
   State<HostsScreen> createState() => _HostsScreenState();
@@ -66,6 +68,10 @@ class _HostsScreenState extends State<HostsScreen> {
   /// v2.11.0: accesibilidad por host (null = aun sin comprobar).
   final Map<String, bool> _reach = {};
   Timer? _reachTimer;
+
+  // v2.17.0: modo seleccion multiple de hosts.
+  bool _selectMode = false;
+  final Set<String> _selected = {};
 
   @override
   void initState() {
@@ -465,11 +471,50 @@ class _HostsScreenState extends State<HostsScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: _C.accent,
-        onPressed: () => _openEditor(),
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      floatingActionButton: _selectMode
+          ? null
+          : FloatingActionButton(
+              backgroundColor: _C.accent,
+              onPressed: () => _openEditor(),
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
+      // v2.17.0: barra de seleccion multiple (abrir N hosts en pestanas).
+      bottomNavigationBar: _selectMode
+          ? SafeArea(
+              child: Container(
+                color: _C.card,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.close, color: _C.textLo),
+                      onPressed: () => setState(() {
+                        _selectMode = false;
+                        _selected.clear();
+                      }),
+                    ),
+                    Expanded(
+                      child: Text(
+                        _selected.isEmpty
+                            ? 'Selecciona hosts'
+                            : '${_selected.length} seleccionados',
+                        style: const TextStyle(color: _C.textHi),
+                      ),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _selected.isEmpty ? null : _openSelected,
+                      style: FilledButton.styleFrom(backgroundColor: _C.accent),
+                      icon: const Icon(Icons.tab, size: 18),
+                      label: Text(
+                        _selected.isEmpty ? 'Abrir' : 'Abrir ${_selected.length}',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : null,
     );
   }
 
@@ -482,14 +527,28 @@ class _HostsScreenState extends State<HostsScreen> {
       background: Container(color: _C.err, alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), child: const Icon(Icons.delete, color: Colors.white)),
       confirmDismiss: (_) => _confirmDelete(h), onDismissed: (_) => _svc.remove(h.id),
       child: ListTile(
-        onTap: () async { await _svc.touch(h.id); widget.onConnect(h); },
+        onTap: () async {
+          if (_selectMode) {
+            setState(() {
+              if (_selected.contains(h.id)) { _selected.remove(h.id); } else { _selected.add(h.id); }
+            });
+            return;
+          }
+          await _svc.touch(h.id); widget.onConnect(h);
+        },
         onLongPress: () => _openEditor(existing: h),
-        leading: Container(
-          width: 42, height: 42,
-          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
-          alignment: Alignment.center,
-          child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-        ),
+        leading: _selectMode
+            ? Icon(
+                _selected.contains(h.id)
+                    ? Icons.check_circle
+                    : Icons.radio_button_unchecked,
+                color: _selected.contains(h.id) ? _C.accent : _C.textLo)
+            : Container(
+                width: 42, height: 42,
+                decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
+                alignment: Alignment.center,
+                child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
         title: Text(h.name, style: const TextStyle(color: _C.textHi, fontWeight: FontWeight.w500)),
         subtitle: Text(_subtitle(h), style: const TextStyle(color: _C.textLo, fontSize: 12)),
         trailing: Row(
@@ -538,6 +597,7 @@ class _HostsScreenState extends State<HostsScreen> {
             PopupMenuButton<String>(
               iconColor: _C.textLo,
               onSelected: (v) {
+                if (v == 'multisel') setState(() => _selectMode = true);
                 if (v == 'move') _pickGroup(h);
                 if (v == 'audit') _auditHost(h);
                 if (v == 'sendkey') _sendKeyToHost(h);
@@ -550,6 +610,8 @@ class _HostsScreenState extends State<HostsScreen> {
                 if (v == 'wake') _wake(h);
               },
               itemBuilder: (_) => [
+                const PopupMenuItem(
+                    value: 'multisel', child: Text('Seleccionar varios')),
                 const PopupMenuItem(
                     value: 'move',
                     child: Text('Mover a grupo...')),
@@ -588,6 +650,24 @@ class _HostsScreenState extends State<HostsScreen> {
         ),
       ),
     );
+  }
+
+  // v2.17.0: abrir los hosts seleccionados en pestanas (a lo navegador).
+  Future<void> _openSelected() async {
+    final sel = _svc.hosts.where((h) => _selected.contains(h.id)).toList();
+    if (sel.isEmpty) return;
+    setState(() {
+      _selectMode = false;
+      _selected.clear();
+    });
+    for (final h in sel) {
+      await _svc.touch(h.id);
+    }
+    if (widget.onConnectMany != null) {
+      widget.onConnectMany!(sel);
+      return;
+    }
+    widget.onConnect(sel.first);
   }
 
   String _subtitle(SshHost h) {

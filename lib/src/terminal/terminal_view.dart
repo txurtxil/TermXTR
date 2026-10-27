@@ -159,18 +159,55 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
     s.start(columns: s.terminal.viewWidth, rows: s.terminal.viewHeight);
   }
 
-  Future<void> _connectToHost(SshHost host) async {
-    if (_sessions.length >= _maxSessions) { _toast('Máximo $_maxSessions sesiones'); return; }
+  // v2.17.0: creacion de sesion factorizada (password guardada + hook de
+  // cierre remoto). Devuelve null si se alcanzo el maximo de sesiones.
+  Future<TerminalSession?> _createSession(SshHost host) async {
+    if (_sessions.length >= _maxSessions) return null;
     // La contraseña guardada (Keystore) se inyecta en el cliente dartssh2;
     // el hack del fichero sshpass dentro del rootfs muere con el contenedor.
     String? pwd;
     final hasKey = host.keyPath != null && host.keyPath!.trim().isNotEmpty;
     if (!hasKey) {
       pwd = await SshCredentialsStore.readPassword(host.id);
-      if (!mounted) return;
+      if (!mounted) return null;
     }
-    _sessions.add(TerminalSession(host.name, sourceHost: host, password: pwd));
-    setState(() => _activeIndex = _sessions.length - 1);
+    final s = TerminalSession(host.name, sourceHost: host, password: pwd);
+    // v2.17.0: si el shell remoto termina (exit) o la conexion cae, cerrar
+    // la pestana automaticamente, a lo navegador.
+    s.onSessionEnded = () {
+      final i = _sessions.indexOf(s);
+      if (i >= 0 && mounted) _closeSession(i);
+    };
+    _sessions.add(s);
+    return s;
+  }
+
+  // v2.17.0: multi-seleccion desde Hosts — abre todos en pestanas y
+  // activa la primera; el resto arrancan al tocarlas (el switch ya
+  // arranca sesiones perezosas).
+  Future<void> _connectHosts(List<SshHost> hosts) async {
+    TerminalSession? first;
+    var opened = 0;
+    for (final host in hosts) {
+      final s = await _createSession(host);
+      if (s == null) break;
+      first ??= s;
+      opened++;
+    }
+    if (opened == 0) { _toast('Máximo $_maxSessions sesiones'); return; }
+    if (opened < hosts.length) {
+      _toast('Abiertas $opened de ${hosts.length} (máximo $_maxSessions sesiones)');
+    }
+    setState(() => _activeIndex = _sessions.indexOf(first!));
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.endOfFrame.then((_) { if (mounted) _startActiveSession(); });
+    });
+  }
+
+  Future<void> _connectToHost(SshHost host) async {
+    final s = await _createSession(host);
+    if (s == null) { _toast('Máximo $_maxSessions sesiones'); return; }
+    setState(() => _activeIndex = _sessions.indexOf(s));
     SchedulerBinding.instance.addPostFrameCallback((_) {
       WidgetsBinding.instance.endOfFrame.then((_) { if (mounted) _startActiveSession(); });
     });
@@ -189,6 +226,7 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
       builder: (_) => HostsScreen(
         rootfsPath: AppPaths.base,
         onConnect: (host) { Navigator.of(context).pop(); _connectToHost(host); },
+        onConnectMany: (hosts) { Navigator.of(context).pop(); _connectHosts(hosts); },
         onOpenTerminalFromSftp: (host) { Navigator.of(context).popUntil((r) => r.isFirst); _connectToHost(host); },
       ),
     ));

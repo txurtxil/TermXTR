@@ -50,6 +50,12 @@ class TerminalSession {
   bool _started = false;
   bool _closed = false;
 
+  // v2.17.0: cuando el shell remoto termina (exit) o la conexion cae, la
+  // vista cierra la pestana (a lo navegador). Solo se dispara si el cierre
+  // NO fue pedido por el usuario (dispose pone _closed = true).
+  void Function()? onSessionEnded;
+  bool _endedNotified = false;
+
   /// Entrada del usuario que llega antes de que la shell SSH esté lista
   /// (la conexión es async): se encola y se vuelca al conectar.
   final List<String> _pendingOutput = <String>[];
@@ -323,6 +329,14 @@ class TerminalSession {
         onDone: () {
           if (!_closed) {
             terminal.write('\r\n\x1b[90m[sesión finalizada]\x1b[0m\r\n');
+            // v2.17.0: cierre remoto -> cerrar la pestana. Pausa breve
+            // para que el mensaje se lea.
+            Future.delayed(const Duration(milliseconds: 1200), () {
+              if (!_closed && !_endedNotified) {
+                _endedNotified = true;
+                onSessionEnded?.call();
+              }
+            });
           }
         },
       );
