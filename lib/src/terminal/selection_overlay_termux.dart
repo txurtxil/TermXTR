@@ -164,7 +164,14 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   }
 
   /// Top-left de [cell] en coordenadas de ESTE overlay.
-  Offset? _cellToOverlay(CellOffset cell) {
+  // v2.17.3: anclas VIVAS en cada build. Las anclas de xterm siguen al
+  // contenido ante scrolls y recortes del buffer; cachear CellOffsets
+  // (_selStart/_selEnd) para DIBUJAR era la causa de la deriva de las
+  // asas: el pintor resuelve las anclas en vivo y las asas no, asi que
+  // el resaltado iba bien y las gotas se quedaban abajo "desgastandose".
+  BufferRange? get _liveSel => widget.controller.selection?.normalized;
+
+  Offset? _cellToOverlay(CellOffset? cell) {
     final rt = _rt;
     final box = context.findRenderObject() as RenderBox?;
     if (rt == null || box == null || !box.hasSize) return null;
@@ -186,9 +193,11 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   }
 
   /// Última celda seleccionada (la selección de xterm es end-exclusive).
-  CellOffset _lastSelectedCell() {
-    final end = _selEnd!;
-    final start = _selStart!;
+  CellOffset? _lastSelectedCell() {
+    final sel = _liveSel;
+    if (sel == null) return null;
+    final end = sel.end;
+    final start = sel.begin;
     if (end.x > 0) return CellOffset(end.x - 1, end.y);
     final prevY = math.max(end.y - 1, start.y);
     return CellOffset(widget.terminal.viewWidth - 1, prevY);
@@ -366,7 +375,9 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   }
 
   List<Widget> _buildHandles(Color color) {
-    final startPos = _cellToOverlay(_selStart!);
+    final sel = _liveSel;
+    if (sel == null) return const [];
+    final startPos = _cellToOverlay(sel.begin);
     final endCellPos = _cellToOverlay(_lastSelectedCell());
     if (startPos == null || endCellPos == null) return const [];
 
@@ -436,7 +447,8 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
     final maxH = box?.hasSize == true ? box!.size.height : double.infinity;
 
     double top = 8;
-    final startPos = _cellToOverlay(_selStart!);
+    final liveSel = _liveSel;
+    final startPos = _cellToOverlay(liveSel?.begin);
     final endPos = _cellToOverlay(_lastSelectedCell());
     if (startPos != null && endPos != null) {
       final firstTop = math.min(startPos.dy, endPos.dy);

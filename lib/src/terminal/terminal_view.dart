@@ -386,8 +386,17 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
   }
 
   Future<void> _pasteClipboard() async {
-    // v2.17.1: con el rescate activo se pega directo desde el historial
-    // interno (el portapapeles del sistema no responde).
+    // v2.17.3: unica implementacion en _pasteInto (antes esta funcion y
+    // la barra de seleccion/Utilidades pegaban por caminos distintos).
+    await _pasteInto(_active);
+  }
+
+  // v2.17.3: UNICO camino de pegado (barra de seleccion, keybar y
+  // Utilidades): timeout de 2 s al portapapeles del sistema (puede
+  // quedarse colgado para siempre), bracketed paste via Terminal.paste
+  // (multilinea sin ejecutar a medias, con fallback a textInput) y
+  // rescate al historial interno si el sistema falla.
+  Future<void> _pasteInto(TerminalSession s) async {
     if (_clipboardFallback) {
       final vault = ClipboardVault.instance;
       final entry = vault.history.isEmpty ? null : vault.history.first;
@@ -395,24 +404,34 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
         _toast('Historial interno vacio');
         return;
       }
-      _active.terminal.textInput(entry.text);
+      _pasteText(s, entry.text);
       _toast('Pegado desde historial (${entry.text.length} caracteres)');
       return;
     }
-    // v2.10.2: feedback al pegar y aviso si el portapapeles esta vacio
-    // (antes pegaba en silencio y parecia que no pasaba nada).
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
-    final text = data?.text;
+    String? text;
+    try {
+      final data = await Future.any<ClipboardData?>([
+        Clipboard.getData(Clipboard.kTextPlain),
+        Future<ClipboardData?>.delayed(const Duration(seconds: 2), () => null),
+      ]);
+      text = data?.text;
+    } catch (_) {}
     if (text != null && text.isNotEmpty) {
-      _active.terminal.textInput(text);
+      _pasteText(s, text);
       _toast('Pegado (${text.length} caracteres)');
     } else if (ClipboardVault.instance.history.isNotEmpty) {
-      // v2.17.1: vacio/imposible de leer pero hay historial interno: se
-      // activa el rescate solo, sin obligar a resetear a mano.
       _clipboardFallback = true;
       _toast('Portapapeles del sistema fallo; usando historial interno');
     } else {
       _toast('Portapapeles vacio');
+    }
+  }
+
+  void _pasteText(TerminalSession s, String text) {
+    try {
+      s.terminal.paste(text);
+    } catch (_) {
+      s.terminal.textInput(text);
     }
   }
 
@@ -530,13 +549,9 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
               const ListTile(title: Text('Utilidades', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), dense: true),
               const Divider(color: Colors.white24),
               _menuHeader('Portapapeles'),
-              _scriptTile(ctx, s, 'Pegar', '', icon: Icons.paste, customAction: () async {
-                final data = await Clipboard.getData(Clipboard.kTextPlain);
-                if (ctx.mounted) Navigator.pop(ctx);
-                if (data?.text != null && data!.text!.isNotEmpty) {
-                  s.terminal.textInput(data.text!);
-                }
-              }),
+              // v2.17.3: mismo camino de pegado que la barra de seleccion
+              // y el keybar (feedback + bracketed paste + rescate).
+              _scriptTile(ctx, s, 'Pegar', '', icon: Icons.paste, customAction: () { Navigator.pop(ctx); _pasteInto(s); }),
               _scriptTile(ctx, s, 'Copiar toda la sesión', '', icon: Icons.copy_all, customAction: () { Navigator.pop(ctx); _copyEntireSession(s); }),
               _scriptTile(ctx, s, 'Portapapeles guardados', '', icon: Icons.content_paste_go, customAction: () { Navigator.pop(ctx); _openClipboardVault(s); }),
               // v2.17.2: el rescate del portapapeles tambien en el menu rapido
@@ -746,11 +761,9 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
                 onDoubleTap: () => _showQuickScripts(s),
                 child: TermuxSelectionOverlay(
                   terminal: s.terminal, controller: s.controller, terminalViewKey: viewKey, scrollController: s.scrollController,
-                  onCopy: _copySelection, onPaste: () async {
-                    final data = await Clipboard.getData(Clipboard.kTextPlain);
-                    if (data?.text != null && data!.text!.isNotEmpty) s.terminal.textInput(data.text!);
-                  }, onSelectAll: _selectAll,
+                  onCopy: _copySelection, onPaste: () => _pasteInto(s), onSelectAll: _selectAll,
                   child: TerminalView(s.terminal, key: viewKey, controller: s.controller, focusNode: focusNode, autofocus: true, backgroundOpacity: 1.0, deleteDetection: true, keyboardType: TextInputType.visiblePassword, hardwareKeyboardOnly: Platform.isWindows, // v2.9.0: en Windows el IME no entrega caracteres; fuerza listener de teclado fisico. En Android sigue false (teclado virtual por InputConnection).
+                  padding: EdgeInsets.zero, // v2.17.3: sin insets de MediaQuery en el mapeo celdas/pixeles (teclado/nav bar ya no desplazan la seleccion)
                   scrollController: s.scrollController, textStyle: TerminalStyle(fontSize: _fontSize, fontFamily: 'monospace')),
                 ),
               );

@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.17.3 (2026-10-27)
+
+### Seleccion sin deriva + pegado unificado
+- Fix seleccion "se va desgastando": las asas y la barra se dibujaban
+  desde CellOffsets cacheadas; ahora se resuelven las anclas VIVAS de
+  xterm en cada build, igual que el pintor del resaltado. Con scrolls y
+  recortes del buffer el resaltado iba bien y las gotas se quedaban
+  abajo seleccionando zona vacia.
+- TerminalView con padding: EdgeInsets.zero: el paquete usaba por
+  defecto MediaQuery.of(context).padding (status bar, nav bar, teclado
+  abierto/cerrado) dentro del mapeo celdas<->pixeles, fuente de desplazamientos.
+- UNICO camino de pegado (barra de seleccion, keybar y Utilidades):
+  timeout de 2 s al sistema, bracketed paste via Terminal.paste
+  (multilinea sin ejecutar a medias) con fallback a textInput, feedback
+  siempre y rescate al historial interno si el portapapeles falla.
+
+
 ## v2.17.2 (2026-10-27)
 
 ### Reiniciar portapapeles en el menu rapido
