@@ -56,17 +56,23 @@ jobs:
           Copy-Item "$rel\data" -Recurse "$dest\data"
           # flutter_windows.dll -> lib/ (delay-load, registrado por el exe)
           Copy-Item "$rel\flutter_windows.dll" "$dest\lib"
-          # runtime de Visual C++ -> raiz (requisito del loader; no es
-          # delay-loadable, ver CMakeLists)
-          foreach ($dll in @("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll")) {
-            Copy-Item "$rel\$dll" "$dest"
-          }
+          # v2.17.8: TODOS los demas DLL del Release -> RAIZ, junto al exe.
+          # Incluye el runtime de Visual C++ (no es delay-loadable, ver
+          # CMakeLists) y los DLL de los PLUGINS (file_selector, url_
+          # launcher, share_plus, secure_storage...). Los plugins son de
+          # enlace IMPLICITO: el loader los resuelve en la init del
+          # proceso, ANTES de que main() registre lib/ con AddDllDirectory
+          # (por eso daban "no se encontro *_plugin.dll"). Copia generica:
+          # cualquier plugin futuro entra solo en el zip.
+          Get-ChildItem "$rel\*.dll" | Where-Object {
+            $_.Name -ne "flutter_windows.dll"
+          } | Copy-Item -Destination "$dest"
           @"
           TermXTR (Windows portable)
           ==========================
           TermXTR.exe : la aplicacion (doble click)
-          *.dll (raiz) : runtime de Visual C++ (NO mover; Windows los carga
-                         desde la carpeta del exe)
+          *.dll (raiz) : runtime de Visual C++ + DLL de plugins (NO mover;
+                         Windows los carga desde la carpeta del exe)
           lib\        : motor Flutter (NO mover; el exe lo carga desde ahi)
           data\       : recursos de Flutter
           log\        : logs de la aplicacion
