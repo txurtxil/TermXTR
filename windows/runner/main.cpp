@@ -134,7 +134,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // ver CMakeLists) se empaquetan en lib/; el runtime VC vive en la
   // raiz (no es delay-loadable). Hay que registrar lib/ ANTES de que el
   // delay-load lo resuelva (primer uso de cada DLL, dentro de wWinMain).
+  // v2.17.14: LOAD_LIBRARY_SEARCH_SYSTEM32 es OBLIGATORIO. Sin el, el
+  // orden de busqueda por defecto deja de incluir System32 (solo quedan
+  // los KnownDLLs) y todo delay-load con dependencias en System32 falla
+  // con 126. Este fue el muro del arranque Windows desde v2.17.1: el
+  // primer delay-load de flutter_windows.dll moria al no poder cargar
+  // dxgi/d3d9/UIAutomationCore/etc. Se mantienen APP|USER_DIRS para el
+  // truco de lib/.
   SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR |
+                           LOAD_LIBRARY_SEARCH_SYSTEM32 |
                            LOAD_LIBRARY_SEARCH_USER_DIRS);
   {
     wchar_t exe_path[MAX_PATH];
