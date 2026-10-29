@@ -50,7 +50,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     // ventana ni dialogo). Ahora se dice la causa probable.
     ::MessageBoxW(nullptr,
         L"No se pudo crear la ventana Flutter.\n"
-        L"Comprueba que lib\ estan los DLL y que data\ es completo.",
+        L"Comprueba que lib\\ tiene los DLL y data\\ es completo.",
         L"TermXTR", MB_ICONERROR | MB_OK);
     return EXIT_FAILURE;
   }
