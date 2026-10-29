@@ -86,8 +86,6 @@ static void CppLogFiles() {
 // era un delay-load cuyo modulo (o dependencia) no se encontraba y el
 // helper no decia cual. Estos hooks anotan en cpp_startup.log el
 // modulo que falla y lo muestran en un MessageBox.
-extern "C" PfnDliHook __pfnDliNotifyHook2;
-extern "C" PfnDliHook __pfnDliFailureHook2;
 
 static FARPROC WINAPI TxDliNotify(unsigned dliNotify, PDelayLoadInfo pdli) {
   if (dliNotify == dliNotePreLoadLibrary && pdli->szDll) {
@@ -116,11 +114,14 @@ static FARPROC WINAPI TxDliFailure(unsigned dliNotify, PDelayLoadInfo pdli) {
   return nullptr;
 }
 
+// En el delayimp.h actual los hooks son const y ya declarados: se
+// DEFINEN con inicializador (no redeclaran ni se asignan).
+extern "C" const PfnDliHook __pfnDliNotifyHook2 = TxDliNotify;
+extern "C" const PfnDliHook __pfnDliFailureHook2 = TxDliFailure;
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
   CppLog("=== wWinMain inicio (v2.17.13) ===");
-  __pfnDliNotifyHook2 = TxDliNotify;
-  __pfnDliFailureHook2 = TxDliFailure;
   {
     wchar_t cwd[MAX_PATH];
     if (GetCurrentDirectoryW(MAX_PATH, cwd)) {
