@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include <string>
+#include <exception>
 
 #include "flutter_window.h"
 #include "utils.h"
@@ -40,10 +41,17 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
+  try {
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
   if (!window.Create(L"linux_container", origin, size)) {
+    // v2.17.10: antes era una salida silenciosa (EXIT_FAILURE sin
+    // ventana ni dialogo). Ahora se dice la causa probable.
+    ::MessageBoxW(nullptr,
+        L"No se pudo crear la ventana Flutter.\n"
+        L"Comprueba que lib\ estan los DLL y que data\ es completo.",
+        L"TermXTR", MB_ICONERROR | MB_OK);
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);
@@ -55,5 +63,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   ::CoUninitialize();
+  } catch (const std::exception& e) {
+    // v2.17.10: una excepcion (p.ej. registro de plugins) mataba el
+    // proceso con std::terminate y SIN mensaje alguno. Ahora la causa
+    // se ve. Cierra el catch ANTES del return final.
+    ::MessageBoxA(nullptr, e.what(), "TermXTR - excepcion",
+                  MB_ICONERROR | MB_OK);
+    return EXIT_FAILURE;
+  }
   return EXIT_SUCCESS;
 }

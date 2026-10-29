@@ -54,13 +54,17 @@ jobs:
           New-Item -ItemType Directory -Path $dest, "$dest\lib", "$dest\log" -Force | Out-Null
           Copy-Item "$rel\linux_container.exe" "$dest\TermXTR.exe"
           Copy-Item "$rel\data" -Recurse "$dest\data"
-          # v2.17.9: flutter_windows.dll + TODOS los *_plugin.dll -> lib/
-          # (delay-load registrado en CMakeLists; main.cpp anade lib/ al
-          # search order antes de que se resuelvan). En v2.17.7- faltaban
-          # en el zip (implicitos, raiz) y en v2.17.8 iban en la raiz;
-          # ahora el exe queda limpio: solo VC runtime junto a el.
-          Copy-Item "$rel\flutter_windows.dll" "$dest\lib"
-          Get-ChildItem "$rel\*_plugin.dll" | Copy-Item -Destination "$dest\lib"
+          # v2.17.10: TODOS los DLL del Release salvo el runtime VC -> lib/.
+          # - flutter_windows.dll + *_plugin.dll: por DELAY-LOAD
+          #   (registrado en CMakeLists; main.cpp registra lib/ antes).
+          # - DLL de plugins FFI (dartjni.dll de jni, flutter_pty.dll de
+          #   flutter_pty): Dart los carga en runtime con
+          #   DynamicLibrary.open y los encuentra por USER_DIRS. v2.17.9
+          #   filtraba solo *_plugin.dll y los EXCLUYO del zip: la app
+          #   moria al arrancar "sin ventana ni nada".
+          Get-ChildItem "$rel\*.dll" | Where-Object {
+            $_.Name -notmatch '^msvcp140' -and $_.Name -notmatch '^vcruntime140'
+          } | Copy-Item -Destination "$dest\lib"
           # runtime de Visual C++ -> RAIZ (NO es delay-loadable: importa
           # simbolos de datos, LNK1194; el loader lo necesita antes de
           # main(), en la init del proceso)
