@@ -54,17 +54,15 @@ jobs:
           New-Item -ItemType Directory -Path $dest, "$dest\lib", "$dest\log" -Force | Out-Null
           Copy-Item "$rel\linux_container.exe" "$dest\TermXTR.exe"
           Copy-Item "$rel\data" -Recurse "$dest\data"
-          # v2.17.10: TODOS los DLL del Release salvo el runtime VC -> lib/.
-          # - flutter_windows.dll + *_plugin.dll: por DELAY-LOAD
-          #   (registrado en CMakeLists; main.cpp registra lib/ antes).
-          # - DLL de plugins FFI (dartjni.dll de jni, flutter_pty.dll de
-          #   flutter_pty): Dart los carga en runtime con
-          #   DynamicLibrary.open y los encuentra por USER_DIRS. v2.17.9
-          #   filtraba solo *_plugin.dll y los EXCLUYO del zip: la app
-          #   moria al arrancar "sin ventana ni nada".
-          Get-ChildItem "$rel\*.dll" | Where-Object {
-            $_.Name -notmatch '^msvcp140' -and $_.Name -notmatch '^vcruntime140'
-          } | Copy-Item -Destination "$dest\lib"
+          # v2.17.11: LAYOUT CLASICO (test A/B): TODOS los DLL del
+          # Release -> RAIZ (runtime VC + flutter_windows + plugins +
+          # FFI dartjni/flutter_pty). v2.17.9 y v2.17.10 arrancaban
+          # "sin ventana ni nada" con los DLL en lib/ via delay-load;
+          # este layout es el estandar de Flutter Windows y elimina esa
+          # variable. Si el usuario confirma que arranca, el problema
+          # estaba en la resolucion desde lib/ en SU equipo.
+          Get-ChildItem "$rel\*.dll" | Copy-Item -Destination "$dest"
+          # (lib/ queda vacia: el delay-load encuentra los DLL en la raiz)
           # runtime de Visual C++ -> RAIZ (NO es delay-loadable: importa
           # simbolos de datos, LNK1194; el loader lo necesita antes de
           # main(), en la init del proceso)
@@ -75,10 +73,9 @@ jobs:
           TermXTR (Windows portable)
           ==========================
           TermXTR.exe : la aplicacion (doble click)
-          *.dll (raiz) : runtime de Visual C++ (NO mover; Windows lo carga
-                         desde la carpeta del exe)
-          lib\        : motor Flutter + DLL de plugins (NO mover; el exe
-                        los carga desde ahi por delay-load)
+          *.dll (raiz) : runtime VC + motor Flutter + plugins + FFI
+                         (NO mover; Windows los carga desde la carpeta
+                         del exe al arrancar)
           data\       : recursos de Flutter
           log\        : logs de la aplicacion
 
