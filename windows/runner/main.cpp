@@ -6,6 +6,7 @@
 #include <exception>
 #include <fstream>
 #include <ctime>
+#include <delayimp.h>
 
 #include "flutter_window.h"
 #include "utils.h"
@@ -81,9 +82,45 @@ static void CppLogFiles() {
 }
 
 
+// v2.17.13: hooks de delay-load. El crash 0xc06d007e en KERNELBASE
+// era un delay-load cuyo modulo (o dependencia) no se encontraba y el
+// helper no decia cual. Estos hooks anotan en cpp_startup.log el
+// modulo que falla y lo muestran en un MessageBox.
+extern "C" PfnDliHook __pfnDliNotifyHook2;
+extern "C" PfnDliHook __pfnDliFailureHook2;
+
+static FARPROC WINAPI TxDliNotify(unsigned dliNotify, PDelayLoadInfo pdli) {
+  if (dliNotify == dliNotePreLoadLibrary && pdli->szDll) {
+    CppLog(std::string("delayload: cargando ") + pdli->szDll);
+  }
+  return nullptr;
+}
+
+static FARPROC WINAPI TxDliFailure(unsigned dliNotify, PDelayLoadInfo pdli) {
+  if (dliNotify == dliFailLoadLib) {
+    CppLog(std::string("DELAYLOAD FALLO: modulo=") +
+           (pdli->szDll ? pdli->szDll : "?") + " err=" +
+           std::to_string(pdli->dwLastError) + " " +
+           WinErr(pdli->dwLastError));
+    MessageBoxA(nullptr, pdli->szDll ? pdli->szDll : "?",
+                "TermXTR: delayload fallo (modulo no encontrado)",
+                MB_ICONERROR | MB_OK);
+  } else if (dliNotify == dliFailGetProc) {
+    if (pdli->dlp.fImportByName) {
+      CppLog(std::string("DELAYLOAD FALLO: proc=") +
+             (pdli->dlp.szProcName ? pdli->dlp.szProcName : "?"));
+    } else {
+      CppLog("DELAYLOAD FALLO: proc por ordinal");
+    }
+  }
+  return nullptr;
+}
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
-  CppLog("=== wWinMain inicio (v2.17.12) ===");
+  CppLog("=== wWinMain inicio (v2.17.13) ===");
+  __pfnDliNotifyHook2 = TxDliNotify;
+  __pfnDliFailureHook2 = TxDliFailure;
   {
     wchar_t cwd[MAX_PATH];
     if (GetCurrentDirectoryW(MAX_PATH, cwd)) {
