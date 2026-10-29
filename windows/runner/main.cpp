@@ -26,9 +26,11 @@ static std::string W2A(const std::wstring& w) {
   if (w.empty()) return std::string();
   int n = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(),
                               nullptr, 0, nullptr, nullptr);
-  std::string out(static_cast<size_t>(n), '\\0');
-  WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), &out[0], n,
-                      nullptr, nullptr);
+  std::string out(static_cast<size_t>(n), '\0');
+  if (n > 0) {
+    WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), &out[0], n,
+                        nullptr, nullptr);
+  }
   return out;
 }
 
@@ -39,8 +41,13 @@ static void CppLog(const std::string& msg) {
   if (!f) return;
   std::time_t t = std::time(nullptr);
   char tb[32];
-  std::strftime(tb, sizeof(tb), "%Y-%m-%d %H:%M:%S", std::localtime(&t));
-  f << "[" << tb << "] " << msg << "\\n";
+  std::tm tmv{};
+  if (localtime_s(&tmv, &t) == 0) {
+    std::strftime(tb, sizeof(tb), "%Y-%m-%d %H:%M:%S", &tmv);
+    f << "[" << tb << "] " << msg << "\n";
+  } else {
+    f << msg << "\n";
+  }
 }
 
 static std::string WinErr(DWORD e) {
@@ -50,7 +57,7 @@ static std::string WinErr(DWORD e) {
                  nullptr, e, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                  (LPWSTR)&m, 0, nullptr);
   std::string r = m ? W2A(std::wstring(m)) : "error desconocido";
-  while (!r.empty() && (r.back() == '\\r' || r.back() == '\\n')) r.pop_back();
+  while (!r.empty() && (r.back() == '\r' || r.back() == '\n')) r.pop_back();
   if (m) LocalFree(m);
   return r;
 }
@@ -72,6 +79,7 @@ static void CppLogFiles() {
              ? "ok     data\\"
              : "FALTA  data\\");
 }
+
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
