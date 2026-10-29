@@ -9,9 +9,10 @@
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
-  // v2.17.1: los DLL (flutter_windows + runtime VC) se empaquetan en lib/
-  // y se cargan por delay-load (ver CMakeLists). Hay que registrar ese
-  // directorio ANTES de que el delay-load los resuelva.
+  // v2.17.1/v2.17.9: los DLL (flutter_windows + plugins, delay-load,
+  // ver CMakeLists) se empaquetan en lib/; el runtime VC vive en la
+  // raiz (no es delay-loadable). Hay que registrar lib/ ANTES de que el
+  // delay-load lo resuelva (primer uso de cada DLL, dentro de wWinMain).
   SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR |
                            LOAD_LIBRARY_SEARCH_USER_DIRS);
   {

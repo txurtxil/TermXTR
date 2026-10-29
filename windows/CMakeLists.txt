@@ -57,6 +57,25 @@ add_subdirectory("runner")
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# v2.17.9: los DLL de los plugins se empaquetan en lib/ (zip ordenado,
+# exe limpio). Para ello hay que delay-loadarlos: con enlace implicito
+# el loader los resolveria en la init del proceso, ANTES de que main()
+# registre lib/ con AddDllDirectory (ver runner/main.cpp). main.cpp
+# deja LOAD_LIBRARY_SEARCH_USER_DIRS en el default search order, asi
+# que el delay-load helper (primer uso, ya dentro de wWinMain) los
+# encuentra en lib/. El nombre del DLL se toma del target real (genex):
+# nunca se descuadra aunque un plugin futuro nombre distinto su libreria.
+foreach(plugin ${FLUTTER_PLUGIN_LIST})
+  target_link_options(${BINARY_NAME} PRIVATE
+    "/DELAYLOAD:$<TARGET_FILE_NAME:${plugin}_plugin>"
+  )
+endforeach()
+# delayimp.lib: necesario para /DELAYLOAD (CMake lo enlaza solo con
+# MSVC, pero se fuerza explicitamente por robustez).
+if(MSVC)
+  target_link_libraries(${BINARY_NAME} PRIVATE delayimp.lib)
+endif()
+
 
 # === Installation ===
 # Support files are copied into place next to the executable, so that it can

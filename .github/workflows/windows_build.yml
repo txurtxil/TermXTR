@@ -54,26 +54,27 @@ jobs:
           New-Item -ItemType Directory -Path $dest, "$dest\lib", "$dest\log" -Force | Out-Null
           Copy-Item "$rel\linux_container.exe" "$dest\TermXTR.exe"
           Copy-Item "$rel\data" -Recurse "$dest\data"
-          # flutter_windows.dll -> lib/ (delay-load, registrado por el exe)
+          # v2.17.9: flutter_windows.dll + TODOS los *_plugin.dll -> lib/
+          # (delay-load registrado en CMakeLists; main.cpp anade lib/ al
+          # search order antes de que se resuelvan). En v2.17.7- faltaban
+          # en el zip (implicitos, raiz) y en v2.17.8 iban en la raiz;
+          # ahora el exe queda limpio: solo VC runtime junto a el.
           Copy-Item "$rel\flutter_windows.dll" "$dest\lib"
-          # v2.17.8: TODOS los demas DLL del Release -> RAIZ, junto al exe.
-          # Incluye el runtime de Visual C++ (no es delay-loadable, ver
-          # CMakeLists) y los DLL de los PLUGINS (file_selector, url_
-          # launcher, share_plus, secure_storage...). Los plugins son de
-          # enlace IMPLICITO: el loader los resuelve en la init del
-          # proceso, ANTES de que main() registre lib/ con AddDllDirectory
-          # (por eso daban "no se encontro *_plugin.dll"). Copia generica:
-          # cualquier plugin futuro entra solo en el zip.
-          Get-ChildItem "$rel\*.dll" | Where-Object {
-            $_.Name -ne "flutter_windows.dll"
-          } | Copy-Item -Destination "$dest"
+          Get-ChildItem "$rel\*_plugin.dll" | Copy-Item -Destination "$dest\lib"
+          # runtime de Visual C++ -> RAIZ (NO es delay-loadable: importa
+          # simbolos de datos, LNK1194; el loader lo necesita antes de
+          # main(), en la init del proceso)
+          foreach ($dll in @("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll")) {
+            Copy-Item "$rel\$dll" "$dest"
+          }
           @"
           TermXTR (Windows portable)
           ==========================
           TermXTR.exe : la aplicacion (doble click)
-          *.dll (raiz) : runtime de Visual C++ + DLL de plugins (NO mover;
-                         Windows los carga desde la carpeta del exe)
-          lib\        : motor Flutter (NO mover; el exe lo carga desde ahi)
+          *.dll (raiz) : runtime de Visual C++ (NO mover; Windows lo carga
+                         desde la carpeta del exe)
+          lib\        : motor Flutter + DLL de plugins (NO mover; el exe
+                        los carga desde ahi por delay-load)
           data\       : recursos de Flutter
           log\        : logs de la aplicacion
 
