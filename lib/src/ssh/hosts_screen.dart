@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'ssh_host.dart';
 import 'ssh_hosts_service.dart';
 import 'multi_exec_screen.dart';
+import '../monitor/monitor_screen.dart';
 import 'password_change_screen.dart';
 import 'router_info_screen.dart';
 import 'identity_screen.dart';
@@ -600,6 +601,12 @@ class _HostsScreenState extends State<HostsScreen> {
                 if (v == 'multisel') setState(() => _selectMode = true);
                 if (v == 'move') _pickGroup(h);
                 if (v == 'audit') _auditHost(h);
+                if (v == 'monitor') {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => MonitorScreen(host: h)));
+                }
                 if (v == 'sendkey') _sendKeyToHost(h);
                 if (v == 'jump') _pickJumpHost(h);
                 if (v == 'unjump') _clearJump(h);
@@ -618,6 +625,9 @@ class _HostsScreenState extends State<HostsScreen> {
                 const PopupMenuItem(
                     value: 'audit',
                     child: Text('Auditar servicios (mapa de red)')),
+                const PopupMenuItem(
+                    value: 'monitor',
+                    child: Text('Monitor de sistemas')),
                 const PopupMenuItem(
                     value: 'sendkey',
                     child: Text('Enviar clave publica (sin password despues)')),
