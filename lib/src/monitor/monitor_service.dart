@@ -20,6 +20,13 @@ class MonitorService {
   // Directorios medidos con du (acotados, con timeout server-side).
   static const _dirs = ['/var', '/opt', '/tmp'];
 
+  // v2.18.3: normaliza rutas (colapsa barras repetidas y barra final).
+  static String _normPath(String p) {
+    var s0 = p.replaceAll(RegExp(r'/+'), '/');
+    if (s0.length > 1) s0 = s0.replaceAll(RegExp(r'/$'), '');
+    return s0.isEmpty ? '/' : s0;
+  }
+
   static Future<MonitorSnapshot> fetch(SshHost host,
       {Duration timeout = const Duration(seconds: 15)}) async {
     final socket = await SSHSocket.connect(host.hostname, host.port)
@@ -99,19 +106,28 @@ echo __TX_END__
       // v2.18.2: los directorios medidos son los FAVORITOS SFTP del host
       // (los que el owner mete en favoritos desde el navegador SFTP) mas
       // los defaults; los favoritos se pintan con estrella en la pantalla.
+      // v2.18.3: favoritos normalizados y CAPADO A 5 (idea owner:
+      // favorito = auditada, maximo 5 carpetas).
       final favs = SftpFavoritesService.instance
           .forHost(host.id)
-          .map((f) => f.path.startsWith('/') ? f.path : '/${f.path}')
+          .map((f) => _normPath(f.path))
+          .toSet()
+          .take(5)
           .toSet();
       final allDirs = <String>[
         ...favs,
         ..._dirs.where((d) => !favs.contains(d)),
       ];
       final dirList = allDirs.map((e) => "'$e'").join(' ');
-      final dirsCmd = 'for d in $dirList; do echo "__TX_DIR__ \$d"; '
-          "timeout 6 du -x -s -B1 \$d 2>/dev/null | awk '{print \$1}'; done";
+      // v2.18.3: du EN PARALELO server-side (subshells + wait). El bucle
+      // secuencial de v2.18.2 sumaba hasta 6s por directorio y superaba el
+      // timeout del cliente (TimeoutException reportada 10-nov). Los que
+      // agotan el timeout devuelven TIMEOUT explicito.
+      const tpl = 'for d in @@DIRS@@; do ( out=\$(timeout 6 du -x -s -B1 "\$d" 2>/dev/null | awk \'{print \$1}\'); echo "__TX_DIR__ \$d"; echo "\${out:-TIMEOUT}" ) & done; wait';
+      final dirsCmd = tpl.replaceAll('@@DIRS@@', dirList);
       MonitorLog.write('dirs', 'targets=${allDirs.join(' ')}');
-      final dirsRaw = utf8.decode(await client.run(dirsCmd).timeout(timeout),
+      final dirsRaw = utf8.decode(
+          await client.run(dirsCmd).timeout(const Duration(seconds: 12)),
           allowMalformed: true);
       MonitorLog.write('dirs', dirsRaw.trim());
       snap.dirs.addAll(_parseDirs(dirsRaw));

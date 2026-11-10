@@ -85,12 +85,21 @@ class SftpFavoritesService extends ChangeNotifier {
     Future.microtask(WidgetSync.push);
   }
 
+  // v2.18.3: normaliza al escribir (colapsa '//' y barra final) para que
+  // el panel de favoritos no muestre rutas tipo '//home/user'.
+  static String _norm(String p) {
+    var s0 = p.replaceAll(RegExp(r'/+'), '/');
+    if (s0.length > 1) s0 = s0.replaceAll(RegExp(r'/$'), '');
+    return s0.isEmpty ? '/' : s0;
+  }
+
   Future<void> toggle(String hostId, String path) async {
+    path = _norm(path);
     final existing = _favorites.where((f) => f.hostId == hostId && f.path == path);
     if (existing.isNotEmpty) {
       _favorites.removeWhere((f) => f.hostId == hostId && f.path == path);
     } else {
-      final label = path == '.' ? '/' : '/$path';
+      final label = path == '.' ? '/' : (path.startsWith('/') ? path : '/$path');
       _favorites.add(SftpFavorite(
         id: '${DateTime.now().microsecondsSinceEpoch}',
         hostId: hostId,

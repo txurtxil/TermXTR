@@ -53,6 +53,17 @@ class _MonitorScreenState extends State<MonitorScreen> {
     super.dispose();
   }
 
+  String _norm(String p) {
+    var s0 = p.replaceAll(RegExp(r'/+'), '/');
+    if (s0.length > 1) s0 = s0.replaceAll(RegExp(r'/$'), '');
+    return s0.isEmpty ? '/' : s0;
+  }
+
+  void _capToast() {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Maximo 5 carpetas favoritas (quita una primero)')));
+  }
+
   Future<void> _refresh() async {
     if (!mounted) return;
     setState(() {
@@ -277,6 +288,11 @@ class _MonitorScreenState extends State<MonitorScreen> {
               ),
               tooltip: 'Favorito (medido aqui y en el navegador SFTP)',
               onPressed: () async {
+                final cur = favs.isFavorite(widget.host.id, d.path);
+                if (!cur && favs.forHost(widget.host.id).length >= 5) {
+                  _capToast();
+                  return;
+                }
                 await favs.toggle(widget.host.id, d.path);
                 await _refresh();
               },
@@ -337,8 +353,14 @@ class _MonitorScreenState extends State<MonitorScreen> {
           onPressed: () async {
             var t = _newDirController.text.trim();
             if (t.isEmpty) return;
-            if (!t.startsWith('/')) t = '/$t';
-            await SftpFavoritesService.instance.toggle(widget.host.id, t);
+            t = _norm(t);
+            final fv = SftpFavoritesService.instance;
+            if (!fv.isFavorite(widget.host.id, t) &&
+                fv.forHost(widget.host.id).length >= 5) {
+              _capToast();
+              return;
+            }
+            await fv.toggle(widget.host.id, t);
             _newDirController.clear();
             await _refresh();
           },
