@@ -98,6 +98,12 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   Timer? _autoScrollTimer;
   int _autoScrollDir = 0; // -1 arriba, 0 parado, 1 abajo
 
+  // v2.17.15: lineas del buffer vistas en el ultimo build. Si el buffer
+  // pierde lineas por arriba (clear con ED3, reciclaje de scrollback), los
+  // indices absolutos de la seleccion se desplazan: en build() se restan
+  // las eliminadas (clamp a 0) para que highlight y copia sigan fieles.
+  int _lastBufferLines = -1;
+
   // NOTA v14.22: el doble-toque -> TAB se eliminó. El GestureDetector del
   // panel (terminal_view) abre el menú de Utilidades con ese mismo gesto,
   // así que cada apertura del menú inyectaba un TAB en la shell. El
@@ -356,6 +362,11 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   void _cancelDrag() => _finishDrag();
 
   void _finishDrag() {
+    // v2.17.15: frena el auto-scroll al soltar/cancelar. Antes el timer
+    // seguia vivo si el gesto moria con el dedo dentro de la banda de
+    // borde (p. ej. soltando sobre la status bar) y el terminal subia
+    // desbocado hasta la cima extendiendo la seleccion.
+    _stopAutoScroll();
     setState(() {
       _dragging = false;
       _dragFixed = null;
@@ -420,6 +431,12 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
   }
 
   void _autoScrollStep() {
+    // v2.17.15: guarda — sin arrastre vivo el timer se autodestruye en
+    // vez de seguir desplazando con el dedo ya levantado.
+    if (!_dragging) {
+      _stopAutoScroll();
+      return;
+    }
     final sc = widget.scrollController;
     if (!sc.hasClients) return;
     final pos = sc.position;
@@ -456,9 +473,30 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
     if (s == null || e == null) return;
     final first = s.isBefore(e) ? s : e;
     final last = s.isBefore(e) ? e : s;
-    final text = widget.terminal.buffer
-        .getText(BufferRangeLine(first, last));
-    if (text.isEmpty) return;
+    // v2.17.15: clamp al buffer real. Tras `clear` (o reciclaje del
+    // scrollback) los indices absolutos pueden quedar fuera de rango y la
+    // copia devolvia texto vacio o de otras lineas SIN AVISAR.
+    final maxRow = widget.terminal.buffer.lines.length - 1;
+    if (maxRow < 0) {
+      _toast(context, 'Seleccion no disponible (buffer vacio)');
+      return;
+    }
+    CellOffset fc = first;
+    CellOffset lc = last;
+    if (fc.y < 0) fc = CellOffset(fc.x, 0);
+    if (lc.y < 0) lc = CellOffset(lc.x, 0);
+    if (fc.y > maxRow) fc = CellOffset(fc.x, maxRow);
+    if (lc.y > maxRow) lc = CellOffset(lc.x, maxRow);
+    String text;
+    try {
+      text = widget.terminal.buffer.getText(BufferRangeLine(fc, lc));
+    } catch (_) {
+      text = '';
+    }
+    if (text.isEmpty) {
+      _toast(context, 'Seleccion no disponible');
+      return;
+    }
     ClipboardVault.instance.copy(text, label: 'seleccion');
     HapticFeedback.selectionClick();
     _toast(context, 'Copiado (${text.length} caracteres)');
@@ -492,6 +530,24 @@ class TermuxSelectionOverlayState extends State<TermuxSelectionOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    // v2.17.15 rebase: si el buffer perdio lineas por arriba desde el
+    // ultimo build (clear con ED3, reciclaje del scrollback), desplazar la
+    // seleccion propia para que siga apuntando al mismo texto. Sin esto,
+    // tras un `clear` la copia devolvia contenido de otras lineas.
+    final bufLines = widget.terminal.buffer.lines.length;
+    if (_lastBufferLines >= 0 && bufLines < _lastBufferLines) {
+      final removed = _lastBufferLines - bufLines;
+      CellOffset? shift(CellOffset? c) {
+        if (c == null) return null;
+        var y = c.y - removed;
+        if (y < 0) y = 0;
+        return CellOffset(c.x, y);
+      }
+      _selStart = shift(_selStart);
+      _selEnd = shift(_selEnd);
+    }
+    _lastBufferLines = bufLines;
+
     final color = widget.handleColor ?? Colors.greenAccent.shade400;
 
     return Stack(

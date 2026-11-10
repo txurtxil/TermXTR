@@ -3,6 +3,10 @@
 // Pantalla de identidad SSH de la app (v2.2.0): ver/copiar la clave
 // publica y regenerar el par. Una vez instalada en los hosts (menu de la
 // lista de hosts) las conexiones no piden contraseña.
+//
+// v2.17.15: campo editable para el comentario de la clave (feedback owner
+// 9-nov-2026). Renombrar no regenera el par: la clave sigue funcionando
+// en los hosts instalados; solo cambia la etiqueta que se instala/exporta.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -29,11 +33,19 @@ class _IdentityScreenState extends State<IdentityScreen> {
   String _pub = '';
   bool _generating = false;
   String? _error;
+  final _commentController = TextEditingController();
+  bool _savingComment = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -43,9 +55,11 @@ class _IdentityScreenState extends State<IdentityScreen> {
     });
     try {
       final p = await IdentityService.ensureIdentity();
+      final c = await IdentityService.currentComment();
       if (!mounted) return;
       setState(() {
         _pub = p;
+        if (_commentController.text.isEmpty) _commentController.text = c;
         _generating = false;
       });
     } catch (e) {
@@ -63,6 +77,29 @@ class _IdentityScreenState extends State<IdentityScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Clave publica copiada')));
+  }
+
+  Future<void> _saveComment() async {
+    final text = _commentController.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _savingComment = true);
+    try {
+      final line = await IdentityService.setComment(text);
+      if (!mounted) return;
+      setState(() {
+        _pub = line;
+        _commentController.text =
+            line.split(' ').sublist(2).join(' ');
+        _savingComment = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Comentario actualizado (la clave no cambia)')));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _savingComment = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
   }
 
   Future<void> _regenerate() async {
@@ -88,6 +125,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
     );
     if (ok != true) return;
     await IdentityService.deleteIdentity();
+    _commentController.clear();
     await _load();
   }
 
@@ -152,6 +190,58 @@ class _IdentityScreenState extends State<IdentityScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    const Text('Comentario (etiqueta)',
+                        style: TextStyle(
+                            color: _C.textHi,
+                            fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Etiqueta con la que se exporta/instala la clave. '
+                      'Por defecto es termxtr-<dispositivo>. Renombrarla '
+                      'NO regenera el par: sigue funcionando en los hosts '
+                      'ya instalados.',
+                      style: TextStyle(color: _C.textLo, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _commentController,
+                            style: const TextStyle(
+                                color: _C.textHi, fontSize: 13),
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: _C.card,
+                              hintText: 'termxtr-mi-dispositivo',
+                              hintStyle:
+                                  const TextStyle(color: _C.textLo),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding:
+                                  const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed:
+                              _savingComment ? null : _saveComment,
+                          child: _savingComment
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white))
+                              : const Text('Guardar'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                     FilledButton.icon(
                       onPressed: _pub.isEmpty ? null : _copy,
                       icon: const Icon(Icons.copy),

@@ -6,6 +6,14 @@
 //  - ensureIdentity() la genera una vez
 //  - installKeyToHost() copia la publica en authorized_keys del host
 //  - loadIdentity() la usan las sesiones como fallback de auth
+//
+// v2.17.15: comentario de identidad personalizable (feedback owner 9-nov-2026).
+//  - Por defecto "termxtr-<dispositivo>" (modelo en Android, hostname en
+//    escritorio) en lugar del fijo "termxtr": auditable en authorized_keys.
+//  - setComment() renombra SIN regenerar el par (la clave sigue valida en
+//    los hosts ya instalados; solo cambia la etiqueta de la .pub).
+//  - Las identidades existentes no se tocan: ensureIdentity() devuelve
+//    temprano y el comentario guardado manda siempre.
 
 import 'dart:convert';
 import 'dart:io';
@@ -14,15 +22,18 @@ import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:dartssh2/dartssh2.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 import '../storage/app_paths.dart';
 import 'ssh_credentials_store.dart';
 import 'ssh_host.dart';
 
 class IdentityService {
-  static const _comment = 'termxtr';
+  static const _defaultComment = 'termxtr';
   static File get _privFile => File('${AppPaths.keysDir}/termxtr_identity');
   static File get _pubFile => File('${AppPaths.keysDir}/termxtr_identity.pub');
+  static File get _commentFile =>
+      File('${AppPaths.keysDir}/termxtr_identity.comment');
 
   static Future<bool> exists() => _privFile.exists();
 
@@ -31,6 +42,7 @@ class IdentityService {
     if (await _privFile.exists() && await _pubFile.exists()) {
       return publicKeyLine();
     }
+    final comment = await _resolveComment();
     final algo = Ed25519();
     final kp = await algo.newKeyPair();
     final priv = await kp.extract();
@@ -60,7 +72,7 @@ class IdentityService {
     sec.add(_str('ssh-ed25519'));
     sec.add(_str(pubB));
     sec.add(_str(priv64));
-    sec.add(_str(_comment));
+    sec.add(_str(comment));
     var pad = 1;
     while (sec.length % 8 != 0) {
       sec.add([pad & 0xFF]);
@@ -91,8 +103,9 @@ class IdentityService {
 
     await _privFile.writeAsString(sb.toString(), flush: true);
     await _pubFile.writeAsString(
-        'ssh-ed25519 ${base64.encode(pubBlob)} $_comment\n',
+        'ssh-ed25519 ${base64.encode(pubBlob)} $comment\n',
         flush: true);
+    await _commentFile.writeAsString(comment, flush: true);
     // v2.14.2: auto-verificacion. Antes la identidad podia quedar rota en
     // silencio y solo se notaba al conectar. Si fromPem no la acepta,
     // borramos los dos ficheros para que el siguiente ensureIdentity la
@@ -107,12 +120,94 @@ class IdentityService {
     return publicKeyLine();
   }
 
+  /// Comentario vigente de la identidad: el guardado en el fichero propio,
+  /// y si no existe (identidades previas a v2.17.15) el que lleva la .pub.
+  static Future<String> currentComment() async {
+    try {
+      if (await _commentFile.exists()) {
+        final c = (await _commentFile.readAsString()).trim();
+        if (c.isNotEmpty) return c;
+      }
+    } catch (_) {}
+    try {
+      final line = (await publicKeyLine()).trim();
+      if (line.isNotEmpty) {
+        final parts = line.split(' ');
+        if (parts.length >= 3) return parts.sublist(2).join(' ');
+      }
+    } catch (_) {}
+    return _defaultComment;
+  }
+
+  /// Renombra el comentario SIN regenerar el par de claves: la clave
+  /// privada sigue siendo la misma y sigue funcionando en todos los hosts
+  /// donde esta instalada. Solo reescribe la etiqueta de la .pub y la
+  /// persiste para futuras exportaciones/regeneraciones.
+  static Future<String> setComment(String newComment) async {
+    final c = _sanitizeComment(newComment);
+    final pub = (await publicKeyLine()).trim();
+    if (pub.isEmpty) throw StateError('Sin clave publica');
+    final parts = pub.split(' ');
+    if (parts.length < 2) throw StateError('Linea publica mal formada');
+    final newLine = '${parts[0]} ${parts[1]} $c';
+    await _pubFile.writeAsString('$newLine\n', flush: true);
+    await _commentFile.writeAsString(c, flush: true);
+    return newLine;
+  }
+
+  static String _sanitizeComment(String raw) {
+    var c = raw.trim();
+    if (c.isEmpty) return _defaultComment;
+    // token seguro para authorized_keys y shells
+    c = c.replaceAll(RegExp(r'\s+'), '-');
+    c = c.replaceAll(RegExp(r'[^\w@.-]'), '-');
+    if (c.length > 64) c = c.substring(0, 64);
+    return c;
+  }
+
+  /// Comentario por defecto: "termxtr-<dispositivo>". En Android usa la
+  /// marca+modelo reales; en escritorio el hostname. Cualquier fallo (o
+  /// plataforma desconocida) deja el comentario clasico "termxtr".
+  static Future<String> _resolveComment() async {
+    final suffix = await _deviceSuffix();
+    return suffix.isEmpty ? _defaultComment : '$_defaultComment-$suffix';
+  }
+
+  static Future<String> _deviceSuffix() async {
+    try {
+      if (Platform.isAndroid) {
+        final a = await DeviceInfoPlugin().androidInfo;
+        final brand = (a.brand.isNotEmpty ? a.brand : a.manufacturer)
+            .toLowerCase()
+            .replaceAll(RegExp(r'[^a-z0-9]'), '');
+        final model = a.model
+            .toLowerCase()
+            .replaceAll(RegExp(r'[^a-z0-9]'), '');
+        if (model.isEmpty) return brand.isEmpty ? 'android' : brand;
+        if (brand.isNotEmpty && !model.startsWith(brand)) {
+          return '$brand-$model';
+        }
+        return model;
+      }
+      final host = Platform.localHostname
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]'), '-')
+          .replaceAll(RegExp(r'-+'), '-');
+      return host.isEmpty ? 'desktop' : host;
+    } catch (_) {
+      return '';
+    }
+  }
+
   static Future<void> deleteIdentity() async {
     try {
       if (await _privFile.exists()) await _privFile.delete();
     } catch (_) {}
     try {
       if (await _pubFile.exists()) await _pubFile.delete();
+    } catch (_) {}
+    try {
+      if (await _commentFile.exists()) await _commentFile.delete();
     } catch (_) {}
   }
 
