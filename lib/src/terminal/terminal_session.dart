@@ -9,6 +9,7 @@ import '../ssh/identity_service.dart';
 import 'command_history.dart';
 import '../ssh/ssh_credentials_store.dart';
 import '../ssh/ssh_hosts_service.dart';
+import '../monitor/monitor_service.dart';
 import '../sftp/sftp_favorites_service.dart';
 import '../storage/app_paths.dart';
 import 'terminal_recorder.dart';
@@ -81,11 +82,13 @@ class TerminalSession {
     }
   }
 
-  /// v2.18.4: du PARALELO de las carpetas favoritas del host (para la
-  /// sombra fantasma). Devuelve pares __D__ <path> + bytes (TO si timeout).
+  /// v2.18.4/5: du PARALELO de las carpetas favoritas del host (para la
+  /// sombra fantasma). v2.18.5: si el du no responde a tiempo se muestra el
+  /// último tamaño conocido de la caché con su antigüedad (~2h).
   Future<String?> monitorGhostDirs() async {
     final c = _ssh;
     if (c == null) return null;
+    await dirCacheLoad();
     final favs = SftpFavoritesService.instance
         .forHost(sourceHost.id)
         .map((f) => f.path.startsWith('/') ? f.path : '/${f.path}')
@@ -93,15 +96,59 @@ class TerminalSession {
         .take(5);
     if (favs.isEmpty) return null;
     final dirList = favs.map((e) => "'$e'").join(' ');
+    String? raw;
     try {
       final r = await c
           .run('for d in $dirList; do ( out=\$(timeout 6 du -x -s -B1 "\$d" 2>/dev/null | awk \'{print \$1}\'); echo "__D__ \$d"; echo "\${out:-TO}" ) & done; wait')
           .timeout(const Duration(seconds: 12));
-      final t = utf8.decode(r, allowMalformed: true).trim();
-      return t.isEmpty ? null : t;
-    } catch (_) {
-      return null;
+      raw = utf8.decode(r, allowMalformed: true).trim();
+    } catch (_) {}
+    final lines = <String>[];
+    String? cur;
+    void flush(String? path, String? val) {
+      if (path == null) return;
+      var name = path == '/' ? '/' : path.split('/').last;
+      if (name.length > 14) name = name.substring(0, 14);
+      final b = val == null ? null : double.tryParse(val);
+      if (b != null) {
+        lines.add('$name\t${_humGhost(b)}');
+        dirCachePut(sourceHost.id, path, b);
+        return;
+      }
+      final cb = dirCacheGet(sourceHost.id, path);
+      if (cb != null) {
+        final age = dirCacheAge(sourceHost.id, path);
+        lines.add('$name\t${_humGhost(cb)}~$age');
+      }
     }
+    if (raw != null && raw.isNotEmpty) {
+      for (final l in raw.split('\n')) {
+        final t = l.trim();
+        if (t.startsWith('__D__ ')) {
+          flush(cur, null);
+          cur = t.substring(6).trim();
+          continue;
+        }
+        if (cur != null) {
+          flush(cur, t);
+          cur = null;
+        }
+      }
+    }
+    flush(cur, null);
+    return lines.isEmpty ? null : lines.join('\n');
+  }
+
+  static String _humGhost(double b) {
+    if (b <= 0) return '0B';
+    const u = ['B', 'K', 'M', 'G', 'T'];
+    var i = 0;
+    var v = b;
+    while (v >= 1024 && i < u.length - 1) {
+      v /= 1024;
+      i++;
+    }
+    return '${v.toStringAsFixed(v >= 100 || i == 0 ? 0 : 1)}${u[i]}';
   }
 
   bool get isStarted => _started;

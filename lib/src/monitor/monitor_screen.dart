@@ -303,7 +303,14 @@ class _MonitorScreenState extends State<MonitorScreen> {
                   style: const TextStyle(color: _C.textLo, fontSize: 13))),
           Text(
               d.slow
-                  ? 'lento (>6s)'
+                  ? (() {
+                      final c = dirCacheGet(widget.host.id, d.path);
+                      if (c != null) {
+                        final age = dirCacheAge(widget.host.id, d.path);
+                        return '${MonitorSnapshot.humanBytes(c)} (~$age)';
+                      }
+                      return 'lento (>20s)';
+                    })()
                   : MonitorSnapshot.humanBytes(d.bytes),
               style: const TextStyle(color: _C.textHi, fontSize: 13)),
           if (total > 0 && !d.slow) ...[

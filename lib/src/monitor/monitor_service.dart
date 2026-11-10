@@ -4,6 +4,7 @@
 // agrupados. Sin agentes ni instalaciones en el servidor.
 
 import 'dart:convert';
+import 'dart:io';
 import 'dart:async';
 
 import 'package:dartssh2/dartssh2.dart';
@@ -15,6 +16,66 @@ import '../storage/app_paths.dart';
 import '../sftp/sftp_favorites_service.dart';
 import 'monitor_log.dart';
 import 'monitor_models.dart';
+
+// v2.18.5: caché de tamaños por host+path (JSON en AppPaths.base). Los du
+// de directorios grandes pueden superar el timeout: se muestra el último
+// tamaño conocido con su antigüedad (~2h) y se refresca cuando responde.
+Future<void> dirCacheLoad() async {
+  try {
+    final f = File('${AppPaths.base}/monitor_dir_cache.json');
+    if (await f.exists()) {
+      _dirCache = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
+    }
+  } catch (_) {}
+}
+
+Future<void> dirCacheSave() async {
+  try {
+    await File('${AppPaths.base}/monitor_dir_cache.json')
+        .writeAsString(jsonEncode(_dirCache), flush: true);
+  } catch (_) {}
+}
+
+Map<String, dynamic> _dirCache = {};
+const _cacheMax = 200;
+
+Future<void> dirCachePut(String hostId, String path, double bytes) async {
+  _dirCache[hostId] ??= <String, dynamic>{};
+  final m = _dirCache[hostId] as Map<String, dynamic>;
+  m[path] = {'bytes': bytes, 'ts': DateTime.now().millisecondsSinceEpoch};
+  if (m.length > _cacheMax) {
+    final keys = m.keys.toList();
+    for (final k in keys.take(m.length - _cacheMax)) {
+      m.remove(k);
+    }
+  }
+  await dirCacheSave();
+}
+
+double? dirCacheGet(String hostId, String path) {
+  try {
+    final e = (_dirCache[hostId] as Map<String, dynamic>?)?[path]
+        as Map<String, dynamic>?;
+    final v = e?['bytes'];
+    return v is num ? v.toDouble() : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+String dirCacheAge(String hostId, String path) {
+  try {
+    final e = (_dirCache[hostId] as Map<String, dynamic>?)?[path]
+        as Map<String, dynamic>?;
+    final ts = e?['ts'] as int?;
+    if (ts == null) return '';
+    final min = DateTime.now().millisecondsSinceEpoch - ts;
+    final m = (min / 60000).round();
+    return m < 60 ? '${m}m' : '${(m / 60).round()}h';
+  } catch (_) {
+    return '';
+  }
+}
 
 class MonitorService {
   // Directorios medidos con du (acotados, con timeout server-side).
@@ -123,14 +184,17 @@ echo __TX_END__
       // secuencial de v2.18.2 sumaba hasta 6s por directorio y superaba el
       // timeout del cliente (TimeoutException reportada 10-nov). Los que
       // agotan el timeout devuelven TIMEOUT explicito.
-      const tpl = 'for d in @@DIRS@@; do ( out=\$(timeout 6 du -x -s -B1 "\$d" 2>/dev/null | awk \'{print \$1}\'); echo "__TX_DIR__ \$d"; echo "\${out:-TIMEOUT}" ) & done; wait';
+      const tpl = 'for d in @@DIRS@@; do ( out=\$(timeout 20 du -x -s -B1 "\$d" 2>/dev/null | awk \'{print \$1}\'); echo "__TX_DIR__ \$d"; echo "\${out:-TIMEOUT}" ) & done; wait';
       final dirsCmd = tpl.replaceAll('@@DIRS@@', dirList);
       MonitorLog.write('dirs', 'targets=${allDirs.join(' ')}');
       final dirsRaw = utf8.decode(
-          await client.run(dirsCmd).timeout(const Duration(seconds: 12)),
+          await client.run(dirsCmd).timeout(const Duration(seconds: 25)),
           allowMalformed: true);
       MonitorLog.write('dirs', dirsRaw.trim());
       snap.dirs.addAll(_parseDirs(dirsRaw));
+      for (final d in snap.dirs) {
+        if (!d.slow) await dirCachePut(host.id, d.path, d.bytes);
+      }
 
       // 3) oracle (solo si hay sqlplus)
       if (snap.oracle.present) {
