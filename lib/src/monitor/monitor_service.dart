@@ -12,6 +12,7 @@ import '../ssh/identity_service.dart';
 import '../ssh/ssh_credentials_store.dart';
 import '../ssh/ssh_host.dart';
 import '../storage/app_paths.dart';
+import 'monitor_log.dart';
 import 'monitor_models.dart';
 
 class MonitorService {
@@ -61,9 +62,17 @@ class MonitorService {
         authTimeout: const Duration(seconds: 12),
       );
 
+      final t0 = DateTime.now();
+      MonitorLog.write('monitor',
+          'fetch ${host.name} (${host.username}@${host.hostname}:${host.port})');
+      // v2.18.1: listas growables explicitas (los defaults const del
+      // constructor no admiten add/addAll -> "Cannot add to an unmodifiable
+      // list", crash reportado 10-nov-2026).
       final snap = MonitorSnapshot(
           ts: DateTime.now(),
-          oracle: OracleInfo(present: false));
+          oracle: OracleInfo(present: false),
+          fs: <FsInfo>[],
+          dirs: <DirInfo>[]);
 
       // 1) nucleo: df + load + mem + failed + deteccion oracle
       const core = r'''
@@ -82,6 +91,7 @@ echo __TX_END__
 ''';
       final coreRaw = utf8.decode(await client.run(core).timeout(timeout),
           allowMalformed: true);
+      MonitorLog.write('core', coreRaw.trim());
       _parseCore(snap, coreRaw);
 
       // 2) directorios (du acotado, timeout server-side de 6s por dir)
@@ -89,6 +99,7 @@ echo __TX_END__
           "timeout 6 du -x -s -B1 \$d 2>/dev/null | awk '{print \$1}'; done";
       final dirsRaw = utf8.decode(await client.run(dirsCmd).timeout(timeout),
           allowMalformed: true);
+      MonitorLog.write('dirs', dirsRaw.trim());
       snap.dirs.addAll(_parseDirs(dirsRaw));
 
       // 3) oracle (solo si hay sqlplus)
@@ -104,10 +115,18 @@ EOS
         try {
           final ohRaw = utf8.decode(await client.run(oh).timeout(timeout),
               allowMalformed: true);
+          MonitorLog.write('oracle', ohRaw.trim());
           _parseOracle(snap, ohRaw);
-        } catch (_) {}
+        } catch (e) {
+          MonitorLog.write('oracle-error', '$e');
+        }
       }
+      MonitorLog.write('monitor',
+          'ok en ${DateTime.now().difference(t0).inMilliseconds}ms (fs=${snap.fs.length} dirs=${snap.dirs.length} oracle=${snap.oracle.present})');
       return snap;
+    } catch (e) {
+      MonitorLog.write('error', 'fetch ${host.name}: $e');
+      rethrow;
     } finally {
       client?.close();
       try {

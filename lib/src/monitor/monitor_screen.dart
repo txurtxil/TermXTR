@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 import '../ssh/ssh_host.dart';
 import 'monitor_models.dart';
+import 'monitor_log.dart';
 import 'monitor_service.dart';
 
 class _C {
@@ -79,6 +80,32 @@ class _MonitorScreenState extends State<MonitorScreen> {
     }
   }
 
+  Future<void> _showLog() async {
+    final log = await MonitorLog.readLast();
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _C.card,
+        title: const Text('Log del Monitor',
+            style: TextStyle(color: _C.textHi, fontSize: 14)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: SelectableText(log,
+                style: const TextStyle(
+                    color: _C.textLo, fontSize: 10, fontFamily: 'monospace')),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cerrar')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -90,6 +117,11 @@ class _MonitorScreenState extends State<MonitorScreen> {
         title: Text('Monitor — ${widget.host.name}',
             style: const TextStyle(color: _C.textHi, fontSize: 16)),
         actions: [
+          IconButton(
+            tooltip: 'Ver log',
+            icon: const Icon(Icons.receipt_long, color: _C.textLo),
+            onPressed: _showLog,
+          ),
           Row(children: [
             const Text('Auto',
                 style: TextStyle(color: _C.textLo, fontSize: 12)),
