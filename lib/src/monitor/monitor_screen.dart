@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 import '../ssh/ssh_host.dart';
 import 'monitor_models.dart';
+import '../sftp/sftp_favorites_service.dart';
 import 'monitor_log.dart';
 import 'monitor_service.dart';
 
@@ -37,6 +38,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
   String? _error;
   bool _auto = false;
   Timer? _timer;
+  final _newDirController = TextEditingController();
 
   @override
   void initState() {
@@ -47,6 +49,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _newDirController.dispose();
     super.dispose();
   }
 
@@ -253,41 +256,96 @@ class _MonitorScreenState extends State<MonitorScreen> {
 
   Widget _secDirs(List<DirInfo> dirs) {
     if (dirs.isEmpty) return const SizedBox.shrink();
+    final favs = SftpFavoritesService.instance;
     final total = dirs.fold<double>(0, (a, d) => a + d.bytes);
-    return _card(
-        title: 'Directorios',
-        children: dirs
-            .map((d) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(children: [
-                    Expanded(
-                        child: Text(d.path,
-                            style: const TextStyle(
-                                color: _C.textLo, fontSize: 13))),
-                    Text(
-                        d.slow
-                            ? 'lento (>6s)'
-                            : MonitorSnapshot.humanBytes(d.bytes),
-                        style: const TextStyle(
-                            color: _C.textHi, fontSize: 13)),
-                    if (total > 0 && !d.slow) ...[
-                      const SizedBox(width: 8),
-                        SizedBox(
-                          width: 60,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(3),
-                            child: LinearProgressIndicator(
-                              value: (d.bytes / total).clamp(0.0, 1.0),
-                              minHeight: 4,
-                              backgroundColor: _C.bg,
-                              valueColor: const AlwaysStoppedAnimation(_C.accent),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ]),
-                ))
-            .toList());
+    final rows = dirs.map((d) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(children: [
+          AnimatedBuilder(
+            animation: favs,
+            builder: (_, __) => IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                favs.isFavorite(widget.host.id, d.path)
+                    ? Icons.star
+                    : Icons.star_border,
+                size: 18,
+                color: favs.isFavorite(widget.host.id, d.path)
+                    ? _C.warn
+                    : _C.textLo,
+              ),
+              tooltip: 'Favorito (medido aqui y en el navegador SFTP)',
+              onPressed: () async {
+                await favs.toggle(widget.host.id, d.path);
+                await _refresh();
+              },
+            ),
+          ),
+          Expanded(
+              child: Text(d.path,
+                  style: const TextStyle(color: _C.textLo, fontSize: 13))),
+          Text(
+              d.slow
+                  ? 'lento (>6s)'
+                  : MonitorSnapshot.humanBytes(d.bytes),
+              style: const TextStyle(color: _C.textHi, fontSize: 13)),
+          if (total > 0 && !d.slow) ...[
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 60,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: (d.bytes / total).clamp(0.0, 1.0),
+                  minHeight: 4,
+                  backgroundColor: _C.bg,
+                  valueColor: const AlwaysStoppedAnimation(_C.accent),
+                ),
+              ),
+            ),
+          ],
+        ]),
+      );
+    }).toList();
+    rows.add(Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(children: [
+        const Icon(Icons.create_new_folder, size: 18, color: _C.textLo),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextField(
+            controller: _newDirController,
+            style: const TextStyle(color: _C.textHi, fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'Anadir carpeta (ej. /u01)',
+              hintStyle: const TextStyle(color: _C.textLo, fontSize: 12),
+              filled: true,
+              fillColor: _C.bg,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            ),
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.add, color: _C.accent),
+          tooltip: 'Medir y guardar como favorito',
+          onPressed: () async {
+            var t = _newDirController.text.trim();
+            if (t.isEmpty) return;
+            if (!t.startsWith('/')) t = '/$t';
+            await SftpFavoritesService.instance.toggle(widget.host.id, t);
+            _newDirController.clear();
+            await _refresh();
+          },
+        ),
+      ]),
+    ));
+    return _card(title: 'Directorios', children: rows);
   }
 
   Widget _secSystemd(int failed) {

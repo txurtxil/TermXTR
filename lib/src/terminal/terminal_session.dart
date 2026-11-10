@@ -63,6 +63,23 @@ class TerminalSession {
   TerminalSession(this.name, {required this.sourceHost, this.password})
       : recorder = TerminalRecorder(label: name);
 
+  /// v2.18.2: poll ligero para la SOMBRA FANTASMA del monitor (exec
+  /// concurrente sobre la conexion de la sesion; solo lectura). Devuelve
+  /// dos lineas: load 1m y porcentaje de uso de / (o null si no se pudo).
+  Future<String?> monitorGhostLine() async {
+    final c = _ssh;
+    if (c == null) return null;
+    try {
+      final r = await c
+          .run("LC_ALL=C; cut -d' ' -f1 /proc/loadavg; df -hP / | tail -1 | awk '{print \$5}'")
+          .timeout(const Duration(seconds: 8));
+      final t = utf8.decode(r, allowMalformed: true).trim();
+      return t.isEmpty ? null : t;
+    } catch (_) {
+      return null;
+    }
+  }
+
   bool get isStarted => _started;
   bool get isSsh => true;
 

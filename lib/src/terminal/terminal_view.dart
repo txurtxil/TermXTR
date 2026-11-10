@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
@@ -774,6 +775,7 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
                 children: [
                   Offstage(offstage: sftpOpen, child: terminalPane),
                   if (_sftpOpened.contains(s)) Offstage(offstage: !sftpOpen, child: SftpBrowserScreen(host: s.sourceHost!, rootfsPath: AppPaths.base, embedded: true, onOpenTerminal: (_) => setState(() => _sftpOpen.remove(s)))),
+                  Positioned(top: 4, right: 8, child: _GhostMeter(s: s)),
                 ],
               );
               // v2.13.10: sugerencia fantasma DENTRO del terminal, difuminada
@@ -835,6 +837,65 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
         ),
         if (!_sftpOpen.contains(_active)) TerminalKeybar(terminal: _active.terminal, config: _keybarConfig, onFontIncrease: () => _changeFont(1), onFontDecrease: () => _changeFont(-1), onMenu: _showSettings, onCopy: _copySelection, onPaste: _pasteClipboard),
       ],
+    );
+  }
+}
+
+
+/// v2.18.2: SOMBRA FANTASMA del monitor — metricas (carga + disco de /)
+/// pintadas translucidas ARRIBA A LA DERECHA del terminal, sin comerse
+/// ningun gesto (IgnorePointer). Poll cada 30s por exec concurrente en la
+/// sesion; nada se instala en el servidor.
+class _GhostMeter extends StatefulWidget {
+  final dynamic s;
+  const _GhostMeter({required this.s});
+  @override
+  State<_GhostMeter> createState() => _GhostMeterState();
+}
+
+class _GhostMeterState extends State<_GhostMeter> {
+  Timer? _t;
+  String _line = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _poll();
+    _t = Timer.periodic(const Duration(seconds: 30), (_) => _poll());
+  }
+
+  @override
+  void dispose() {
+    _t?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _poll() async {
+    try {
+      final v = await widget.s.monitorGhostLine();
+      if (mounted && v != null && v != _line) setState(() => _line = v);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_line.isEmpty) return const SizedBox.shrink();
+    final parts = _line.split('\n');
+    final load = parts.isNotEmpty ? parts[0] : '?';
+    final disk = parts.length > 1 ? parts[1] : '?';
+    return IgnorePointer(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.25),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text('⚡ $load  ▣ $disk',
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.35),
+                fontSize: 10,
+                fontFamily: 'monospace')),
+      ),
     );
   }
 }

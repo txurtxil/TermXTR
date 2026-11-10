@@ -12,6 +12,7 @@ import '../ssh/identity_service.dart';
 import '../ssh/ssh_credentials_store.dart';
 import '../ssh/ssh_host.dart';
 import '../storage/app_paths.dart';
+import '../sftp/sftp_favorites_service.dart';
 import 'monitor_log.dart';
 import 'monitor_models.dart';
 
@@ -95,8 +96,21 @@ echo __TX_END__
       _parseCore(snap, coreRaw);
 
       // 2) directorios (du acotado, timeout server-side de 6s por dir)
-      final dirsCmd = 'for d in $_dirs; do echo "__TX_DIR__ \$d"; '
+      // v2.18.2: los directorios medidos son los FAVORITOS SFTP del host
+      // (los que el owner mete en favoritos desde el navegador SFTP) mas
+      // los defaults; los favoritos se pintan con estrella en la pantalla.
+      final favs = SftpFavoritesService.instance
+          .forHost(host.id)
+          .map((f) => f.path.startsWith('/') ? f.path : '/${f.path}')
+          .toSet();
+      final allDirs = <String>[
+        ...favs,
+        ..._dirs.where((d) => !favs.contains(d)),
+      ];
+      final dirList = allDirs.map((e) => "'$e'").join(' ');
+      final dirsCmd = 'for d in $dirList; do echo "__TX_DIR__ \$d"; '
           "timeout 6 du -x -s -B1 \$d 2>/dev/null | awk '{print \$1}'; done";
+      MonitorLog.write('dirs', 'targets=${allDirs.join(' ')}');
       final dirsRaw = utf8.decode(await client.run(dirsCmd).timeout(timeout),
           allowMalformed: true);
       MonitorLog.write('dirs', dirsRaw.trim());
