@@ -51,7 +51,7 @@ class AppPaths {
     if (!await dir.exists()) return [];
     final names = <String>[];
     await for (final e in dir.list()) {
-      if (e is File && !e.path.endsWith('.pub')) {
+      if (e is File && !e.path.endsWith('.pub') && !e.path.endsWith('.comment')) {
         names.add(e.path.split('/').last);
       }
     }
@@ -93,7 +93,7 @@ class AppPaths {
         final ssh = Directory('${old.path}/root/.ssh');
         if (await ssh.exists()) {
           await for (final e in ssh.list()) {
-            if (e is! File || e.path.endsWith('.pub')) continue;
+            if (e is! File || e.path.endsWith('.pub') || e.path.endsWith('.comment')) continue;
             try {
               await e.copy('$keysDir/${e.path.split('/').last}');
             } catch (_) {}
