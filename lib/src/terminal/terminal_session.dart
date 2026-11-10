@@ -9,6 +9,7 @@ import '../ssh/identity_service.dart';
 import 'command_history.dart';
 import '../ssh/ssh_credentials_store.dart';
 import '../ssh/ssh_hosts_service.dart';
+import '../sftp/sftp_favorites_service.dart';
 import '../storage/app_paths.dart';
 import 'terminal_recorder.dart';
 
@@ -73,6 +74,29 @@ class TerminalSession {
       final r = await c
           .run("LC_ALL=C; cut -d' ' -f1 /proc/loadavg; df -hP / | tail -1 | awk '{print \$5}'")
           .timeout(const Duration(seconds: 8));
+      final t = utf8.decode(r, allowMalformed: true).trim();
+      return t.isEmpty ? null : t;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// v2.18.4: du PARALELO de las carpetas favoritas del host (para la
+  /// sombra fantasma). Devuelve pares __D__ <path> + bytes (TO si timeout).
+  Future<String?> monitorGhostDirs() async {
+    final c = _ssh;
+    if (c == null) return null;
+    final favs = SftpFavoritesService.instance
+        .forHost(sourceHost.id)
+        .map((f) => f.path.startsWith('/') ? f.path : '/${f.path}')
+        .toSet()
+        .take(5);
+    if (favs.isEmpty) return null;
+    final dirList = favs.map((e) => "'$e'").join(' ');
+    try {
+      final r = await c
+          .run('for d in $dirList; do ( out=\$(timeout 6 du -x -s -B1 "\$d" 2>/dev/null | awk \'{print \$1}\'); echo "__D__ \$d"; echo "\${out:-TO}" ) & done; wait')
+          .timeout(const Duration(seconds: 12));
       final t = utf8.decode(r, allowMalformed: true).trim();
       return t.isEmpty ? null : t;
     } catch (_) {
