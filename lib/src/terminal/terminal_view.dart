@@ -741,7 +741,7 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
                         onTap: () => _closeSession(i),
                         child: Container(
                           padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), shape: BoxShape.circle),
+                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), shape: BoxShape.circle),
                           child: const Icon(Icons.close, size: 12, color: Colors.white70),
                         ),
                       ),
@@ -822,7 +822,7 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
                               maxLines: 1,
                               overflow: TextOverflow.clip,
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.28),
+                                color: Colors.white.withValues(alpha: 0.28),
                                 fontFamily: 'monospace',
                                 fontSize: _fontSize,
                                 fontStyle: FontStyle.italic,

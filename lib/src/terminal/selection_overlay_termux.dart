@@ -783,7 +783,7 @@ class _HighlightPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white.withOpacity(0.22);
+    final paint = Paint()..color = Colors.white.withValues(alpha: 0.22);
     for (final r in rects) {
       canvas.drawRect(r, paint);
     }

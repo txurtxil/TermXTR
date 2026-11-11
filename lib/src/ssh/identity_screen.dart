@@ -9,18 +9,11 @@
 // en los hosts instalados; solo cambia la etiqueta que se instala/exporta.
 
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 import 'package:flutter/services.dart';
 
 import 'identity_service.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-  static const err = Color(0xFFFF453A);
-}
 
 class IdentityScreen extends StatefulWidget {
   const IdentityScreen({super.key});
@@ -106,18 +99,18 @@ class _IdentityScreenState extends State<IdentityScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: const Text('¿Regenerar identidad?',
-            style: TextStyle(color: _C.textHi)),
+            style: TextStyle(color: AppColors.textHi)),
         content: const Text(
             'La clave actual dejara de funcionar en todos los hosts donde este instalada. Tendras que reinstalarla.',
-            style: TextStyle(color: _C.textLo)),
+            style: TextStyle(color: AppColors.textLo)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Cancelar')),
           FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: _C.err),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.err),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Regenerar')),
         ],
@@ -132,30 +125,30 @@ class _IdentityScreenState extends State<IdentityScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: _C.textHi),
+        iconTheme: const IconThemeData(color: AppColors.textHi),
         title: const Text('Identidad SSH',
-            style: TextStyle(color: _C.textHi, fontSize: 16)),
+            style: TextStyle(color: AppColors.textHi, fontSize: 16)),
         actions: [
           IconButton(
             tooltip: 'Regenerar',
-            icon: const Icon(Icons.refresh, color: _C.textLo),
+            icon: const Icon(Icons.refresh, color: AppColors.textLo),
             onPressed: _generating ? null : _regenerate,
           ),
         ],
       ),
       body: _generating
           ? const Center(
-              child: CircularProgressIndicator(color: _C.accent))
+              child: CircularProgressIndicator(color: AppColors.accent))
           : _error != null
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Text(_error!,
-                        style: const TextStyle(color: _C.err)),
+                        style: const TextStyle(color: AppColors.err)),
                   ),
                 )
               : ListView(
@@ -163,7 +156,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
                   children: [
                     const Text('Clave publica',
                         style: TextStyle(
-                            color: _C.textHi,
+                            color: AppColors.textHi,
                             fontWeight: FontWeight.w500)),
                     const SizedBox(height: 6),
                     const Text(
@@ -171,19 +164,19 @@ class _IdentityScreenState extends State<IdentityScreen> {
                       '(tres puntos > Enviar clave publica). A partir de '
                       'entonces las conexiones usaran esta clave y no '
                       'pediran contraseña.',
-                      style: TextStyle(color: _C.textLo, fontSize: 12),
+                      style: TextStyle(color: AppColors.textLo, fontSize: 12),
                     ),
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: _C.card,
+                        color: AppColors.card,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: SelectableText(
                         _pub.isEmpty ? '(sin clave)' : _pub,
                         style: const TextStyle(
-                          color: _C.textHi,
+                          color: AppColors.textHi,
                           fontFamily: 'monospace',
                           fontSize: 11,
                         ),
@@ -192,7 +185,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
                     const SizedBox(height: 12),
                     const Text('Comentario (etiqueta)',
                         style: TextStyle(
-                            color: _C.textHi,
+                            color: AppColors.textHi,
                             fontWeight: FontWeight.w500)),
                     const SizedBox(height: 6),
                     const Text(
@@ -200,7 +193,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
                       'Por defecto es termxtr-<dispositivo>. Renombrarla '
                       'NO regenera el par: sigue funcionando en los hosts '
                       'ya instalados.',
-                      style: TextStyle(color: _C.textLo, fontSize: 12),
+                      style: TextStyle(color: AppColors.textLo, fontSize: 12),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -209,13 +202,13 @@ class _IdentityScreenState extends State<IdentityScreen> {
                           child: TextField(
                             controller: _commentController,
                             style: const TextStyle(
-                                color: _C.textHi, fontSize: 13),
+                                color: AppColors.textHi, fontSize: 13),
                             decoration: InputDecoration(
                               filled: true,
-                              fillColor: _C.card,
+                              fillColor: AppColors.card,
                               hintText: 'termxtr-mi-dispositivo',
                               hintStyle:
-                                  const TextStyle(color: _C.textLo),
+                                  const TextStyle(color: AppColors.textLo),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: BorderSide.none,

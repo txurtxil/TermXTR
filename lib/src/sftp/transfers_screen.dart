@@ -3,18 +3,10 @@
 // v2.6.0: cola de transferencias entre equipos con telemetria en vivo.
 
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 
 import 'transfer_engine.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-  static const err = Color(0xFFFF453A);
-  static const ok = Color(0xFF34C759);
-}
 
 class TransfersScreen extends StatelessWidget {
   const TransfersScreen({super.key});
@@ -61,17 +53,17 @@ class TransfersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: _C.textHi),
+        iconTheme: const IconThemeData(color: AppColors.textHi),
         title: const Text('Transferencias',
-            style: TextStyle(color: _C.textHi, fontSize: 16)),
+            style: TextStyle(color: AppColors.textHi, fontSize: 16)),
         actions: [
           IconButton(
             tooltip: 'Limpiar terminadas',
-            icon: const Icon(Icons.clear_all, color: _C.textLo),
+            icon: const Icon(Icons.clear_all, color: AppColors.textLo),
             onPressed: () => TransferEngine.instance.clearFinished(),
           ),
         ],
@@ -87,7 +79,7 @@ class TransfersScreen extends StatelessWidget {
                   'Cola vacía.\n\nDesde el explorador SFTP, mantén pulsado '
                   'un fichero y elige "Enviar a otro equipo...".',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: _C.textLo),
+                  style: TextStyle(color: AppColors.textLo),
                 ),
               ),
             );
@@ -100,13 +92,13 @@ class TransfersScreen extends StatelessWidget {
               final running = j.status == TransferStatus.running;
               final queued = j.status == TransferStatus.queued;
               final okColor = j.status == TransferStatus.done
-                  ? _C.ok
+                  ? AppColors.ok
                   : (j.status == TransferStatus.error ||
                           j.status == TransferStatus.cancelled
-                      ? _C.err
-                      : _C.accent);
+                      ? AppColors.err
+                      : AppColors.accent);
               return Card(
-                color: _C.card,
+                color: AppColors.card,
                 child: Padding(
                   padding: const EdgeInsets.all(10),
                   child: Column(
@@ -130,14 +122,14 @@ class TransfersScreen extends StatelessWidget {
                           Expanded(
                             child: Text(j.fileName,
                                 style: const TextStyle(
-                                    color: _C.textHi,
+                                    color: AppColors.textHi,
                                     fontWeight: FontWeight.w500),
                                 overflow: TextOverflow.ellipsis),
                           ),
                           if (!j.finished)
                             IconButton(
                               icon: const Icon(Icons.close,
-                                  size: 18, color: _C.err),
+                                  size: 18, color: AppColors.err),
                               tooltip: 'Cancelar',
                               onPressed: () =>
                                   TransferEngine.instance.cancel(j.id),
@@ -151,9 +143,9 @@ class TransfersScreen extends StatelessWidget {
                           child: LinearProgressIndicator(
                             value: running ? j.progress : null,
                             minHeight: 4,
-                            backgroundColor: _C.bg,
+                            backgroundColor: AppColors.bg,
                             valueColor:
-                                const AlwaysStoppedAnimation(_C.accent),
+                                const AlwaysStoppedAnimation(AppColors.accent),
                           ),
                         ),
                       if (j.size > 0 && (running || queued))
@@ -162,7 +154,7 @@ class TransfersScreen extends StatelessWidget {
                         '${j.sourceHostName} → ${j.targetHostName}\n'
                         '${j.sourcePath}',
                         style: const TextStyle(
-                            color: _C.textLo,
+                            color: AppColors.textLo,
                             fontSize: 10,
                             fontFamily: 'monospace'),
                       ),
@@ -170,7 +162,7 @@ class TransfersScreen extends StatelessWidget {
                       Text(
                         _statusLine(j),
                         style: TextStyle(
-                            color: j.finished ? okColor : _C.textHi,
+                            color: j.finished ? okColor : AppColors.textHi,
                             fontSize: 11,
                             fontFamily: 'monospace'),
                       ),

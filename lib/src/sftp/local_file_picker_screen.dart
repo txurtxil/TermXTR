@@ -10,14 +10,8 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const cardAlt = Color(0xFF242426);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-}
 
 class LocalFilePickerScreen extends StatefulWidget {
   /// false: se eligen FICHEROS (subida normal). true: se eligen CARPETAS
@@ -106,23 +100,23 @@ class _LocalFilePickerScreenState extends State<LocalFilePickerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: _C.textHi),
+        iconTheme: const IconThemeData(color: AppColors.textHi),
         title: Text(
           _selected.isEmpty
               ? (widget.folderMode ? 'Elegir carpeta(s)' : 'Elegir fichero(s)')
               : '${_selected.length} seleccionado(s)',
-          style: const TextStyle(color: _C.textHi, fontSize: 16),
+          style: const TextStyle(color: AppColors.textHi, fontSize: 16),
         ),
         actions: [
           IconButton(
             tooltip: widget.folderMode
                 ? 'Seleccionar todas las carpetas de aquí'
                 : 'Seleccionar todos los ficheros de esta carpeta',
-            icon: const Icon(Icons.select_all, color: _C.textLo),
+            icon: const Icon(Icons.select_all, color: AppColors.textLo),
             onPressed: _entries.any((e) => widget.folderMode ? e is Directory : e is File)
                 ? _selectAllHere
                 : null,
@@ -134,18 +128,18 @@ class _LocalFilePickerScreenState extends State<LocalFilePickerScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            color: _C.cardAlt,
+            color: AppColors.cardAlt,
             child: Row(
               children: [
                 if (_currentPath != _startDir)
                   IconButton(
-                    icon: const Icon(Icons.arrow_upward, color: _C.textLo, size: 18),
+                    icon: const Icon(Icons.arrow_upward, color: AppColors.textLo, size: 18),
                     onPressed: _up,
                   ),
                 Expanded(
                   child: Text(
                     _currentPath,
-                    style: const TextStyle(color: _C.textLo, fontSize: 11, fontFamily: 'monospace'),
+                    style: const TextStyle(color: AppColors.textLo, fontSize: 11, fontFamily: 'monospace'),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -162,7 +156,7 @@ class _LocalFilePickerScreenState extends State<LocalFilePickerScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(_selected.toList()),
-                    style: ElevatedButton.styleFrom(backgroundColor: _C.accent, padding: const EdgeInsets.symmetric(vertical: 14)),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, padding: const EdgeInsets.symmetric(vertical: 14)),
                     child: Text('Subir (${_selected.length})', style: const TextStyle(color: Colors.white)),
                   ),
                 ),
@@ -174,17 +168,17 @@ class _LocalFilePickerScreenState extends State<LocalFilePickerScreen> {
   }
 
   Widget _buildBody() {
-    if (_busy) return const Center(child: CircularProgressIndicator(color: _C.accent));
+    if (_busy) return const Center(child: CircularProgressIndicator(color: AppColors.accent));
     if (_error != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(_error!, style: const TextStyle(color: _C.textLo, fontSize: 12), textAlign: TextAlign.center),
+          child: Text(_error!, style: const TextStyle(color: AppColors.textLo, fontSize: 12), textAlign: TextAlign.center),
         ),
       );
     }
     if (_entries.isEmpty) {
-      return const Center(child: Text('Carpeta vacia', style: TextStyle(color: _C.textLo)));
+      return const Center(child: Text('Carpeta vacia', style: TextStyle(color: AppColors.textLo)));
     }
     return ListView.builder(
       itemCount: _entries.length,
@@ -198,13 +192,13 @@ class _LocalFilePickerScreenState extends State<LocalFilePickerScreen> {
               ? Checkbox(
                   value: selected,
                   onChanged: (_) => _toggle(e.path),
-                  activeColor: _C.accent,
+                  activeColor: AppColors.accent,
                 )
               : Icon(
                   isDir ? Icons.folder : Icons.insert_drive_file_outlined,
-                  color: isDir ? _C.accent : _C.textLo,
+                  color: isDir ? AppColors.accent : AppColors.textLo,
                 ),
-          title: Text(_name(e), style: const TextStyle(color: _C.textHi, fontSize: 14)),
+          title: Text(_name(e), style: const TextStyle(color: AppColors.textHi, fontSize: 14)),
           // Tocar una carpeta siempre entra en ella; marcarla es cosa del
           // checkbox (así se puede elegir sin perder la navegación).
           onTap: () {

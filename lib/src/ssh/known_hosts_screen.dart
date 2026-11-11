@@ -12,17 +12,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 import 'package:flutter/services.dart';
 
 import '../storage/app_paths.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const err = Color(0xFFFF453A);
-}
 
 class KnownHostsScreen extends StatefulWidget {
   const KnownHostsScreen({super.key});
@@ -67,12 +61,12 @@ class _KnownHostsScreenState extends State<KnownHostsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: const Text('Borrar huella guardada?', style: TextStyle(color: _C.textHi, fontSize: 15)),
-        content: Text('$key\n\nLa proxima conexion volvera a aceptar y guardar la huella del servidor (accept-new).', style: const TextStyle(color: _C.textLo, fontSize: 13)),
+        backgroundColor: AppColors.card,
+        title: const Text('Borrar huella guardada?', style: TextStyle(color: AppColors.textHi, fontSize: 15)),
+        content: Text('$key\n\nLa proxima conexion volvera a aceptar y guardar la huella del servidor (accept-new).', style: const TextStyle(color: AppColors.textLo, fontSize: 13)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Borrar', style: TextStyle(color: _C.err))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: AppColors.textLo))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Borrar', style: TextStyle(color: AppColors.err))),
         ],
       ),
     );
@@ -85,12 +79,12 @@ class _KnownHostsScreenState extends State<KnownHostsScreen> {
   Widget build(BuildContext context) {
     final keys = _entries.keys.toList();
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        title: const Text('Hosts conocidos (SSH)', style: TextStyle(color: _C.textHi)),
-        iconTheme: const IconThemeData(color: _C.textHi),
+        title: const Text('Hosts conocidos (SSH)', style: TextStyle(color: AppColors.textHi)),
+        iconTheme: const IconThemeData(color: AppColors.textHi),
       ),
       body: Column(
         children: [
@@ -98,12 +92,12 @@ class _KnownHostsScreenState extends State<KnownHostsScreen> {
             padding: EdgeInsets.fromLTRB(16, 10, 16, 4),
             child: Text(
               'Huellas aceptadas al conectar (politica accept-new). Si una huella cambia en el servidor, borra la entrada y reconecta.',
-              style: TextStyle(color: _C.textLo, fontSize: 12),
+              style: TextStyle(color: AppColors.textLo, fontSize: 12),
             ),
           ),
           Expanded(
             child: keys.isEmpty
-                ? const Center(child: Text('Sin entradas todavia.', style: TextStyle(color: _C.textLo, fontSize: 13)))
+                ? const Center(child: Text('Sin entradas todavia.', style: TextStyle(color: AppColors.textLo, fontSize: 13)))
                 : ListView.builder(
                     itemCount: keys.length,
                     itemBuilder: (ctx, i) {
@@ -115,10 +109,10 @@ class _KnownHostsScreenState extends State<KnownHostsScreen> {
                         children: [
                           ListTile(
                             dense: true,
-                            title: Text(k, style: const TextStyle(color: _C.textHi, fontSize: 14)),
+                            title: Text(k, style: const TextStyle(color: AppColors.textHi, fontSize: 14)),
                             subtitle: Text(
                               expanded ? fp : _shortFp(fp),
-                              style: const TextStyle(color: _C.textLo, fontSize: 11, fontFamily: 'monospace'),
+                              style: const TextStyle(color: AppColors.textLo, fontSize: 11, fontFamily: 'monospace'),
                               maxLines: expanded ? null : 1,
                               overflow: expanded ? null : TextOverflow.ellipsis,
                             ),
@@ -131,7 +125,7 @@ class _KnownHostsScreenState extends State<KnownHostsScreen> {
                             },
                             trailing: IconButton(
                               tooltip: 'Borrar entrada',
-                              icon: const Icon(Icons.delete_outline, color: _C.err, size: 20),
+                              icon: const Icon(Icons.delete_outline, color: AppColors.err, size: 20),
                               onPressed: () => _confirmRemove(k),
                             ),
                           ),

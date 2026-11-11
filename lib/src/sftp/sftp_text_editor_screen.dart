@@ -9,18 +9,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 import 'package:flutter/services.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const border = Color(0xFF3A3A3C);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-  static const err = Color(0xFFFF453A);
-  static const ok = Color(0xFF34C759);
-}
 
 class SftpTextEditorScreen extends StatefulWidget {
   final String fileName;
@@ -166,14 +157,14 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('${widget.fileName} guardado (${_fmtBytes(bytes.length)})'),
-        backgroundColor: _C.ok,
+        backgroundColor: AppColors.ok,
       ));
     } catch (err) {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Error al guardar: $err'),
-        backgroundColor: _C.err,
+        backgroundColor: AppColors.err,
       ));
     }
   }
@@ -358,16 +349,16 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
     final line = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: const Text('Ir a linea', style: TextStyle(color: _C.textHi)),
+        backgroundColor: AppColors.card,
+        title: const Text('Ir a linea', style: TextStyle(color: AppColors.textHi)),
         content: TextField(
           controller: c,
           autofocus: true,
           keyboardType: TextInputType.number,
-          style: const TextStyle(color: _C.textHi),
+          style: const TextStyle(color: AppColors.textHi),
           decoration: const InputDecoration(
             hintText: 'Numero de linea',
-            hintStyle: TextStyle(color: _C.textLo),
+            hintStyle: TextStyle(color: AppColors.textLo),
           ),
         ),
         actions: [
@@ -424,16 +415,16 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
     final r = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: const Text('Cambios sin guardar',
-            style: TextStyle(color: _C.textHi)),
+            style: TextStyle(color: AppColors.textHi)),
         content: const Text('¿Guardar antes de salir?',
-            style: TextStyle(color: _C.textLo)),
+            style: TextStyle(color: AppColors.textLo)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, 'discard'),
               child: const Text('Descartar',
-                  style: TextStyle(color: _C.err))),
+                  style: TextStyle(color: AppColors.err))),
           TextButton(
               onPressed: () => Navigator.pop(ctx, 'cancel'),
               child: const Text('Seguir editando')),
@@ -458,52 +449,52 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
     return WillPopScope(
       onWillPop: _confirmExit,
       child: Scaffold(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         appBar: AppBar(
-          backgroundColor: _C.bg,
+          backgroundColor: AppColors.bg,
           elevation: 0,
-          iconTheme: const IconThemeData(color: _C.textHi),
+          iconTheme: const IconThemeData(color: AppColors.textHi),
           title: Text(widget.fileName,
-              style: const TextStyle(color: _C.textHi, fontSize: 15)),
+              style: const TextStyle(color: AppColors.textHi, fontSize: 15)),
           actions: [
             IconButton(
               tooltip: 'Seleccionar todo',
-              icon: const Icon(Icons.select_all, color: _C.textLo),
+              icon: const Icon(Icons.select_all, color: AppColors.textLo),
               onPressed: _loaded ? _selectAll : null,
             ),
             IconButton(
               tooltip: 'Copiar seleccion',
-              icon: const Icon(Icons.copy, color: _C.textLo),
+              icon: const Icon(Icons.copy, color: AppColors.textLo),
               onPressed: _loaded ? _copySelection : null,
             ),
             IconButton(
               tooltip: 'Buscar y reemplazar',
-              icon: const Icon(Icons.search, color: _C.textLo),
+              icon: const Icon(Icons.search, color: AppColors.textLo),
               onPressed: _loaded
                   ? () => setState(() => _showSearch = !_showSearch)
                   : null,
             ),
             IconButton(
               tooltip: 'Ir a linea',
-              icon: const Icon(Icons.format_list_numbered, color: _C.textLo),
+              icon: const Icon(Icons.format_list_numbered, color: AppColors.textLo),
               onPressed: _loaded ? _goToLine : null,
             ),
             IconButton(
               tooltip: 'Ajuste de linea',
               icon: Icon(_wrap ? Icons.wrap_text : Icons.notes,
-                  color: _C.textLo),
+                  color: AppColors.textLo),
               onPressed: _loaded
                   ? () => setState(() => _wrap = !_wrap)
                   : null,
             ),
             IconButton(
               tooltip: 'Deshacer',
-              icon: const Icon(Icons.undo, color: _C.textLo),
+              icon: const Icon(Icons.undo, color: AppColors.textLo),
               onPressed: _undo.isEmpty ? null : _undoIt,
             ),
             IconButton(
               tooltip: 'Rehacer',
-              icon: const Icon(Icons.redo, color: _C.textLo),
+              icon: const Icon(Icons.redo, color: AppColors.textLo),
               onPressed: _redo.isEmpty ? null : _redoIt,
             ),
             IconButton(
@@ -513,7 +504,7 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.save, color: _C.textLo),
+                  : const Icon(Icons.save, color: AppColors.textLo),
               onPressed: _loaded && !_saving ? _save : null,
             ),
           ],
@@ -525,7 +516,7 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
 
   Widget _buildSearchPanel() {
     return Container(
-      color: _C.card,
+      color: AppColors.card,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Column(
         children: [
@@ -535,21 +526,21 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
                 child: TextField(
                   controller: _searchCtrl,
                   autofocus: true,
-                  style: const TextStyle(color: _C.textHi, fontSize: 13),
+                  style: const TextStyle(color: AppColors.textHi, fontSize: 13),
                   decoration: const InputDecoration(
                     hintText: 'Buscar...',
-                    hintStyle: TextStyle(color: _C.textLo),
+                    hintStyle: TextStyle(color: AppColors.textLo),
                     border: InputBorder.none,
                     isDense: true,
                     prefixIcon: Icon(Icons.search,
-                        size: 18, color: _C.textLo),
+                        size: 18, color: AppColors.textLo),
                   ),
                   onSubmitted: (_) => _findNext(),
                 ),
               ),
               IconButton(
                 icon: const Icon(Icons.keyboard_return,
-                    size: 18, color: _C.accent),
+                    size: 18, color: AppColors.accent),
                 tooltip: 'Siguiente',
                 onPressed: _findNext,
               ),
@@ -557,7 +548,7 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
                 icon: Icon(
                     _caseSensitive ? Icons.abc : Icons.abc_outlined,
                     size: 18,
-                    color: _caseSensitive ? _C.accent : _C.textLo),
+                    color: _caseSensitive ? AppColors.accent : AppColors.textLo),
                 tooltip: 'Mayusculas/minusculas',
                 onPressed: () =>
                     setState(() => _caseSensitive = !_caseSensitive),
@@ -569,14 +560,14 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
               Expanded(
                 child: TextField(
                   controller: _replaceCtrl,
-                  style: const TextStyle(color: _C.textHi, fontSize: 13),
+                  style: const TextStyle(color: AppColors.textHi, fontSize: 13),
                   decoration: const InputDecoration(
                     hintText: 'Reemplazar con...',
-                    hintStyle: TextStyle(color: _C.textLo),
+                    hintStyle: TextStyle(color: AppColors.textLo),
                     border: InputBorder.none,
                     isDense: true,
                     prefixIcon: Icon(Icons.find_replace,
-                        size: 18, color: _C.textLo),
+                        size: 18, color: AppColors.textLo),
                   ),
                 ),
               ),
@@ -589,7 +580,7 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
                 child: const Text('Todos', style: TextStyle(fontSize: 12)),
               ),
               IconButton(
-                icon: const Icon(Icons.close, size: 18, color: _C.textLo),
+                icon: const Icon(Icons.close, size: 18, color: AppColors.textLo),
                 tooltip: 'Cerrar',
                 onPressed: () => setState(() => _showSearch = false),
               ),
@@ -603,7 +594,7 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
   Widget _buildBody() {
     if (_loading) {
       return const Center(
-          child: CircularProgressIndicator(color: _C.accent));
+          child: CircularProgressIndicator(color: AppColors.accent));
     }
     if (_error != null) {
       return Center(
@@ -611,7 +602,7 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
           padding: const EdgeInsets.all(24),
           child: Text(_error!,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: _C.err)),
+              style: const TextStyle(color: AppColors.err)),
         ),
       );
     }
@@ -620,7 +611,7 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
         if (_showSearch) _buildSearchPanel(),
         Expanded(
           child: Container(
-            color: _C.bg,
+            color: AppColors.bg,
             child: TextField(
               controller: _controller,
               maxLines: _wrap ? null : 1,
@@ -631,7 +622,7 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
               autocorrect: false,
               enableSuggestions: false,
               style: const TextStyle(
-                color: _C.textHi,
+                color: AppColors.textHi,
                 fontSize: 13,
                 height: 1.35,
                 fontFamily: 'monospace',
@@ -646,13 +637,13 @@ class _SftpTextEditorScreenState extends State<SftpTextEditorScreen> {
         ),
         Container(
           width: double.infinity,
-          color: _C.card,
+          color: AppColors.card,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Text(
             _status.isEmpty
                 ? (_loaded ? 'Listo' : '')
                 : _status,
-            style: const TextStyle(color: _C.textLo, fontSize: 10),
+            style: const TextStyle(color: AppColors.textLo, fontSize: 10),
           ),
         ),
       ],

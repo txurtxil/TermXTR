@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:file_selector/file_selector.dart';
@@ -30,16 +31,6 @@ import '../storage/app_paths.dart';
 import '../sftp/sftp_browser_screen.dart';
 import '../sftp/sftp_connection_pool.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const cardAlt = Color(0xFF242426);
-  static const border = Color(0xFF3A3A3C);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-  static const err = Color(0xFFFF453A);
-}
 
 const Map<String, Color> _osColors = {
   'debian': Color(0xFFD70A53), 'ubuntu': Color(0xFFE95420),
@@ -250,13 +241,13 @@ class _HostsScreenState extends State<HostsScreen> {
         builder: (ctx) => StatefulBuilder(
           builder: (ctx, setDlg) {
             return AlertDialog(
-              backgroundColor: _C.card,
-              title: const Text('Importar hosts', style: TextStyle(color: _C.textHi, fontSize: 16)),
+              backgroundColor: AppColors.card,
+              title: const Text('Importar hosts', style: TextStyle(color: AppColors.textHi, fontSize: 16)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('$fresh nuevos · $updates actualizables · $dupes duplicados', style: const TextStyle(color: _C.textLo, fontSize: 13)),
+                  Text('$fresh nuevos · $updates actualizables · $dupes duplicados', style: const TextStyle(color: AppColors.textLo, fontSize: 13)),
                   const SizedBox(height: 12),
                   for (final opt in const [
                     (_DupeMode.skip, 'Omitir duplicados', 'Solo añade hosts que no existen ya'),
@@ -269,14 +260,14 @@ class _HostsScreenState extends State<HostsScreen> {
                       value: opt.$1,
                       groupValue: sel,
                       onChanged: (v) => setDlg(() => sel = v ?? _DupeMode.skip),
-                      title: Text(opt.$2, style: const TextStyle(color: _C.textHi, fontSize: 14)),
-                      subtitle: Text(opt.$3, style: const TextStyle(color: _C.textLo, fontSize: 11)),
-                      activeColor: _C.accent,
+                      title: Text(opt.$2, style: const TextStyle(color: AppColors.textHi, fontSize: 14)),
+                      subtitle: Text(opt.$3, style: const TextStyle(color: AppColors.textLo, fontSize: 11)),
+                      activeColor: AppColors.accent,
                     ),
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar', style: TextStyle(color: AppColors.textLo))),
                 FilledButton(onPressed: () => Navigator.pop(ctx, sel), child: const Text('Importar')),
               ],
             );
@@ -342,21 +333,21 @@ class _HostsScreenState extends State<HostsScreen> {
   Widget build(BuildContext context) {
     final hosts = _filtered;
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        title: const Text('Hosts', style: TextStyle(color: _C.textHi)),
-        iconTheme: const IconThemeData(color: _C.textHi),
+        title: const Text('Hosts', style: TextStyle(color: AppColors.textHi)),
+        iconTheme: const IconThemeData(color: AppColors.textHi),
         actions: [
           IconButton(
             tooltip: 'Grupos de hosts',
-            icon: const Icon(Icons.folder_shared, color: _C.textLo),
+            icon: const Icon(Icons.folder_shared, color: AppColors.textLo),
             onPressed: () => _groupsManager(),
           ),
           IconButton(
             tooltip: 'Cola de transferencias entre equipos',
-            icon: const Icon(Icons.swap_horiz, color: _C.textLo),
+            icon: const Icon(Icons.swap_horiz, color: AppColors.textLo),
             onPressed: () {
               Navigator.push(
                 context,
@@ -366,15 +357,15 @@ class _HostsScreenState extends State<HostsScreen> {
           ),
           IconButton(
             tooltip: 'Cerrar todas las conexiones SFTP',
-            icon: const Icon(Icons.link_off, color: _C.textLo),
+            icon: const Icon(Icons.link_off, color: AppColors.textLo),
             onPressed: () async {
               await SftpConnectionPool.instance.disconnectAll();
               if (mounted) setState(() {});
             },
           ),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: _C.textLo),
-            color: _C.card,
+            icon: const Icon(Icons.more_vert, color: AppColors.textLo),
+            color: AppColors.card,
             onSelected: (val) async {
               if (val == 'passwd') {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const PasswordChangeScreen()));
@@ -419,19 +410,19 @@ class _HostsScreenState extends State<HostsScreen> {
               if (val == 'about') Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen()));
             },
             itemBuilder: (ctx) => [
-              const PopupMenuItem(value: 'passwd', child: ListTile(dense: true, leading: Icon(Icons.key, color: _C.textLo), title: Text('Cambiar contraseña', style: TextStyle(color: _C.textHi)))),
-              const PopupMenuItem(value: 'router', child: ListTile(dense: true, leading: Icon(Icons.router, color: _C.textLo), title: Text('Router · comandos LAN', style: TextStyle(color: _C.textHi)))),
-              const PopupMenuItem(value: 'multiexec', child: ListTile(dense: true, leading: Icon(Icons.playlist_play, color: _C.textLo), title: Text('Ejecutar comando en varios hosts', style: TextStyle(color: _C.textHi)))),
-              const PopupMenuItem(value: 'snippets', child: ListTile(dense: true, leading: Icon(Icons.electric_bolt, color: _C.textLo), title: Text('Snippets de comandos', style: TextStyle(color: _C.textHi)))),
-              const PopupMenuItem(value: 'identity', child: ListTile(dense: true, leading: Icon(Icons.vpn_key, color: _C.textLo), title: Text('Identidad SSH (claves sin password)', style: TextStyle(color: _C.textHi)))),
-              const PopupMenuItem(value: 'sshserver', child: ListTile(dense: true, leading: Icon(Icons.dns, color: _C.accent), title: Text('Servidor SSH (esta app)', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'passwd', child: ListTile(dense: true, leading: Icon(Icons.key, color: AppColors.textLo), title: Text('Cambiar contraseña', style: TextStyle(color: AppColors.textHi)))),
+              const PopupMenuItem(value: 'router', child: ListTile(dense: true, leading: Icon(Icons.router, color: AppColors.textLo), title: Text('Router · comandos LAN', style: TextStyle(color: AppColors.textHi)))),
+              const PopupMenuItem(value: 'multiexec', child: ListTile(dense: true, leading: Icon(Icons.playlist_play, color: AppColors.textLo), title: Text('Ejecutar comando en varios hosts', style: TextStyle(color: AppColors.textHi)))),
+              const PopupMenuItem(value: 'snippets', child: ListTile(dense: true, leading: Icon(Icons.electric_bolt, color: AppColors.textLo), title: Text('Snippets de comandos', style: TextStyle(color: AppColors.textHi)))),
+              const PopupMenuItem(value: 'identity', child: ListTile(dense: true, leading: Icon(Icons.vpn_key, color: AppColors.textLo), title: Text('Identidad SSH (claves sin password)', style: TextStyle(color: AppColors.textHi)))),
+              const PopupMenuItem(value: 'sshserver', child: ListTile(dense: true, leading: Icon(Icons.dns, color: AppColors.accent), title: Text('Servidor SSH (esta app)', style: TextStyle(color: AppColors.textHi)))),
               const PopupMenuDivider(),
-              const PopupMenuItem(value: 'tunnels', child: ListTile(dense: true, leading: Icon(Icons.alt_route, color: _C.textLo), title: Text('Tuneles SSH (port forwarding)', style: TextStyle(color: _C.textHi)))),
-              const PopupMenuItem(value: 'knownhosts', child: ListTile(dense: true, leading: Icon(Icons.verified_user, color: _C.textLo), title: Text('Hosts conocidos (SSH)', style: TextStyle(color: _C.textHi)))),
-              const PopupMenuItem(value: 'map', child: ListTile(dense: true, leading: Icon(Icons.map, color: _C.textLo), title: Text('Mapa de hosts', style: TextStyle(color: _C.textHi)))),
-              const PopupMenuItem(value: 'export', child: ListTile(dense: true, leading: Icon(Icons.upload, color: _C.textLo), title: Text('Exportar hosts a fichero', style: TextStyle(color: _C.textHi)))),
-              const PopupMenuItem(value: 'import', child: ListTile(dense: true, leading: Icon(Icons.download, color: _C.textLo), title: Text('Importar hosts de fichero', style: TextStyle(color: _C.textHi)))),
-              const PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline, color: _C.textLo), title: Text('Acerca de', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'tunnels', child: ListTile(dense: true, leading: Icon(Icons.alt_route, color: AppColors.textLo), title: Text('Tuneles SSH (port forwarding)', style: TextStyle(color: AppColors.textHi)))),
+              const PopupMenuItem(value: 'knownhosts', child: ListTile(dense: true, leading: Icon(Icons.verified_user, color: AppColors.textLo), title: Text('Hosts conocidos (SSH)', style: TextStyle(color: AppColors.textHi)))),
+              const PopupMenuItem(value: 'map', child: ListTile(dense: true, leading: Icon(Icons.map, color: AppColors.textLo), title: Text('Mapa de hosts', style: TextStyle(color: AppColors.textHi)))),
+              const PopupMenuItem(value: 'export', child: ListTile(dense: true, leading: Icon(Icons.upload, color: AppColors.textLo), title: Text('Exportar hosts a fichero', style: TextStyle(color: AppColors.textHi)))),
+              const PopupMenuItem(value: 'import', child: ListTile(dense: true, leading: Icon(Icons.download, color: AppColors.textLo), title: Text('Importar hosts de fichero', style: TextStyle(color: AppColors.textHi)))),
+              const PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline, color: AppColors.textLo), title: Text('Acerca de', style: TextStyle(color: AppColors.textHi)))),
             ],
           ),
         ],
@@ -443,19 +434,19 @@ class _HostsScreenState extends State<HostsScreen> {
             child: TextField(
               controller: _searchCtrl,
               onChanged: (v) => setState(() => _query = v),
-              style: const TextStyle(color: _C.textHi, fontSize: 14),
+              style: const TextStyle(color: AppColors.textHi, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Buscar host…',
-                hintStyle: const TextStyle(color: _C.textLo, fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: _C.textLo, size: 20),
+                hintStyle: const TextStyle(color: AppColors.textLo, fontSize: 14),
+                prefixIcon: const Icon(Icons.search, color: AppColors.textLo, size: 20),
                 suffixIcon: _query.isEmpty
                     ? null
                     : IconButton(
-                        icon: const Icon(Icons.close, color: _C.textLo, size: 18),
+                        icon: const Icon(Icons.close, color: AppColors.textLo, size: 18),
                         onPressed: () { _searchCtrl.clear(); setState(() => _query = ''); },
                       ),
                 filled: true,
-                fillColor: _C.cardAlt,
+                fillColor: AppColors.cardAlt,
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -464,7 +455,7 @@ class _HostsScreenState extends State<HostsScreen> {
           ),
           Expanded(
             child: hosts.isEmpty
-                ? Center(child: Text(_query.isEmpty ? 'Sin hosts todavía · toca + para añadir uno' : 'Ningún host coincide con la búsqueda', style: const TextStyle(color: _C.textLo, fontSize: 13)))
+                ? Center(child: Text(_query.isEmpty ? 'Sin hosts todavía · toca + para añadir uno' : 'Ningún host coincide con la búsqueda', style: const TextStyle(color: AppColors.textLo, fontSize: 13)))
                 : _query.isNotEmpty
                     ? ListView.builder(
                         padding: const EdgeInsets.symmetric(vertical: 4),
@@ -478,7 +469,7 @@ class _HostsScreenState extends State<HostsScreen> {
       floatingActionButton: _selectMode
           ? null
           : FloatingActionButton(
-              backgroundColor: _C.accent,
+              backgroundColor: AppColors.accent,
               onPressed: () => _openEditor(),
               child: const Icon(Icons.add, color: Colors.white),
             ),
@@ -486,12 +477,12 @@ class _HostsScreenState extends State<HostsScreen> {
       bottomNavigationBar: _selectMode
           ? SafeArea(
               child: Container(
-                color: _C.card,
+                color: AppColors.card,
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.close, color: _C.textLo),
+                      icon: const Icon(Icons.close, color: AppColors.textLo),
                       onPressed: () => setState(() {
                         _selectMode = false;
                         _selected.clear();
@@ -502,12 +493,12 @@ class _HostsScreenState extends State<HostsScreen> {
                         _selected.isEmpty
                             ? 'Selecciona hosts'
                             : '${_selected.length} seleccionados',
-                        style: const TextStyle(color: _C.textHi),
+                        style: const TextStyle(color: AppColors.textHi),
                       ),
                     ),
                     FilledButton.icon(
                       onPressed: _selected.isEmpty ? null : _openSelected,
-                      style: FilledButton.styleFrom(backgroundColor: _C.accent),
+                      style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
                       icon: const Icon(Icons.tab, size: 18),
                       label: Text(
                         _selected.isEmpty ? 'Abrir' : 'Abrir ${_selected.length}',
@@ -528,7 +519,7 @@ class _HostsScreenState extends State<HostsScreen> {
     final initial = h.name.trim().isEmpty ? '?' : h.name.trim()[0].toUpperCase();
     return Dismissible(
       key: ValueKey(h.id), direction: DismissDirection.endToStart,
-      background: Container(color: _C.err, alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), child: const Icon(Icons.delete, color: Colors.white)),
+      background: Container(color: AppColors.err, alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), child: const Icon(Icons.delete, color: Colors.white)),
       confirmDismiss: (_) => _confirmDelete(h), onDismissed: (_) => _svc.remove(h.id),
       child: ListTile(
         onTap: () async {
@@ -546,15 +537,15 @@ class _HostsScreenState extends State<HostsScreen> {
                 _selected.contains(h.id)
                     ? Icons.check_circle
                     : Icons.radio_button_unchecked,
-                color: _selected.contains(h.id) ? _C.accent : _C.textLo)
+                color: _selected.contains(h.id) ? AppColors.accent : AppColors.textLo)
             : Container(
                 width: 42, height: 42,
                 decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
                 alignment: Alignment.center,
                 child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               ),
-        title: Text(h.name, style: const TextStyle(color: _C.textHi, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
-        subtitle: Text(_subtitle(h), style: const TextStyle(color: _C.textLo, fontSize: 12), overflow: TextOverflow.ellipsis),
+        title: Text(h.name, style: const TextStyle(color: AppColors.textHi, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+        subtitle: Text(_subtitle(h), style: const TextStyle(color: AppColors.textLo, fontSize: 12), overflow: TextOverflow.ellipsis),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -570,7 +561,7 @@ class _HostsScreenState extends State<HostsScreen> {
                       ? const Color(0xFF34C759)
                       : _reach[h.id] == false
                           ? const Color(0xFFFF453A)
-                          : _C.textLo,
+                          : AppColors.textLo,
                 ),
                 tooltip: _reach[h.id] == true ? 'Apagar equipo' : 'Encender (Wake-on-LAN)',
                 onPressed: () async {
@@ -588,7 +579,7 @@ class _HostsScreenState extends State<HostsScreen> {
                 clipBehavior: Clip.none,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.folder_open, color: _C.textLo, size: 20),
+                    icon: const Icon(Icons.folder_open, color: AppColors.textLo, size: 20),
                     onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => SftpBrowserScreen(host: h, rootfsPath: widget.rootfsPath!, onOpenTerminal: widget.onOpenTerminalFromSftp),
                     )).then((_) { if (mounted) setState(() {}); }),
@@ -604,16 +595,16 @@ class _HostsScreenState extends State<HostsScreen> {
               tooltip: 'Monitor de sistemas',
               visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.query_stats,
-                  size: 18, color: _C.textLo),
+                  size: 18, color: AppColors.textLo),
               onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
                       builder: (_) => MonitorScreen(host: h))),
             ),
             PopupMenuTheme(
-              data: const PopupMenuThemeData(color: _C.card),
+              data: const PopupMenuThemeData(color: AppColors.card),
               child: PopupMenuButton<String>(
-              iconColor: _C.textLo,
+              iconColor: AppColors.textLo,
               onSelected: (v) {
                 if (v == 'multisel') setState(() => _selectMode = true);
                 if (v == 'move') _pickGroup(h);
@@ -721,7 +712,7 @@ class _HostsScreenState extends State<HostsScreen> {
     final groups = _svc.groupNames;
     final ungrouped = _svc.hostsInGroup('');
     if (groups.isEmpty && ungrouped.isEmpty) {
-      return const Center(child: Text('Sin hosts todavia', style: TextStyle(color: _C.textLo, fontSize: 13)));
+      return const Center(child: Text('Sin hosts todavia', style: TextStyle(color: AppColors.textLo, fontSize: 13)));
     }
     final children = <Widget>[];
     for (final g in groups) {
@@ -759,10 +750,10 @@ class _HostsScreenState extends State<HostsScreen> {
           children: [
             Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
             const SizedBox(width: 8),
-            Expanded(child: Text(label, style: const TextStyle(color: _C.textHi, fontSize: 13, fontWeight: FontWeight.w600))),
-            Text('$total', style: const TextStyle(color: _C.textLo, fontSize: 12)),
+            Expanded(child: Text(label, style: const TextStyle(color: AppColors.textHi, fontSize: 13, fontWeight: FontWeight.w600))),
+            Text('$total', style: const TextStyle(color: AppColors.textLo, fontSize: 12)),
             const SizedBox(width: 4),
-            Icon(collapsed ? Icons.expand_more : Icons.expand_less, color: _C.textLo, size: 18),
+            Icon(collapsed ? Icons.expand_more : Icons.expand_less, color: AppColors.textLo, size: 18),
           ],
         ),
       ),
@@ -790,15 +781,15 @@ class _HostsScreenState extends State<HostsScreen> {
   Future<void> _groupMenu(String name) async {
     final action = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: _C.card,
+      backgroundColor: AppColors.card,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(leading: const Icon(Icons.edit, color: _C.textLo), title: const Text('Renombrar grupo', style: TextStyle(color: _C.textHi)), onTap: () => Navigator.pop(ctx, 'rename')),
-            ListTile(leading: const Icon(Icons.palette, color: _C.textLo), title: const Text('Cambiar color', style: TextStyle(color: _C.textHi)), onTap: () => Navigator.pop(ctx, 'color')),
-            ListTile(leading: const Icon(Icons.upload_file, color: _C.textLo), title: const Text('Exportar solo este grupo', style: TextStyle(color: _C.textHi)), onTap: () => Navigator.pop(ctx, 'export')),
-            ListTile(leading: const Icon(Icons.delete_outline, color: _C.err), title: const Text('Eliminar grupo (los hosts quedan sin grupo)', style: TextStyle(color: _C.textHi)), onTap: () => Navigator.pop(ctx, 'delete')),
+            ListTile(leading: const Icon(Icons.edit, color: AppColors.textLo), title: const Text('Renombrar grupo', style: TextStyle(color: AppColors.textHi)), onTap: () => Navigator.pop(ctx, 'rename')),
+            ListTile(leading: const Icon(Icons.palette, color: AppColors.textLo), title: const Text('Cambiar color', style: TextStyle(color: AppColors.textHi)), onTap: () => Navigator.pop(ctx, 'color')),
+            ListTile(leading: const Icon(Icons.upload_file, color: AppColors.textLo), title: const Text('Exportar solo este grupo', style: TextStyle(color: AppColors.textHi)), onTap: () => Navigator.pop(ctx, 'export')),
+            ListTile(leading: const Icon(Icons.delete_outline, color: AppColors.err), title: const Text('Eliminar grupo (los hosts quedan sin grupo)', style: TextStyle(color: AppColors.textHi)), onTap: () => Navigator.pop(ctx, 'delete')),
           ],
         ),
       ),
@@ -819,12 +810,12 @@ class _HostsScreenState extends State<HostsScreen> {
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: _C.card,
-          title: const Text('Eliminar grupo?', style: TextStyle(color: _C.textHi)),
-          content: Text('"$name" desaparece y sus hosts pasan a "Sin grupo".', style: const TextStyle(color: _C.textLo)),
+          backgroundColor: AppColors.card,
+          title: const Text('Eliminar grupo?', style: TextStyle(color: AppColors.textHi)),
+          content: Text('"$name" desaparece y sus hosts pasan a "Sin grupo".', style: const TextStyle(color: AppColors.textLo)),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
-            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar', style: TextStyle(color: _C.err))),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: AppColors.textLo))),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar', style: TextStyle(color: AppColors.err))),
           ],
         ),
       );
@@ -842,8 +833,8 @@ class _HostsScreenState extends State<HostsScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
-          backgroundColor: _C.card,
-          title: Text('Color de $name', style: const TextStyle(color: _C.textHi, fontSize: 15)),
+          backgroundColor: AppColors.card,
+          title: Text('Color de $name', style: const TextStyle(color: AppColors.textHi, fontSize: 15)),
           content: Wrap(
             spacing: 10, runSpacing: 10,
             children: [
@@ -861,7 +852,7 @@ class _HostsScreenState extends State<HostsScreen> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar', style: TextStyle(color: AppColors.textLo))),
             FilledButton(onPressed: () => Navigator.pop(ctx, sel), child: const Text('Guardar')),
           ],
         ),
@@ -876,8 +867,8 @@ class _HostsScreenState extends State<HostsScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
-          backgroundColor: _C.card,
-          title: const Text('Grupos', style: TextStyle(color: _C.textHi, fontSize: 16)),
+          backgroundColor: AppColors.card,
+          title: const Text('Grupos', style: TextStyle(color: AppColors.textHi, fontSize: 16)),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView(
@@ -888,24 +879,24 @@ class _HostsScreenState extends State<HostsScreen> {
                     dense: true,
                     contentPadding: EdgeInsets.zero,
                     leading: CircleAvatar(radius: 8, backgroundColor: Color(_svc.groupColor(g))),
-                    title: Text(g, style: const TextStyle(color: _C.textHi, fontSize: 14)),
-                    subtitle: Text('${_svc.hostsInGroup(g).length} hosts', style: const TextStyle(color: _C.textLo, fontSize: 11)),
+                    title: Text(g, style: const TextStyle(color: AppColors.textHi, fontSize: 14)),
+                    subtitle: Text('${_svc.hostsInGroup(g).length} hosts', style: const TextStyle(color: AppColors.textLo, fontSize: 11)),
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                      IconButton(icon: const Icon(Icons.palette, size: 18, color: _C.textLo), onPressed: () async { await _groupColorDialog(g); setDlg(() {}); }),
-                      IconButton(icon: const Icon(Icons.edit, size: 18, color: _C.textLo), onPressed: () async { final nn = await _promptGroupName(initial: g); if (nn != null && nn != g) { await _svc.renameGroup(g, nn); if (_collapsed.remove(g)) _collapsed.add(nn); } setDlg(() {}); }),
-                      IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: _C.err), onPressed: () async { await _svc.deleteGroup(g); _collapsed.remove(g); setDlg(() {}); }),
+                      IconButton(icon: const Icon(Icons.palette, size: 18, color: AppColors.textLo), onPressed: () async { await _groupColorDialog(g); setDlg(() {}); }),
+                      IconButton(icon: const Icon(Icons.edit, size: 18, color: AppColors.textLo), onPressed: () async { final nn = await _promptGroupName(initial: g); if (nn != null && nn != g) { await _svc.renameGroup(g, nn); if (_collapsed.remove(g)) _collapsed.add(nn); } setDlg(() {}); }),
+                      IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.err), onPressed: () async { await _svc.deleteGroup(g); _collapsed.remove(g); setDlg(() {}); }),
                     ]),
                   ),
                 if (_svc.groupNames.isEmpty)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('Sin grupos todavia. Manten pulsado un host y elige "Mover a grupo..." para crear el primero.', style: TextStyle(color: _C.textLo, fontSize: 13)),
+                    child: Text('Sin grupos todavia. Manten pulsado un host y elige "Mover a grupo..." para crear el primero.', style: TextStyle(color: AppColors.textLo, fontSize: 13)),
                   ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar', style: TextStyle(color: _C.textLo))),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar', style: TextStyle(color: AppColors.textLo))),
           ],
         ),
       ),
@@ -918,13 +909,13 @@ class _HostsScreenState extends State<HostsScreen> {
     final r = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: const Text('Nombre del grupo', style: TextStyle(color: _C.textHi, fontSize: 15)),
+        backgroundColor: AppColors.card,
+        title: const Text('Nombre del grupo', style: TextStyle(color: AppColors.textHi, fontSize: 15)),
         content: TextField(
           controller: c,
           autofocus: true,
-          style: const TextStyle(color: _C.textHi),
-          decoration: const InputDecoration(hintText: 'Desarrollo, Produccion...', hintStyle: TextStyle(color: _C.textLo)),
+          style: const TextStyle(color: AppColors.textHi),
+          decoration: const InputDecoration(hintText: 'Desarrollo, Produccion...', hintStyle: TextStyle(color: AppColors.textLo)),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
@@ -941,21 +932,21 @@ class _HostsScreenState extends State<HostsScreen> {
     final groups = _svc.groupNames;
     final picked = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: _C.card,
+      backgroundColor: AppColors.card,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (h.group != null && h.group!.isNotEmpty)
-              ListTile(leading: const Icon(Icons.remove_circle_outline, color: _C.err), title: const Text('Quitar del grupo', style: TextStyle(color: _C.textHi)), onTap: () => Navigator.pop(ctx, '')),
+              ListTile(leading: const Icon(Icons.remove_circle_outline, color: AppColors.err), title: const Text('Quitar del grupo', style: TextStyle(color: AppColors.textHi)), onTap: () => Navigator.pop(ctx, '')),
             for (final g in groups)
               if (g != h.group)
                 ListTile(
                   leading: CircleAvatar(radius: 8, backgroundColor: Color(_svc.groupColor(g))),
-                  title: Text(g, style: const TextStyle(color: _C.textHi)),
+                  title: Text(g, style: const TextStyle(color: AppColors.textHi)),
                   onTap: () => Navigator.pop(ctx, g),
                 ),
-            ListTile(leading: const Icon(Icons.create_new_folder, color: _C.accent), title: const Text('Nuevo grupo...', style: TextStyle(color: _C.accent)), onTap: () => Navigator.pop(ctx, '*new*')),
+            ListTile(leading: const Icon(Icons.create_new_folder, color: AppColors.accent), title: const Text('Nuevo grupo...', style: TextStyle(color: AppColors.accent)), onTap: () => Navigator.pop(ctx, '*new*')),
           ],
         ),
       ),
@@ -1043,12 +1034,12 @@ class _HostsScreenState extends State<HostsScreen> {
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: Text('$title: ${h.name}', style: const TextStyle(color: _C.textHi, fontSize: 15)),
+        backgroundColor: AppColors.card,
+        title: Text('$title: ${h.name}', style: const TextStyle(color: AppColors.textHi, fontSize: 15)),
         content: TextField(
           controller: c, autofocus: true, obscureText: true,
-          style: const TextStyle(color: _C.textHi),
-          decoration: const InputDecoration(hintText: 'Contrasena SSH', hintStyle: TextStyle(color: _C.textLo)),
+          style: const TextStyle(color: AppColors.textHi),
+          decoration: const InputDecoration(hintText: 'Contrasena SSH', hintStyle: TextStyle(color: AppColors.textLo)),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
@@ -1130,16 +1121,16 @@ class _HostsScreenState extends State<HostsScreen> {
     final mac = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: const Text('MAC para Wake-on-LAN',
-            style: TextStyle(color: _C.textHi, fontSize: 15)),
+            style: TextStyle(color: AppColors.textHi, fontSize: 15)),
         content: TextField(
           controller: c,
           autofocus: true,
-          style: const TextStyle(color: _C.textHi),
+          style: const TextStyle(color: AppColors.textHi),
           decoration: const InputDecoration(
               hintText: 'AA:BB:CC:DD:EE:FF',
-              hintStyle: TextStyle(color: _C.textLo)),
+              hintStyle: TextStyle(color: AppColors.textLo)),
         ),
         actions: [
           TextButton(
@@ -1169,17 +1160,17 @@ class _HostsScreenState extends State<HostsScreen> {
     final pwd = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: Text('Contrasena sudo de ${h.name}',
-            style: const TextStyle(color: _C.textHi, fontSize: 15)),
+            style: const TextStyle(color: AppColors.textHi, fontSize: 15)),
         content: TextField(
           controller: c,
           obscureText: true,
           autofocus: true,
-          style: const TextStyle(color: _C.textHi),
+          style: const TextStyle(color: AppColors.textHi),
           decoration: const InputDecoration(
               labelText: 'Se usa una sola vez',
-              labelStyle: TextStyle(color: _C.textLo)),
+              labelStyle: TextStyle(color: AppColors.textLo)),
         ),
         actions: [
           TextButton(
@@ -1196,17 +1187,17 @@ class _HostsScreenState extends State<HostsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (_) => const AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         content: Row(
           children: [
             SizedBox(
                 width: 18,
                 height: 18,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2, color: _C.accent)),
+                    strokeWidth: 2, color: AppColors.accent)),
             SizedBox(width: 16),
             Text('Instalando regla sudo...',
-                style: TextStyle(color: _C.textHi)),
+                style: TextStyle(color: AppColors.textHi)),
           ],
         ),
       ),
@@ -1227,15 +1218,15 @@ class _HostsScreenState extends State<HostsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         icon: const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF9F0A)),
         title: Text(reboot ? 'Reiniciar ${h.name}?' : 'Apagar ${h.name}?',
-            style: const TextStyle(color: _C.textHi)),
+            style: const TextStyle(color: AppColors.textHi)),
         content: Text(
             reboot
                 ? 'El equipo se reiniciara ahora. Las sesiones SSH abiertas se cerraran.'
                 : 'El equipo se apagara AHORA y no hay vuelta atras: solo podras encenderlo de nuevo con Wake-on-LAN (si esta configurado) o fisicamente.',
-            style: const TextStyle(color: _C.textLo)),
+            style: const TextStyle(color: AppColors.textLo)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -1253,17 +1244,17 @@ class _HostsScreenState extends State<HostsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         content: Row(
           children: [
             const SizedBox(
                 width: 18,
                 height: 18,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2, color: _C.accent)),
+                    strokeWidth: 2, color: AppColors.accent)),
             const SizedBox(width: 16),
             Text(reboot ? 'Reiniciando...' : 'Apagando...',
-                style: const TextStyle(color: _C.textHi)),
+                style: const TextStyle(color: AppColors.textHi)),
           ],
         ),
       ),
@@ -1295,9 +1286,9 @@ class _HostsScreenState extends State<HostsScreen> {
     final jump = await showDialog<SshHost>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: Text('Salto para ${h.name} (ProxyJump)',
-            style: const TextStyle(color: _C.textHi)),
+            style: const TextStyle(color: AppColors.textHi)),
         children: [
           for (final x in hosts)
             SimpleDialogOption(
@@ -1308,11 +1299,11 @@ class _HostsScreenState extends State<HostsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(x.name,
-                        style: const TextStyle(color: _C.textHi)),
+                        style: const TextStyle(color: AppColors.textHi)),
                     Text(
                         '${x.username}@${x.hostname}${x.port != 22 ? ':${x.port}' : ''}',
                         style: const TextStyle(
-                            color: _C.textLo, fontSize: 11)),
+                            color: AppColors.textLo, fontSize: 11)),
                   ],
                 ),
               ),
@@ -1337,17 +1328,17 @@ class _HostsScreenState extends State<HostsScreen> {
       builder: (ctx) {
         final c = TextEditingController();
         return AlertDialog(
-          backgroundColor: _C.card,
+          backgroundColor: AppColors.card,
           title: Text('Contrasena de ${h.name}',
-              style: const TextStyle(color: _C.textHi, fontSize: 15)),
+              style: const TextStyle(color: AppColors.textHi, fontSize: 15)),
           content: TextField(
             controller: c,
             obscureText: true,
             autofocus: true,
-            style: const TextStyle(color: _C.textHi),
+            style: const TextStyle(color: AppColors.textHi),
             decoration: const InputDecoration(
                 labelText: 'Se usa una sola vez para instalar la clave',
-                labelStyle: TextStyle(color: _C.textLo)),
+                labelStyle: TextStyle(color: AppColors.textLo)),
           ),
           actions: [
             TextButton(
@@ -1366,17 +1357,17 @@ class _HostsScreenState extends State<HostsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (_) => const AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         content: Row(
           children: [
             SizedBox(
                 width: 18,
                 height: 18,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2, color: _C.accent)),
+                    strokeWidth: 2, color: AppColors.accent)),
             SizedBox(width: 16),
             Text('Instalando clave...',
-                style: TextStyle(color: _C.textHi)),
+                style: TextStyle(color: AppColors.textHi)),
           ],
         ),
       ),
@@ -1404,12 +1395,12 @@ class _HostsScreenState extends State<HostsScreen> {
     final r = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: const Text('¿Eliminar host?', style: TextStyle(color: _C.textHi)),
-        content: Text(h.name, style: const TextStyle(color: _C.textLo)),
+        backgroundColor: AppColors.card,
+        title: const Text('¿Eliminar host?', style: TextStyle(color: AppColors.textHi)),
+        content: Text(h.name, style: const TextStyle(color: AppColors.textLo)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar', style: TextStyle(color: _C.err))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: AppColors.textLo))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar', style: TextStyle(color: AppColors.err))),
         ],
       ),
     );
@@ -1493,7 +1484,7 @@ class _HostEditorSheetState extends State<_HostEditorSheet> {
   @override
   void dispose() { _name.dispose(); _hostname.dispose(); _port.dispose(); _username.dispose(); _password.dispose(); _initialPath.dispose(); super.dispose(); }
 
-  InputDecoration _dec(String label, {String? hint}) => InputDecoration(labelText: label, hintText: hint, labelStyle: const TextStyle(color: _C.textLo), hintStyle: const TextStyle(color: _C.textLo), filled: true, fillColor: _C.cardAlt, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none));
+  InputDecoration _dec(String label, {String? hint}) => InputDecoration(labelText: label, hintText: hint, labelStyle: const TextStyle(color: AppColors.textLo), hintStyle: const TextStyle(color: AppColors.textLo), filled: true, fillColor: AppColors.cardAlt, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none));
 
   Future<void> _save() async {
     final hostname = _hostname.text.trim();
@@ -1524,19 +1515,19 @@ class _HostEditorSheetState extends State<_HostEditorSheet> {
   Widget _keySelector() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(color: _C.cardAlt, borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(color: AppColors.cardAlt, borderRadius: BorderRadius.circular(10)),
       child: Row(
         children: [
-          const Icon(Icons.key, color: _C.textLo, size: 18),
+          const Icon(Icons.key, color: AppColors.textLo, size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: _keys.contains(_selectedKey) ? _selectedKey : null,
                 isExpanded: true,
-                hint: const Text('Clave privada (opcional)', style: TextStyle(color: _C.textLo, fontSize: 14)),
-                dropdownColor: _C.card,
-                style: const TextStyle(color: _C.textHi, fontSize: 14),
+                hint: const Text('Clave privada (opcional)', style: TextStyle(color: AppColors.textLo, fontSize: 14)),
+                dropdownColor: AppColors.card,
+                style: const TextStyle(color: AppColors.textHi, fontSize: 14),
                 items: [
                   ..._keys.map((k) => DropdownMenuItem<String>(
                         value: k,
@@ -1549,7 +1540,7 @@ class _HostEditorSheetState extends State<_HostEditorSheet> {
           ),
           IconButton(
             tooltip: 'Importar clave desde el teléfono',
-            icon: const Icon(Icons.download, color: _C.accent, size: 20),
+            icon: const Icon(Icons.download, color: AppColors.accent, size: 20),
             onPressed: _importKey,
           ),
         ],
@@ -1564,19 +1555,19 @@ class _HostEditorSheetState extends State<_HostEditorSheet> {
     final value = (_group != null && names.contains(_group)) ? _group : null;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(color: _C.cardAlt, borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(color: AppColors.cardAlt, borderRadius: BorderRadius.circular(10)),
       child: Row(
         children: [
-          const Icon(Icons.folder_shared, color: _C.textLo, size: 18),
+          const Icon(Icons.folder_shared, color: AppColors.textLo, size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: value,
                 isExpanded: true,
-                hint: const Text('Sin grupo', style: TextStyle(color: _C.textLo, fontSize: 14)),
-                dropdownColor: _C.card,
-                style: const TextStyle(color: _C.textHi, fontSize: 14),
+                hint: const Text('Sin grupo', style: TextStyle(color: AppColors.textLo, fontSize: 14)),
+                dropdownColor: AppColors.card,
+                style: const TextStyle(color: AppColors.textHi, fontSize: 14),
                 items: [
                   for (final g in names)
                     DropdownMenuItem<String>(
@@ -1594,18 +1585,18 @@ class _HostEditorSheetState extends State<_HostEditorSheet> {
           ),
           IconButton(
             tooltip: 'Crear grupo nuevo',
-            icon: const Icon(Icons.create_new_folder, color: _C.accent, size: 20),
+            icon: const Icon(Icons.create_new_folder, color: AppColors.accent, size: 20),
             onPressed: () async {
               final c = TextEditingController();
               final r = await showDialog<String>(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  backgroundColor: _C.card,
-                  title: const Text('Nuevo grupo', style: TextStyle(color: _C.textHi, fontSize: 15)),
+                  backgroundColor: AppColors.card,
+                  title: const Text('Nuevo grupo', style: TextStyle(color: AppColors.textHi, fontSize: 15)),
                   content: TextField(
                     controller: c, autofocus: true,
-                    style: const TextStyle(color: _C.textHi),
-                    decoration: const InputDecoration(hintText: 'Desarrollo, Produccion...', hintStyle: TextStyle(color: _C.textLo)),
+                    style: const TextStyle(color: AppColors.textHi),
+                    decoration: const InputDecoration(hintText: 'Desarrollo, Produccion...', hintStyle: TextStyle(color: AppColors.textLo)),
                   ),
                   actions: [
                     TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
@@ -1626,31 +1617,31 @@ class _HostEditorSheetState extends State<_HostEditorSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        decoration: const BoxDecoration(color: _C.bg, borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+        decoration: const BoxDecoration(color: AppColors.bg, borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min,
             children: [
-              Text(widget.existing == null ? 'Nuevo host' : 'Editar host', style: const TextStyle(color: _C.textHi, fontSize: 17, fontWeight: FontWeight.w600)),
+              Text(widget.existing == null ? 'Nuevo host' : 'Editar host', style: const TextStyle(color: AppColors.textHi, fontSize: 17, fontWeight: FontWeight.w600)),
               const SizedBox(height: 14),
-              TextField(controller: _name, style: const TextStyle(color: _C.textHi), decoration: _dec('Nombre', hint: 'RPi5, opcional')),
+              TextField(controller: _name, style: const TextStyle(color: AppColors.textHi), decoration: _dec('Nombre', hint: 'RPi5, opcional')),
               const SizedBox(height: 10),
-              TextField(controller: _hostname, style: const TextStyle(color: _C.textHi), decoration: _dec('Host', hint: '192.168.10.140 o dominio')),
+              TextField(controller: _hostname, style: const TextStyle(color: AppColors.textHi), decoration: _dec('Host', hint: '192.168.10.140 o dominio')),
               const SizedBox(height: 10),
-              Row(children: [ Expanded(flex: 2, child: TextField(controller: _username, style: const TextStyle(color: _C.textHi), decoration: _dec('Usuario'))), const SizedBox(width: 10), Expanded(child: TextField(controller: _port, keyboardType: TextInputType.number, style: const TextStyle(color: _C.textHi), decoration: _dec('Puerto'))), ]),
+              Row(children: [ Expanded(flex: 2, child: TextField(controller: _username, style: const TextStyle(color: AppColors.textHi), decoration: _dec('Usuario'))), const SizedBox(width: 10), Expanded(child: TextField(controller: _port, keyboardType: TextInputType.number, style: const TextStyle(color: AppColors.textHi), decoration: _dec('Puerto'))), ]),
               const SizedBox(height: 10),
               _keySelector(),
               const SizedBox(height: 10),
-              TextField(controller: _password, obscureText: _obscurePassword, style: const TextStyle(color: _C.textHi), decoration: _dec('Contraseña (opcional)', hint: 'Se guarda cifrada').copyWith(suffixIcon: IconButton(icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: _C.textLo, size: 18), onPressed: () => setState(() => _obscurePassword = !_obscurePassword)))),
+              TextField(controller: _password, obscureText: _obscurePassword, style: const TextStyle(color: AppColors.textHi), decoration: _dec('Contraseña (opcional)', hint: 'Se guarda cifrada').copyWith(suffixIcon: IconButton(icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: AppColors.textLo, size: 18), onPressed: () => setState(() => _obscurePassword = !_obscurePassword)))),
               const SizedBox(height: 10),
-              TextField(controller: _initialPath, style: const TextStyle(color: _C.textHi), decoration: _dec('Carpeta inicial (opcional)', hint: '/  o  /var/www')),
+              TextField(controller: _initialPath, style: const TextStyle(color: AppColors.textHi), decoration: _dec('Carpeta inicial (opcional)', hint: '/  o  /var/www')),
               const SizedBox(height: 10),
               _groupSelector(),
               const SizedBox(height: 14),
-              Wrap(spacing: 8, children: _osColors.keys.map((tag) { final selected = tag == _osTag; return ChoiceChip(label: Text(tag), selected: selected, onSelected: (_) => setState(() => _osTag = tag), selectedColor: _osColors[tag], backgroundColor: _C.cardAlt, labelStyle: TextStyle(color: selected ? Colors.white : _C.textLo, fontSize: 12)); }).toList()),
+              Wrap(spacing: 8, children: _osColors.keys.map((tag) { final selected = tag == _osTag; return ChoiceChip(label: Text(tag), selected: selected, onSelected: (_) => setState(() => _osTag = tag), selectedColor: _osColors[tag], backgroundColor: AppColors.cardAlt, labelStyle: TextStyle(color: selected ? Colors.white : AppColors.textLo, fontSize: 12)); }).toList()),
               const SizedBox(height: 18),
-              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _save, style: ElevatedButton.styleFrom(backgroundColor: _C.accent, padding: const EdgeInsets.symmetric(vertical: 14)), child: Text(widget.existing == null ? 'Añadir' : 'Guardar', style: const TextStyle(color: Colors.white)))),
+              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _save, style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, padding: const EdgeInsets.symmetric(vertical: 14)), child: Text(widget.existing == null ? 'Añadir' : 'Guardar', style: const TextStyle(color: Colors.white)))),
             ],
           ),
         ),
@@ -1666,7 +1657,7 @@ PopupMenuItem<String> _menuHdr(String t) => PopupMenuItem<String>(
       child: Text(t,
           style: const TextStyle(
               fontSize: 10,
-              color: _C.accent,
+              color: AppColors.accent,
               fontWeight: FontWeight.w700,
               letterSpacing: 1)),
     );

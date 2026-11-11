@@ -9,6 +9,7 @@ import 'dart:io';
 
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 
 import '../storage/app_paths.dart';
 import 'identity_service.dart';
@@ -16,15 +17,6 @@ import 'ssh_credentials_store.dart';
 import 'ssh_host.dart';
 import 'ssh_hosts_service.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-  static const err = Color(0xFFFF453A);
-  static const ok = Color(0xFF34C759);
-}
 
 class Snippet {
   final String id;
@@ -98,29 +90,29 @@ class _SnippetsScreenState extends State<SnippetsScreen> {
     final r = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: Text(existing == null ? 'Nuevo snippet' : 'Editar snippet',
-            style: const TextStyle(color: _C.textHi)),
+            style: const TextStyle(color: AppColors.textHi)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: name,
               autofocus: true,
-              style: const TextStyle(color: _C.textHi),
+              style: const TextStyle(color: AppColors.textHi),
               decoration: const InputDecoration(
                   labelText: 'Nombre',
-                  labelStyle: TextStyle(color: _C.textLo)),
+                  labelStyle: TextStyle(color: AppColors.textLo)),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: cmd,
               maxLines: 3,
               style: const TextStyle(
-                  color: _C.textHi, fontFamily: 'monospace'),
+                  color: AppColors.textHi, fontFamily: 'monospace'),
               decoration: const InputDecoration(
                   labelText: 'Comando',
-                  labelStyle: TextStyle(color: _C.textLo)),
+                  labelStyle: TextStyle(color: AppColors.textLo)),
             ),
           ],
         ),
@@ -218,9 +210,9 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
     final host = await showDialog<SshHost>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: const Text('Ejecutar en...',
-            style: TextStyle(color: _C.textHi)),
+            style: TextStyle(color: AppColors.textHi)),
         children: [
           for (final h in _hosts)
             SimpleDialogOption(
@@ -233,11 +225,11 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
                   children: [
                     Text(h.name,
                         style:
-                            const TextStyle(color: _C.textHi)),
+                            const TextStyle(color: AppColors.textHi)),
                     Text(
                         '${h.username}@${h.hostname}${h.port != 22 ? ':${h.port}' : ''}',
                         style: const TextStyle(
-                            color: _C.textLo, fontSize: 11)),
+                            color: AppColors.textLo, fontSize: 11)),
                   ],
                 ),
               ),
@@ -251,17 +243,17 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
       context: context,
       barrierDismissible: false,
       builder: (ctx) => const AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         content: Row(
           children: [
             SizedBox(
                 width: 18,
                 height: 18,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2, color: _C.accent)),
+                    strokeWidth: 2, color: AppColors.accent)),
             SizedBox(width: 16),
             Text('Ejecutando...',
-                style: TextStyle(color: _C.textHi)),
+                style: TextStyle(color: AppColors.textHi)),
           ],
         ),
       ),
@@ -272,17 +264,17 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: Text('${s.name} · ${host.name}',
             style: const TextStyle(
-                color: _C.textHi, fontSize: 14)),
+                color: AppColors.textHi, fontSize: 14)),
         content: SingleChildScrollView(
           child: SelectableText(
             out,
             style: TextStyle(
               color: out.startsWith('ERROR')
-                  ? _C.err
-                  : _C.textHi,
+                  ? AppColors.err
+                  : AppColors.textHi,
               fontFamily: 'monospace',
               fontSize: 12,
             ),
@@ -300,28 +292,28 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: _C.textHi),
+        iconTheme: const IconThemeData(color: AppColors.textHi),
         title: const Text('Snippets',
-            style: TextStyle(color: _C.textHi, fontSize: 16)),
+            style: TextStyle(color: AppColors.textHi, fontSize: 16)),
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: _C.accent,
+        backgroundColor: AppColors.accent,
         onPressed: () => _edit(),
         child: const Icon(Icons.add),
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: _C.accent))
+              child: CircularProgressIndicator(color: AppColors.accent))
           : _snippets.isEmpty
               ? const Center(
                   child: Text(
                     'Sin snippets.\nPulsa + para guardar un comando.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: _C.textLo),
+                    style: TextStyle(color: AppColors.textLo),
                   ),
                 )
               : ListView.builder(
@@ -330,17 +322,17 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
                   itemBuilder: (_, i) {
                     final s = _snippets[i];
                     return Card(
-                      color: _C.card,
+                      color: AppColors.card,
                       child: ListTile(
                         title: Text(s.name,
                             style:
-                                const TextStyle(color: _C.textHi)),
+                                const TextStyle(color: AppColors.textHi)),
                         subtitle: Text(
                           s.command,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                              color: _C.textLo,
+                              color: AppColors.textLo,
                               fontFamily: 'monospace',
                               fontSize: 11),
                         ),
@@ -349,12 +341,12 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
                           children: [
                             IconButton(
                               icon: const Icon(Icons.play_arrow,
-                                  color: _C.accent),
+                                  color: AppColors.accent),
                               tooltip: 'Ejecutar',
                               onPressed: () => _run(s),
                             ),
                             PopupMenuButton<String>(
-                              iconColor: _C.textLo,
+                              iconColor: AppColors.textLo,
                               onSelected: (v) {
                                 if (v == 'edit') _edit(s);
                                 if (v == 'delete') _delete(s);

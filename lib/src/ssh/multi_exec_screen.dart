@@ -9,6 +9,7 @@ import 'dart:typed_data';
 
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 import 'package:flutter/services.dart';
 
 import '../storage/app_paths.dart';
@@ -17,15 +18,6 @@ import 'ssh_credentials_store.dart';
 import 'identity_service.dart';
 import 'ssh_host.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-  static const err = Color(0xFFFF453A);
-  static const ok = Color(0xFF34C759);
-}
 
 class _ExecResult {
   final bool ok;
@@ -148,25 +140,25 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
     final done = _results.length;
     final total = _selected.length;
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: _C.textHi),
+        iconTheme: const IconThemeData(color: AppColors.textHi),
         title: const Text('Ejecutar en varios hosts',
-            style: TextStyle(color: _C.textHi, fontSize: 16)),
+            style: TextStyle(color: AppColors.textHi, fontSize: 16)),
       ),
       body: Column(
         children: [
           if (_loadingHosts)
             const Expanded(
                 child: Center(
-                    child: CircularProgressIndicator(color: _C.accent)))
+                    child: CircularProgressIndicator(color: AppColors.accent)))
           else if (_hosts.isEmpty)
             const Expanded(
               child: Center(
                 child: Text('No hay hosts configurados',
-                    style: TextStyle(color: _C.textLo)),
+                    style: TextStyle(color: AppColors.textLo)),
               ),
             )
           else
@@ -186,32 +178,32 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
                         }
                       }),
                       title: Text(h.name,
-                          style: const TextStyle(color: _C.textHi)),
+                          style: const TextStyle(color: AppColors.textHi)),
                       subtitle: Text(
                           '${h.username}@${h.hostname}${h.port != 22 ? ':${h.port}' : ''}',
                           style: const TextStyle(
-                              color: _C.textLo, fontSize: 12)),
-                      activeColor: _C.accent,
+                              color: AppColors.textLo, fontSize: 12)),
+                      activeColor: AppColors.accent,
                     ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _cmdCtrl,
                     style: const TextStyle(
-                        color: _C.textHi,
+                        color: AppColors.textHi,
                         fontFamily: 'monospace',
                         fontSize: 14),
                     decoration: InputDecoration(
                       hintText: 'Comando a ejecutar en los $_selectedCount hosts...',
                       hintStyle:
-                          const TextStyle(color: _C.textLo, fontSize: 13),
+                          const TextStyle(color: AppColors.textLo, fontSize: 13),
                       filled: true,
-                      fillColor: _C.card,
+                      fillColor: AppColors.card,
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                           borderSide: BorderSide.none),
                       suffixIcon: IconButton(
                         icon: const Icon(Icons.play_arrow,
-                            color: _C.accent),
+                            color: AppColors.accent),
                         tooltip: 'Ejecutar',
                         onPressed:
                             _selected.isEmpty ? null : _run,
@@ -230,11 +222,11 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
                                 width: 14,
                                 height: 14,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: _C.accent)),
+                                    strokeWidth: 2, color: AppColors.accent)),
                             const SizedBox(width: 8),
                             Text('Ejecutando... $done/$total',
                                 style: const TextStyle(
-                                    color: _C.textLo, fontSize: 12)),
+                                    color: AppColors.textLo, fontSize: 12)),
                           ],
                         ),
                       ),
@@ -254,7 +246,7 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
 
   Widget _resultCard(SshHost h, _ExecResult r) {
     return Card(
-      color: _C.card,
+      color: AppColors.card,
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -268,18 +260,18 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
                         ? Icons.check_circle
                         : Icons.error,
                     size: 16,
-                    color: r.ok ? _C.ok : _C.err),
+                    color: r.ok ? AppColors.ok : AppColors.err),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(h.name,
                       style: const TextStyle(
-                          color: _C.textHi,
+                          color: AppColors.textHi,
                           fontWeight: FontWeight.w500)),
                 ),
                 Text(
                     '${r.duration.inMilliseconds} ms',
                     style: const TextStyle(
-                        color: _C.textLo, fontSize: 10)),
+                        color: AppColors.textLo, fontSize: 10)),
               ],
             ),
             const SizedBox(height: 6),
@@ -288,7 +280,7 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
             Text(
               r.output,
               style: TextStyle(
-                color: r.ok ? _C.textHi : _C.err,
+                color: r.ok ? AppColors.textHi : AppColors.err,
                 fontFamily: 'monospace',
                 fontSize: 12,
               ),
@@ -297,7 +289,7 @@ if (host.jumpHostId != null && host.jumpHostId!.isNotEmpty) throw StateError('${
               alignment: Alignment.centerRight,
               child: IconButton(
                 visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.copy, size: 14, color: _C.textLo),
+                icon: const Icon(Icons.copy, size: 14, color: AppColors.textLo),
                 tooltip: 'Copiar salida',
                 onPressed: () => _copyOutput(context, r.output),
               ),

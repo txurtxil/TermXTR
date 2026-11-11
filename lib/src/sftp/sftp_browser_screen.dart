@@ -12,6 +12,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 import 'package:flutter/services.dart';
 
 import '../storage/app_paths.dart';
@@ -25,17 +26,6 @@ import 'sftp_connection_pool.dart';
 import 'local_file_picker_screen.dart';
 import 'sftp_text_editor_screen.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const cardAlt = Color(0xFF242426);
-  static const border = Color(0xFF3A3A3C);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-  static const err = Color(0xFFFF453A);
-  static const ok = Color(0xFF34C759);
-}
 
 class SftpBrowserScreen extends StatefulWidget {
   final SshHost host;
@@ -146,26 +136,26 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: Text('Contraseña de ${widget.host.username}@${widget.host.hostname}',
-            style: const TextStyle(color: _C.textHi, fontSize: 15)),
+            style: const TextStyle(color: AppColors.textHi, fontSize: 15)),
         content: TextField(
           controller: ctrl,
           obscureText: true,
           autofocus: true,
-          style: const TextStyle(color: _C.textHi),
+          style: const TextStyle(color: AppColors.textHi),
           onSubmitted: (v) => Navigator.pop(ctx, v),
           decoration: const InputDecoration(
             filled: true,
-            fillColor: _C.cardAlt,
+            fillColor: AppColors.cardAlt,
             border: OutlineInputBorder(borderSide: BorderSide.none),
           ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, null),
-              child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
+              child: const Text('Cancelar', style: TextStyle(color: AppColors.textLo))),
           TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text),
-              child: const Text('Conectar', style: TextStyle(color: _C.accent))),
+              child: const Text('Conectar', style: TextStyle(color: AppColors.accent))),
         ],
       ),
     );
@@ -177,19 +167,19 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: const Text('⚠ La huella del servidor cambió', style: TextStyle(color: _C.err, fontSize: 15)),
+        backgroundColor: AppColors.card,
+        title: const Text('⚠ La huella del servidor cambió', style: TextStyle(color: AppColors.err, fontSize: 15)),
         content: Text(
           'La identidad de ${widget.host.hostname} no coincide con la que se guardó '
           'la primera vez. Puede ser que el servidor se reinstalara, o que algo '
           'intermedio se esté haciendo pasar por él.\n\nNueva huella:\n$fingerprint',
-          style: const TextStyle(color: _C.textLo, fontSize: 12.5),
+          style: const TextStyle(color: AppColors.textLo, fontSize: 12.5),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
+              child: const Text('Cancelar', style: TextStyle(color: AppColors.textLo))),
           TextButton(onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Confiar de todos modos', style: TextStyle(color: _C.err))),
+              child: const Text('Confiar de todos modos', style: TextStyle(color: AppColors.err))),
         ],
       ),
     );
@@ -264,7 +254,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
   void _pickSort() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _C.card,
+      backgroundColor: AppColors.card,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) => SafeArea(
           child: Column(
@@ -272,42 +262,42 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
             children: [
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
-                child: Text('Ordenar', style: TextStyle(color: _C.textHi, fontWeight: FontWeight.bold)),
+                child: Text('Ordenar', style: TextStyle(color: AppColors.textHi, fontWeight: FontWeight.bold)),
               ),
               RadioListTile<_SortBy>(
                 value: _SortBy.name,
                 groupValue: _sortBy,
-                activeColor: _C.accent,
-                title: const Text('Nombre', style: TextStyle(color: _C.textHi)),
+                activeColor: AppColors.accent,
+                title: const Text('Nombre', style: TextStyle(color: AppColors.textHi)),
                 onChanged: (v) { setState(() { _sortBy = v!; _sortAsc = true; }); setSheet(() {}); },
               ),
               RadioListTile<_SortBy>(
                 value: _SortBy.date,
                 groupValue: _sortBy,
-                activeColor: _C.accent,
-                title: const Text('Fecha', style: TextStyle(color: _C.textHi)),
+                activeColor: AppColors.accent,
+                title: const Text('Fecha', style: TextStyle(color: AppColors.textHi)),
                 onChanged: (v) { setState(() { _sortBy = v!; _sortAsc = false; }); setSheet(() {}); },
               ),
               RadioListTile<_SortBy>(
                 value: _SortBy.size,
                 groupValue: _sortBy,
-                activeColor: _C.accent,
-                title: const Text('Tamaño', style: TextStyle(color: _C.textHi)),
+                activeColor: AppColors.accent,
+                title: const Text('Tamaño', style: TextStyle(color: AppColors.textHi)),
                 onChanged: (v) { setState(() { _sortBy = v!; _sortAsc = false; }); setSheet(() {}); },
               ),
-              const Divider(color: _C.border, height: 1),
+              const Divider(color: AppColors.border, height: 1),
               SwitchListTile(
                 value: _sortAsc,
-                activeColor: _C.accent,
+                activeColor: AppColors.accent,
                 title: Text(_sortAsc ? 'Ascendente' : 'Descendente',
-                    style: const TextStyle(color: _C.textHi)),
+                    style: const TextStyle(color: AppColors.textHi)),
                 subtitle: Text(
                   _sortBy == _SortBy.name
                       ? (_sortAsc ? 'A a Z' : 'Z a A')
                       : _sortBy == _SortBy.date
                           ? (_sortAsc ? 'Antiguos primero' : 'Recientes primero')
                           : (_sortAsc ? 'Pequeños primero' : 'Grandes primero'),
-                  style: const TextStyle(color: _C.textLo, fontSize: 12),
+                  style: const TextStyle(color: AppColors.textLo, fontSize: 12),
                 ),
                 onChanged: (v) { setState(() => _sortAsc = v); setSheet(() {}); },
               ),
@@ -348,18 +338,18 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: Text('¿Eliminar ${items.length} elemento(s)?', style: const TextStyle(color: _C.textHi)),
+        backgroundColor: AppColors.card,
+        title: Text('¿Eliminar ${items.length} elemento(s)?', style: const TextStyle(color: AppColors.textHi)),
         content: Text(
           folders > 0
               ? 'Incluye $folders carpeta(s) -- se borra TODO su contenido, sin '
                 'posibilidad de deshacerlo.'
               : 'No se puede deshacer.',
-          style: const TextStyle(color: _C.textLo, fontSize: 12.5),
+          style: const TextStyle(color: AppColors.textLo, fontSize: 12.5),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar', style: TextStyle(color: _C.err))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: AppColors.textLo))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar', style: TextStyle(color: AppColors.err))),
         ],
       ),
     );
@@ -380,7 +370,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     } catch (err) {
       messenger.showSnackBar(SnackBar(
         content: Text('Fallo tras borrar $done de ${items.length}: $err'),
-        backgroundColor: _C.err,
+        backgroundColor: AppColors.err,
       ));
       await _load(_path);
     } finally {
@@ -416,7 +406,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     } catch (err) {
       messenger.showSnackBar(SnackBar(
         content: Text('Fallo tras descargar $done de ${items.length}: $err'),
-        backgroundColor: _C.err,
+        backgroundColor: AppColors.err,
       ));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -445,9 +435,9 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     final target = await showDialog<SshHost>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: const Text('Enviar a...',
-            style: TextStyle(color: _C.textHi)),
+            style: TextStyle(color: AppColors.textHi)),
         children: [
           for (final h in hosts)
             SimpleDialogOption(
@@ -458,10 +448,10 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(h.name,
-                        style: const TextStyle(color: _C.textHi)),
+                        style: const TextStyle(color: AppColors.textHi)),
                     Text('${h.username}@${h.hostname}${h.port != 22 ? ':${h.port}' : ''}',
                         style: const TextStyle(
-                            color: _C.textLo, fontSize: 11)),
+                            color: AppColors.textLo, fontSize: 11)),
                   ],
                 ),
               ),
@@ -474,17 +464,17 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     final dir = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: const Text('Carpeta destino',
-            style: TextStyle(color: _C.textHi, fontSize: 15)),
+            style: TextStyle(color: AppColors.textHi, fontSize: 15)),
         content: TextField(
           controller: dirCtrl,
           autofocus: true,
           style: const TextStyle(
-              color: _C.textHi, fontFamily: 'monospace'),
+              color: AppColors.textHi, fontFamily: 'monospace'),
           decoration: const InputDecoration(
               hintText: '/ruta/destino',
-              hintStyle: TextStyle(color: _C.textLo)),
+              hintStyle: TextStyle(color: AppColors.textLo)),
         ),
         actions: [
           TextButton(
@@ -534,7 +524,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
       });
       messenger.showSnackBar(SnackBar(content: Text('Guardado en Descargas/xtr_sftp: $local')));
     } catch (err) {
-      messenger.showSnackBar(SnackBar(content: Text('Fallo al descargar: $err'), backgroundColor: _C.err));
+      messenger.showSnackBar(SnackBar(content: Text('Fallo al descargar: $err'), backgroundColor: AppColors.err));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -544,15 +534,15 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: const Text('¿Eliminar?', style: TextStyle(color: _C.textHi)),
+        backgroundColor: AppColors.card,
+        title: const Text('¿Eliminar?', style: TextStyle(color: AppColors.textHi)),
         content: Text(
           e.isDirectory ? '${e.name}\n\nEs una carpeta -- se borra TODO su contenido.' : e.name,
-          style: const TextStyle(color: _C.textLo),
+          style: const TextStyle(color: AppColors.textLo),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar', style: TextStyle(color: _C.err))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: AppColors.textLo))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar', style: TextStyle(color: AppColors.err))),
         ],
       ),
     );
@@ -564,7 +554,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     } catch (err) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('No se pudo eliminar: $err'), backgroundColor: _C.err));
+            SnackBar(content: Text('No se pudo eliminar: $err'), backgroundColor: AppColors.err));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -576,17 +566,17 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: const Text('Nueva carpeta', style: TextStyle(color: _C.textHi)),
+        backgroundColor: AppColors.card,
+        title: const Text('Nueva carpeta', style: TextStyle(color: AppColors.textHi)),
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          style: const TextStyle(color: _C.textHi),
-          decoration: const InputDecoration(filled: true, fillColor: _C.cardAlt, border: OutlineInputBorder(borderSide: BorderSide.none)),
+          style: const TextStyle(color: AppColors.textHi),
+          decoration: const InputDecoration(filled: true, fillColor: AppColors.cardAlt, border: OutlineInputBorder(borderSide: BorderSide.none)),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
-          TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Crear', style: TextStyle(color: _C.accent))),
+          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancelar', style: TextStyle(color: AppColors.textLo))),
+          TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Crear', style: TextStyle(color: AppColors.accent))),
         ],
       ),
     );
@@ -598,7 +588,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     } catch (err) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('No se pudo crear: $err'), backgroundColor: _C.err));
+            SnackBar(content: Text('No se pudo crear: $err'), backgroundColor: AppColors.err));
       }
     }
   }
@@ -608,26 +598,26 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     final dest = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: const Text('Ir a la ruta', style: TextStyle(color: _C.textHi)),
+        backgroundColor: AppColors.card,
+        title: const Text('Ir a la ruta', style: TextStyle(color: AppColors.textHi)),
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          style: const TextStyle(color: _C.textHi, fontFamily: 'monospace', fontSize: 13),
+          style: const TextStyle(color: AppColors.textHi, fontFamily: 'monospace', fontSize: 13),
           onSubmitted: (v) => Navigator.pop(ctx, v),
           decoration: const InputDecoration(
             hintText: '/etc/nginx  o  ~/proyectos',
-            hintStyle: TextStyle(color: _C.textLo),
+            hintStyle: TextStyle(color: AppColors.textLo),
             filled: true,
-            fillColor: _C.cardAlt,
+            fillColor: AppColors.cardAlt,
             border: OutlineInputBorder(borderSide: BorderSide.none),
           ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, null),
-              child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
+              child: const Text('Cancelar', style: TextStyle(color: AppColors.textLo))),
           TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('Ir', style: TextStyle(color: _C.accent))),
+              child: const Text('Ir', style: TextStyle(color: AppColors.accent))),
         ],
       ),
     );
@@ -639,7 +629,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     } catch (err) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('No se pudo abrir: $err'), backgroundColor: _C.err));
+            SnackBar(content: Text('No se pudo abrir: $err'), backgroundColor: AppColors.err));
       }
     }
   }
@@ -656,24 +646,24 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     final newName = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: Text('Renombrar ${e.isDirectory ? 'carpeta' : 'fichero'}', style: const TextStyle(color: _C.textHi)),
+        backgroundColor: AppColors.card,
+        title: Text('Renombrar ${e.isDirectory ? 'carpeta' : 'fichero'}', style: const TextStyle(color: AppColors.textHi)),
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          style: const TextStyle(color: _C.textHi),
+          style: const TextStyle(color: AppColors.textHi),
           onSubmitted: (v) => Navigator.pop(ctx, v),
           decoration: const InputDecoration(
             filled: true,
-            fillColor: _C.cardAlt,
+            fillColor: AppColors.cardAlt,
             border: OutlineInputBorder(borderSide: BorderSide.none),
           ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, null),
-              child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
+              child: const Text('Cancelar', style: TextStyle(color: AppColors.textLo))),
           TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('Renombrar', style: TextStyle(color: _C.accent))),
+              child: const Text('Renombrar', style: TextStyle(color: AppColors.accent))),
         ],
       ),
     );
@@ -681,7 +671,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     if (newName.contains('/')) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('El nombre no puede contener /'),
-        backgroundColor: _C.err,
+        backgroundColor: AppColors.err,
       ));
       return;
     }
@@ -693,7 +683,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     } catch (err) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('No se pudo renombrar: $err'), backgroundColor: _C.err));
+            SnackBar(content: Text('No se pudo renombrar: $err'), backgroundColor: AppColors.err));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -711,7 +701,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
           content: Text('Carpeta descargada ($n ficheros) en Descargas/xtr_sftp/')));
     } catch (err) {
       messenger.showSnackBar(SnackBar(
-          content: Text('Fallo al descargar la carpeta: $err'), backgroundColor: _C.err));
+          content: Text('Fallo al descargar la carpeta: $err'), backgroundColor: AppColors.err));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -742,7 +732,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     } catch (err) {
       messenger.showSnackBar(SnackBar(
         content: Text('Fallo tras subir $done de ${localPaths.length}: $err'),
-        backgroundColor: _C.err,
+        backgroundColor: AppColors.err,
       ));
       await _load(_path);
     } finally {
@@ -759,18 +749,18 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: _C.card,
-          title: const Text('Espacio del servidor', style: TextStyle(color: _C.textHi)),
+          backgroundColor: AppColors.card,
+          title: const Text('Espacio del servidor', style: TextStyle(color: AppColors.textHi)),
           content: Text(
             'Libre:  ${_fmtSize(free)}\n'
             'Usado: ${_fmtSize(used)} ($pct%)\n'
             'Total:  ${_fmtSize(total)}',
-            style: const TextStyle(color: _C.textLo, fontFamily: 'monospace', fontSize: 13),
+            style: const TextStyle(color: AppColors.textLo, fontFamily: 'monospace', fontSize: 13),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cerrar', style: TextStyle(color: _C.accent)),
+              child: const Text('Cerrar', style: TextStyle(color: AppColors.accent)),
             ),
           ],
         ),
@@ -781,7 +771,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Este servidor no soporta la consulta de espacio (statvfs)'),
-          backgroundColor: _C.err,
+          backgroundColor: AppColors.err,
         ));
       }
     }
@@ -790,25 +780,25 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
   void _showFabMenu() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _C.card,
+      backgroundColor: AppColors.card,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.upload_file, color: _C.accent),
-              title: const Text('Subir archivo(s)', style: TextStyle(color: _C.textHi)),
+              leading: const Icon(Icons.upload_file, color: AppColors.accent),
+              title: const Text('Subir archivo(s)', style: TextStyle(color: AppColors.textHi)),
               onTap: () { Navigator.pop(ctx); _uploadFiles(); },
             ),
             ListTile(
-              leading: const Icon(Icons.drive_folder_upload_outlined, color: _C.accent),
-              title: const Text('Subir carpeta(s)', style: TextStyle(color: _C.textHi)),
-              subtitle: const Text('Recursivo: replica toda la estructura', style: TextStyle(color: _C.textLo, fontSize: 11)),
+              leading: const Icon(Icons.drive_folder_upload_outlined, color: AppColors.accent),
+              title: const Text('Subir carpeta(s)', style: TextStyle(color: AppColors.textHi)),
+              subtitle: const Text('Recursivo: replica toda la estructura', style: TextStyle(color: AppColors.textLo, fontSize: 11)),
               onTap: () { Navigator.pop(ctx); _uploadFolders(); },
             ),
             ListTile(
-              leading: const Icon(Icons.create_new_folder_outlined, color: _C.accent),
-              title: const Text('Nueva carpeta', style: TextStyle(color: _C.textHi)),
+              leading: const Icon(Icons.create_new_folder_outlined, color: AppColors.accent),
+              title: const Text('Nueva carpeta', style: TextStyle(color: AppColors.textHi)),
               onTap: () { Navigator.pop(ctx); _newFolder(); },
             ),
           ],
@@ -845,7 +835,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     } catch (err) {
       messenger.showSnackBar(SnackBar(
         content: Text('Fallo tras subir $done de ${localPaths.length}: $err'),
-        backgroundColor: _C.err,
+        backgroundColor: AppColors.err,
       ));
       await _load(_path);
     } finally {
@@ -857,7 +847,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     final favs = SftpFavoritesService.instance.forHost(widget.host.id);
     showModalBottomSheet(
       context: context,
-      backgroundColor: _C.card,
+      backgroundColor: AppColors.card,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -868,7 +858,7 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
                 children: [
                   Icon(Icons.star, color: Color(0xFFFFD60A), size: 18),
                   SizedBox(width: 8),
-                  Text('Favoritos', style: TextStyle(color: _C.textHi, fontWeight: FontWeight.bold)),
+                  Text('Favoritos', style: TextStyle(color: AppColors.textHi, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
@@ -876,13 +866,13 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
               const Padding(
                 padding: EdgeInsets.all(20),
                 child: Text('Sin rutas guardadas todavia. Toca la estrella arriba para guardar la actual.',
-                    style: TextStyle(color: _C.textLo, fontSize: 12)),
+                    style: TextStyle(color: AppColors.textLo, fontSize: 12)),
               ),
             ...favs.map((f) => ListTile(
-                  leading: const Icon(Icons.folder, color: _C.accent, size: 20),
-                  title: Text(f.label, style: const TextStyle(color: _C.textHi, fontSize: 13)),
+                  leading: const Icon(Icons.folder, color: AppColors.accent, size: 20),
+                  title: Text(f.label, style: const TextStyle(color: AppColors.textHi, fontSize: 13)),
                   trailing: IconButton(
-                    icon: const Icon(Icons.close, color: _C.textLo, size: 18),
+                    icon: const Icon(Icons.close, color: AppColors.textLo, size: 18),
                     onPressed: () async {
                       await SftpFavoritesService.instance.remove(f.id);
                       Navigator.pop(ctx);
@@ -913,45 +903,45 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: _C.card,
+      backgroundColor: AppColors.card,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (!e.isDirectory)
               ListTile(
-                leading: const Icon(Icons.download, color: _C.accent),
-                title: const Text('Descargar', style: TextStyle(color: _C.textHi)),
+                leading: const Icon(Icons.download, color: AppColors.accent),
+                title: const Text('Descargar', style: TextStyle(color: AppColors.textHi)),
                 onTap: () { Navigator.pop(ctx); _download(e); },
               ),
             if (!e.isDirectory)
               ListTile(
-                leading: const Icon(Icons.send, color: _C.accent),
+                leading: const Icon(Icons.send, color: AppColors.accent),
                 title: const Text('Enviar a otro equipo...',
-                    style: TextStyle(color: _C.textHi)),
+                    style: TextStyle(color: AppColors.textHi)),
                 onTap: () { Navigator.pop(ctx); _sendTo(e); },
               ),
             
       if (!e.isDirectory)
         ListTile(
-          leading: const Icon(Icons.edit_outlined, color: _C.accent),
-          title: const Text("Editar", style: TextStyle(color: _C.textHi)),
+          leading: const Icon(Icons.edit_outlined, color: AppColors.accent),
+          title: const Text("Editar", style: TextStyle(color: AppColors.textHi)),
           onTap: () { Navigator.pop(ctx); _edit(e); },
         ),
 if (e.isDirectory)
               ListTile(
-                leading: const Icon(Icons.download_for_offline_outlined, color: _C.accent),
-                title: const Text('Descargar carpeta (recursivo)', style: TextStyle(color: _C.textHi)),
+                leading: const Icon(Icons.download_for_offline_outlined, color: AppColors.accent),
+                title: const Text('Descargar carpeta (recursivo)', style: TextStyle(color: AppColors.textHi)),
                 onTap: () { Navigator.pop(ctx); _downloadFolder(e); },
               ),
             ListTile(
-              leading: const Icon(Icons.drive_file_rename_outline, color: _C.accent),
-              title: const Text('Renombrar', style: TextStyle(color: _C.textHi)),
+              leading: const Icon(Icons.drive_file_rename_outline, color: AppColors.accent),
+              title: const Text('Renombrar', style: TextStyle(color: AppColors.textHi)),
               onTap: () { Navigator.pop(ctx); _rename(e); },
             ),
             ListTile(
-              leading: const Icon(Icons.link, color: _C.textLo),
-              title: const Text('Copiar ruta', style: TextStyle(color: _C.textHi)),
+              leading: const Icon(Icons.link, color: AppColors.textLo),
+              title: const Text('Copiar ruta', style: TextStyle(color: AppColors.textHi)),
               onTap: () {
                 Navigator.pop(ctx);
                 Clipboard.setData(ClipboardData(text: _fullPath(e)));
@@ -960,13 +950,13 @@ if (e.isDirectory)
               },
             ),
             ListTile(
-              leading: const Icon(Icons.check_box_outlined, color: _C.textLo),
-              title: const Text('Seleccionar', style: TextStyle(color: _C.textHi)),
+              leading: const Icon(Icons.check_box_outlined, color: AppColors.textLo),
+              title: const Text('Seleccionar', style: TextStyle(color: AppColors.textHi)),
               onTap: () { Navigator.pop(ctx); _toggleSelect(e); },
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline, color: _C.err),
-              title: const Text('Eliminar', style: TextStyle(color: _C.textHi)),
+              leading: const Icon(Icons.delete_outline, color: AppColors.err),
+              title: const Text('Eliminar', style: TextStyle(color: AppColors.textHi)),
               onTap: () { Navigator.pop(ctx); _delete(e); },
             ),
           ],
@@ -978,12 +968,12 @@ if (e.isDirectory)
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: _selecting ? _selectionAppBar() : _normalAppBar(),
       body: _buildBody(),
       floatingActionButton: _state == _LoadState.ready && !_selecting
           ? FloatingActionButton(
-              backgroundColor: _C.accent,
+              backgroundColor: AppColors.accent,
               onPressed: _showFabMenu,
               child: const Icon(Icons.add, color: Colors.white),
             )
@@ -993,12 +983,12 @@ if (e.isDirectory)
 
   PreferredSizeWidget _normalAppBar() {
     return AppBar(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       elevation: 0,
       automaticallyImplyLeading: !widget.embedded,
       toolbarHeight: widget.embedded ? 42 : null,
-      iconTheme: const IconThemeData(color: _C.textHi),
-      title: Text(widget.host.name, style: const TextStyle(color: _C.textHi, fontSize: 16)),
+      iconTheme: const IconThemeData(color: AppColors.textHi),
+      title: Text(widget.host.name, style: const TextStyle(color: AppColors.textHi, fontSize: 16)),
       actions: _state == _LoadState.ready
           ? [
               if (widget.onOpenTerminal != null)
@@ -1006,17 +996,17 @@ if (e.isDirectory)
                   tooltip: widget.embedded
                       ? 'Volver a la terminal'
                       : 'Abrir terminal SSH (sin cortar esto)',
-                  icon: const Icon(Icons.terminal, color: _C.textLo),
+                  icon: const Icon(Icons.terminal, color: AppColors.textLo),
                   onPressed: () => widget.onOpenTerminal!(widget.host),
                 ),
               IconButton(
                 tooltip: 'Ordenar',
-                icon: const Icon(Icons.sort, color: _C.textLo),
+                icon: const Icon(Icons.sort, color: AppColors.textLo),
                 onPressed: _pickSort,
               ),
               IconButton(
                 tooltip: 'Favoritos',
-                icon: const Icon(Icons.star_border, color: _C.textLo),
+                icon: const Icon(Icons.star_border, color: AppColors.textLo),
                 onPressed: _showFavorites,
               ),
               IconButton(
@@ -1029,7 +1019,7 @@ if (e.isDirectory)
                       : Icons.star_outline,
                   color: SftpFavoritesService.instance.isFavorite(widget.host.id, _path)
                       ? const Color(0xFFFFD60A)
-                      : _C.textLo,
+                      : AppColors.textLo,
                 ),
                 onPressed: () async {
                   await SftpFavoritesService.instance.toggle(widget.host.id, _path);
@@ -1037,8 +1027,8 @@ if (e.isDirectory)
                 },
               ),
               PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: _C.textLo),
-                color: _C.card,
+                icon: const Icon(Icons.more_vert, color: AppColors.textLo),
+                color: AppColors.card,
                 onSelected: (v) {
                   switch (v) {
                     case 'goto':
@@ -1083,22 +1073,22 @@ if (e.isDirectory)
 
   PreferredSizeWidget _selectionAppBar() {
     return AppBar(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       elevation: 0,
-      iconTheme: const IconThemeData(color: _C.textHi),
+      iconTheme: const IconThemeData(color: AppColors.textHi),
       leading: IconButton(icon: const Icon(Icons.close), onPressed: _clearSelection),
-      title: Text('${_selected.length} seleccionado(s)', style: const TextStyle(color: _C.textHi, fontSize: 16)),
+      title: Text('${_selected.length} seleccionado(s)', style: const TextStyle(color: AppColors.textHi, fontSize: 16)),
       actions: [
-        IconButton(tooltip: 'Seleccionar todo', icon: const Icon(Icons.select_all, color: _C.textLo), onPressed: _selectAllHere),
-        IconButton(tooltip: 'Descargar', icon: const Icon(Icons.download, color: _C.textLo), onPressed: _downloadSelected),
-        IconButton(tooltip: 'Eliminar', icon: const Icon(Icons.delete_outline, color: _C.err), onPressed: _deleteSelected),
+        IconButton(tooltip: 'Seleccionar todo', icon: const Icon(Icons.select_all, color: AppColors.textLo), onPressed: _selectAllHere),
+        IconButton(tooltip: 'Descargar', icon: const Icon(Icons.download, color: AppColors.textLo), onPressed: _downloadSelected),
+        IconButton(tooltip: 'Eliminar', icon: const Icon(Icons.delete_outline, color: AppColors.err), onPressed: _deleteSelected),
       ],
     );
   }
 
   Widget _buildBody() {
     if (_state == _LoadState.connecting) {
-      return const Center(child: CircularProgressIndicator(color: _C.accent));
+      return const Center(child: CircularProgressIndicator(color: AppColors.accent));
     }
     if (_state == _LoadState.error) {
       return Center(
@@ -1107,13 +1097,13 @@ if (e.isDirectory)
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, color: _C.err, size: 40),
+              const Icon(Icons.error_outline, color: AppColors.err, size: 40),
               const SizedBox(height: 12),
-              Text(_error, style: const TextStyle(color: _C.textLo, fontSize: 12), textAlign: TextAlign.center),
+              Text(_error, style: const TextStyle(color: AppColors.textLo, fontSize: 12), textAlign: TextAlign.center),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _connect,
-                style: ElevatedButton.styleFrom(backgroundColor: _C.accent),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
                 child: const Text('Reintentar', style: TextStyle(color: Colors.white)),
               ),
             ],
@@ -1127,39 +1117,39 @@ if (e.isDirectory)
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          color: _C.cardAlt,
+          color: AppColors.cardAlt,
           child: Row(
             children: [
               if (_path != '.' && !_selecting)
-                IconButton(icon: const Icon(Icons.arrow_upward, color: _C.textLo, size: 18), onPressed: _up),
+                IconButton(icon: const Icon(Icons.arrow_upward, color: AppColors.textLo, size: 18), onPressed: _up),
               Expanded(
                 child: Text(
                   _busy ? _busyLabel : (_path == '.' ? '/' : '/$_path'),
-                  style: const TextStyle(color: _C.textLo, fontSize: 12, fontFamily: 'monospace'),
+                  style: const TextStyle(color: AppColors.textLo, fontSize: 12, fontFamily: 'monospace'),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               IconButton(
                 tooltip: 'Copiar ruta',
-                icon: const Icon(Icons.copy, color: _C.textLo, size: 16),
+                icon: const Icon(Icons.copy, color: AppColors.textLo, size: 16),
                 onPressed: _copyCurrentPath,
               ),
               if (_busy)
                 const SizedBox(width: 16, height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: _C.accent)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent)),
             ],
           ),
         ),
         Expanded(
           child: RefreshIndicator(
             onRefresh: () => _load(_path),
-            color: _C.accent,
-            backgroundColor: _C.card,
+            color: AppColors.accent,
+            backgroundColor: AppColors.card,
             child: _entries.isEmpty
                 ? ListView(children: const [
                     Padding(
                       padding: EdgeInsets.all(32),
-                      child: Center(child: Text('Carpeta vacía', style: TextStyle(color: _C.textLo))),
+                      child: Center(child: Text('Carpeta vacía', style: TextStyle(color: AppColors.textLo))),
                     ),
                   ])
                 : ListView.builder(
@@ -1174,17 +1164,17 @@ if (e.isDirectory)
                           : (dateStr.isEmpty ? _fmtSize(e.size) : '${_fmtSize(e.size)} - $dateStr');
                       return ListTile(
                         leading: _selecting
-                            ? Checkbox(value: selected, onChanged: (_) => _toggleSelect(e), activeColor: _C.accent)
+                            ? Checkbox(value: selected, onChanged: (_) => _toggleSelect(e), activeColor: AppColors.accent)
                             : Icon(
                                 e.isDirectory ? Icons.folder : Icons.insert_drive_file_outlined,
-                                color: e.isDirectory ? _C.accent : _C.textLo,
+                                color: e.isDirectory ? AppColors.accent : AppColors.textLo,
                               ),
-                        title: Text(e.name, style: const TextStyle(color: _C.textHi, fontSize: 14)),
+                        title: Text(e.name, style: const TextStyle(color: AppColors.textHi, fontSize: 14)),
                         subtitle: subtitle == null
                             ? null
-                            : Text(subtitle, style: const TextStyle(color: _C.textLo, fontSize: 11)),
+                            : Text(subtitle, style: const TextStyle(color: AppColors.textLo, fontSize: 11)),
                         selected: selected,
-                        selectedTileColor: _C.cardAlt,
+                        selectedTileColor: AppColors.cardAlt,
                         onTap: () {
                           if (_selecting) {
                             _toggleSelect(e);

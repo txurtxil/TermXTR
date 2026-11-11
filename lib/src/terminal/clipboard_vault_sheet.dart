@@ -15,21 +15,11 @@
 //   );
 
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 
 import 'clipboard_vault.dart';
 import 'terminal_recorder.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const cardAlt = Color(0xFF242426);
-  static const border = Color(0xFF3A3A3C);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const ok = Color(0xFF34C759);
-  static const err = Color(0xFFFF453A);
-  static const accent = Color(0xFF5E9BD6);
-}
 
 Future<void> showClipboardVault(
   BuildContext context, {
@@ -139,7 +129,7 @@ class _ClipboardVaultSheetState extends State<_ClipboardVaultSheet> {
       maxChildSize: 0.95,
       builder: (context, scrollCtrl) => Container(
         decoration: const BoxDecoration(
-          color: _C.bg,
+          color: AppColors.bg,
           borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
         ),
         child: Column(
@@ -148,21 +138,21 @@ class _ClipboardVaultSheetState extends State<_ClipboardVaultSheet> {
             Container(
               width: 36,
               height: 4,
-              decoration: BoxDecoration(color: _C.border, borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 8, 6),
               child: Row(
                 children: [
-                  const Icon(Icons.content_paste_rounded, color: _C.accent, size: 18),
+                  const Icon(Icons.content_paste_rounded, color: AppColors.accent, size: 18),
                   const SizedBox(width: 8),
                   Text(
                     widget.sessionLabel == null ? 'Portapapeles' : 'Portapapeles · ${widget.sessionLabel}',
-                    style: const TextStyle(color: _C.textHi, fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(color: AppColors.textHi, fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.close, color: _C.textLo, size: 20),
+                    icon: const Icon(Icons.close, color: AppColors.textLo, size: 20),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -173,21 +163,21 @@ class _ClipboardVaultSheetState extends State<_ClipboardVaultSheet> {
               child: TextField(
                 controller: _searchCtrl,
                 onChanged: (_) => setState(() {}),
-                style: const TextStyle(color: _C.textHi, fontSize: 13),
+                style: const TextStyle(color: AppColors.textHi, fontSize: 13),
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: 'Buscar en lo que has copiado…',
-                  hintStyle: const TextStyle(color: _C.textLo, fontSize: 13),
-                  prefixIcon: const Icon(Icons.search, color: _C.textLo, size: 18),
+                  hintStyle: const TextStyle(color: AppColors.textLo, fontSize: 13),
+                  prefixIcon: const Icon(Icons.search, color: AppColors.textLo, size: 18),
                   filled: true,
-                  fillColor: _C.cardAlt,
+                  fillColor: AppColors.cardAlt,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _C.border)),
+                      borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
                   enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _C.border)),
+                      borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
                   focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _C.accent)),
+                      borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.accent)),
                 ),
               ),
             ),
@@ -234,13 +224,13 @@ class _ClipboardVaultSheetState extends State<_ClipboardVaultSheet> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                 child: Text(_flash!,
-                    style: TextStyle(color: _flashIsError ? _C.err : _C.ok, fontSize: 11.5)),
+                    style: TextStyle(color: _flashIsError ? AppColors.err : AppColors.ok, fontSize: 11.5)),
               ),
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 16, 16, 6),
               child: Row(
                 children: [
-                  Text('HISTORIAL', style: TextStyle(color: _C.textLo, fontSize: 10.5, letterSpacing: 0.6)),
+                  Text('HISTORIAL', style: TextStyle(color: AppColors.textLo, fontSize: 10.5, letterSpacing: 0.6)),
                 ],
               ),
             ),
@@ -249,7 +239,7 @@ class _ClipboardVaultSheetState extends State<_ClipboardVaultSheet> {
                   ? Center(
                       child: Text(
                         query.isEmpty ? 'Nada copiado todavía' : 'Sin resultados para "$query"',
-                        style: const TextStyle(color: _C.textLo, fontSize: 12),
+                        style: const TextStyle(color: AppColors.textLo, fontSize: 12),
                       ),
                     )
                   : ListView.builder(
@@ -273,11 +263,11 @@ class _ClipboardVaultSheetState extends State<_ClipboardVaultSheet> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-              color: _C.cardAlt, borderRadius: BorderRadius.circular(16), border: Border.all(color: _C.border)),
+              color: AppColors.cardAlt, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 14, color: _C.accent),
+            Icon(icon, size: 14, color: AppColors.accent),
             const SizedBox(width: 6),
-            Text(label, style: const TextStyle(color: _C.textHi, fontSize: 12)),
+            Text(label, style: const TextStyle(color: AppColors.textHi, fontSize: 12)),
           ]),
         ),
       ),
@@ -289,14 +279,14 @@ class _ClipboardVaultSheetState extends State<_ClipboardVaultSheet> {
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       padding: const EdgeInsets.all(10),
       decoration:
-          BoxDecoration(color: _C.card, borderRadius: BorderRadius.circular(10), border: Border.all(color: _C.border)),
+          BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
             onTap: () => setState(() => _vault.pin(e.id)),
             child: Icon(e.pinned ? Icons.push_pin : Icons.push_pin_outlined,
-                size: 15, color: e.pinned ? _C.accent : _C.textLo),
+                size: 15, color: e.pinned ? AppColors.accent : AppColors.textLo),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -306,19 +296,19 @@ class _ClipboardVaultSheetState extends State<_ClipboardVaultSheet> {
                 Text(e.preview,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: _C.textHi, fontSize: 12.5, fontFamily: 'monospace')),
+                    style: const TextStyle(color: AppColors.textHi, fontSize: 12.5, fontFamily: 'monospace')),
                 const SizedBox(height: 3),
                 Text(
                   '${e.label} · ${_fmtBytes(e.bytes)} · ${_fmtTime(e.at)}'
                   '${e.inSystemClipboard ? '' : ' · solo aquí'}',
-                  style: const TextStyle(color: _C.textLo, fontSize: 10.5),
+                  style: const TextStyle(color: AppColors.textLo, fontSize: 10.5),
                 ),
               ],
             ),
           ),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: _C.textLo, size: 18),
-            color: _C.card,
+            icon: const Icon(Icons.more_vert, color: AppColors.textLo, size: 18),
+            color: AppColors.card,
             onSelected: (v) async {
               switch (v) {
                 case 'copy':

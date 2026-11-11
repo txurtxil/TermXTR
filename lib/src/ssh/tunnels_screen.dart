@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 
 import '../storage/app_paths.dart';
 import 'identity_service.dart';
@@ -17,15 +18,6 @@ import 'ssh_credentials_store.dart';
 import 'ssh_host.dart';
 import 'ssh_hosts_service.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-  static const err = Color(0xFFFF453A);
-  static const ok = Color(0xFF34C759);
-}
 
 class _Tunnel {
   final String id;
@@ -185,30 +177,30 @@ class _TunnelsScreenState extends State<TunnelsScreen> {
         const Padding(
           padding: EdgeInsets.all(8),
           child: Text('Túneles guardados (pulsa ▶ para activar)',
-              style: TextStyle(color: _C.textLo, fontSize: 12)),
+              style: TextStyle(color: AppColors.textLo, fontSize: 12)),
         ),
         for (final d in _defs)
           Card(
-            color: _C.card,
+            color: AppColors.card,
             child: ListTile(
-              leading: const Icon(Icons.vpn_lock, color: _C.textLo),
-              title: Text(d.name, style: const TextStyle(color: _C.textHi)),
+              leading: const Icon(Icons.vpn_lock, color: AppColors.textLo),
+              title: Text(d.name, style: const TextStyle(color: AppColors.textHi)),
               subtitle: Text(
                   '${d.remoteHost}:${d.remotePort} (local ${d.localPort == 0 ? "auto" : d.localPort})',
                   style: const TextStyle(
-                      color: _C.textLo,
+                      color: AppColors.textLo,
                       fontSize: 11,
                       fontFamily: 'monospace')),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.play_arrow, color: _C.accent),
+                    icon: const Icon(Icons.play_arrow, color: AppColors.accent),
                     tooltip: 'Activar',
                     onPressed: () => _activateDef(d),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete, color: _C.err),
+                    icon: const Icon(Icons.delete, color: AppColors.err),
                     tooltip: 'Olvidar',
                     onPressed: () => _deleteDef(d),
                   ),
@@ -248,9 +240,9 @@ class _TunnelsScreenState extends State<TunnelsScreen> {
     final host = await showDialog<SshHost>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: const Text('Túnel a través de...',
-            style: TextStyle(color: _C.textHi)),
+            style: TextStyle(color: AppColors.textHi)),
         children: [
           for (final h in _hosts)
             SimpleDialogOption(
@@ -258,7 +250,7 @@ class _TunnelsScreenState extends State<TunnelsScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Text('${h.name} (${h.username}@${h.hostname})',
-                    style: const TextStyle(color: _C.textHi)),
+                    style: const TextStyle(color: AppColors.textHi)),
               ),
             ),
         ],
@@ -273,42 +265,42 @@ class _TunnelsScreenState extends State<TunnelsScreen> {
     final r = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: const Text('Nuevo túnel SSH',
-            style: TextStyle(color: _C.textHi)),
+            style: TextStyle(color: AppColors.textHi)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: name,
-              style: const TextStyle(color: _C.textHi),
+              style: const TextStyle(color: AppColors.textHi),
               decoration: const InputDecoration(
                   labelText: 'Nombre (opcional)',
-                  labelStyle: TextStyle(color: _C.textLo)),
+                  labelStyle: TextStyle(color: AppColors.textLo)),
             ),
             TextField(
               controller: localPort,
               keyboardType: TextInputType.number,
-              style: const TextStyle(color: _C.textHi),
+              style: const TextStyle(color: AppColors.textHi),
               decoration: const InputDecoration(
                   labelText: 'Puerto local (0 = automatico)',
-                  labelStyle: TextStyle(color: _C.textLo)),
+                  labelStyle: TextStyle(color: AppColors.textLo)),
             ),
             TextField(
               controller: remoteHost,
-              style: const TextStyle(color: _C.textHi),
+              style: const TextStyle(color: AppColors.textHi),
               decoration: const InputDecoration(
                   labelText: 'Destino remoto',
-                  labelStyle: TextStyle(color: _C.textLo)),
+                  labelStyle: TextStyle(color: AppColors.textLo)),
             ),
             TextField(
               controller: remotePort,
               keyboardType: TextInputType.number,
               autofocus: true,
-              style: const TextStyle(color: _C.textHi),
+              style: const TextStyle(color: AppColors.textHi),
               decoration: const InputDecoration(
                   labelText: 'Puerto remoto',
-                  labelStyle: TextStyle(color: _C.textLo)),
+                  labelStyle: TextStyle(color: AppColors.textLo)),
             ),
           ],
         ),
@@ -409,7 +401,7 @@ class _TunnelsScreenState extends State<TunnelsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
             'Túnel activo: 127.0.0.1:${server.port} → $remoteHost:$remotePort via ${host.name}'),
-        backgroundColor: _C.ok,
+        backgroundColor: AppColors.ok,
       ));
     } catch (e) {
       tunnel.error = e.toString();
@@ -473,22 +465,22 @@ class _TunnelsScreenState extends State<TunnelsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: _C.textHi),
+        iconTheme: const IconThemeData(color: AppColors.textHi),
         title: const Text('Túneles SSH',
-            style: TextStyle(color: _C.textHi, fontSize: 16)),
+            style: TextStyle(color: AppColors.textHi, fontSize: 16)),
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: _C.accent,
+        backgroundColor: AppColors.accent,
         onPressed: _addTunnel,
         child: const Icon(Icons.add),
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: _C.accent))
+              child: CircularProgressIndicator(color: AppColors.accent))
           : _tunnels.isEmpty && _defs.isEmpty
               ? const Center(
                   child: Padding(
@@ -499,7 +491,7 @@ class _TunnelsScreenState extends State<TunnelsScreen> {
                       'cualquier destino que el servidor alcance — como '
                       '"ssh -L".\n\nPulsa + para crear uno.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: _C.textLo),
+                      style: TextStyle(color: AppColors.textLo),
                     ),
                   ),
                 )
@@ -512,16 +504,16 @@ class _TunnelsScreenState extends State<TunnelsScreen> {
                     final t = _tunnels[i];
                     final active = t.error == null;
                     return Card(
-                      color: _C.card,
+                      color: AppColors.card,
                       child: ListTile(
                         leading: Icon(
                             active
                                 ? Icons.vpn_lock
                                 : Icons.error_outline,
-                            color: active ? _C.ok : _C.err),
+                            color: active ? AppColors.ok : AppColors.err),
                         title: Text(t.name,
                             style:
-                                const TextStyle(color: _C.textHi)),
+                                const TextStyle(color: AppColors.textHi)),
                         subtitle: Text(
                           active
                               ? '127.0.0.1:${t.localPort} → '
@@ -529,20 +521,20 @@ class _TunnelsScreenState extends State<TunnelsScreen> {
                                   'via ${t.sshHostName} · ${_uptime(t)}'
                               : 'Error: ${t.error}',
                           style: TextStyle(
-                              color: active ? _C.textLo : _C.err,
+                              color: active ? AppColors.textLo : AppColors.err,
                               fontSize: 11,
                               fontFamily: 'monospace'),
                         ),
                         trailing: active
                             ? IconButton(
                                 icon: const Icon(Icons.stop,
-                                    color: _C.err),
+                                    color: AppColors.err),
                                 tooltip: 'Detener túnel',
                                 onPressed: () => _stopTunnel(t),
                               )
                             : IconButton(
                                 icon: const Icon(Icons.close,
-                                    color: _C.textLo),
+                                    color: AppColors.textLo),
                                 onPressed: () => setState(
                                     () => _tunnels.remove(t)),
                               ),

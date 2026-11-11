@@ -4,15 +4,9 @@
 // TermXTR; sin dependencia url_launcher: los enlaces son seleccionables).
 
 import 'package:flutter/material.dart';
+import 'app_theme.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-}
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -33,52 +27,52 @@ class _AboutScreenState extends State<AboutScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: _C.textHi),
+        iconTheme: const IconThemeData(color: AppColors.textHi),
         title: const Text('Acerca de',
-            style: TextStyle(color: _C.textHi, fontSize: 16)),
+            style: TextStyle(color: AppColors.textHi, fontSize: 16)),
       ),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           const Text('TermXTR',
               style: TextStyle(
-                  color: _C.textHi,
+                  color: AppColors.textHi,
                   fontSize: 22,
                   fontWeight: FontWeight.bold)),
           const SizedBox(width: 8),
           Text(_v,
-              style: const TextStyle(color: _C.textLo, fontSize: 13)),
+              style: const TextStyle(color: AppColors.textLo, fontSize: 13)),
         ]),
         const SizedBox(height: 10),
         const Center(
             child: Text(
                 'La navaja suiza del administrador de sistemas: SSH/SFTP con\nclaves, ProxyJump, Wake-on-LAN, Monitor de sistemas (Linux y\nOracle) y sombra fantasma. Solo consultas: nada instalado\nen los servidores.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: _C.textLo, fontSize: 12))),
+                style: TextStyle(color: AppColors.textLo, fontSize: 12))),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-              color: _C.card, borderRadius: BorderRadius.circular(10)),
+              color: AppColors.card, borderRadius: BorderRadius.circular(10)),
           child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('AUTOR',
                     style: TextStyle(
-                        color: _C.accent,
+                        color: AppColors.accent,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1)),
                 SizedBox(height: 4),
                 Text('SurferRule',
-                    style: TextStyle(color: _C.textHi, fontSize: 13)),
+                    style: TextStyle(color: AppColors.textHi, fontSize: 13)),
                 SizedBox(height: 12),
                 Text('LICENCIA',
                     style: TextStyle(
-                        color: _C.accent,
+                        color: AppColors.accent,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1)),
@@ -87,11 +81,11 @@ class _AboutScreenState extends State<AboutScreen> {
                     'Codigo propio del autor. Incluye Flutter, dartssh2, '
                     'xterm.dart, cryptography, device_info_plus y '
                     'package_info_plus (sus licencias MIT/BSD aplican).',
-                    style: TextStyle(color: _C.textLo, fontSize: 12)),
+                    style: TextStyle(color: AppColors.textLo, fontSize: 12)),
                 SizedBox(height: 12),
                 Text('ENLACES',
                     style: TextStyle(
-                        color: _C.accent,
+                        color: AppColors.accent,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1)),
@@ -99,19 +93,19 @@ class _AboutScreenState extends State<AboutScreen> {
                 SelectableText(
                     'Repositorio:  github.com/txurtxil/TermXTR',
                     style: TextStyle(
-                        color: _C.accent,
+                        color: AppColors.accent,
                         fontSize: 12,
                         fontFamily: 'monospace')),
                 SelectableText(
                     'Releases:      github.com/txurtxil/TermXTR/releases',
                     style: TextStyle(
-                        color: _C.accent,
+                        color: AppColors.accent,
                         fontSize: 12,
                         fontFamily: 'monospace')),
                 SelectableText(
                     'Ko-fi:         ko-fi.com/txurtxil',
                     style: TextStyle(
-                        color: _C.accent,
+                        color: AppColors.accent,
                         fontSize: 12,
                         fontFamily: 'monospace')),
               ]),

@@ -12,6 +12,7 @@ import 'package:dartssh2/dartssh2.dart';
 
 import '../ssh/identity_service.dart';
 import '../ssh/ssh_credentials_store.dart';
+import '../ssh/ssh_connector.dart';
 import '../ssh/ssh_host.dart';
 import '../sftp/sftp_favorites_service.dart';
 import '../storage/app_paths.dart';
@@ -138,17 +139,6 @@ Future<void> sampleBackfill(
   }
 }
 
-class _Conn {
-  final SSHClient c;
-  final SSHSocket s;
-  _Conn(this.c, this.s);
-  void close() {
-    c.close();
-    try {
-      s.close();
-    } catch (_) {}
-  }
-}
 
 class MonitorService {
   static const _dirs = ['/var', '/opt', '/tmp'];
@@ -159,51 +149,12 @@ class MonitorService {
     return s0.isEmpty ? '/' : s0;
   }
 
-  static Future<_Conn> _connect(SshHost host) async {
-    final socket = await SSHSocket.connect(host.hostname, host.port)
-        .timeout(const Duration(seconds: 12));
-    List<SSHKeyPair>? identities;
-    final keyPath = host.keyPath;
-    if (keyPath != null && keyPath.trim().isNotEmpty) {
-      try {
-        final keyFile = await AppPaths.resolveKey(keyPath.trim());
-        if (keyFile != null) {
-          identities = SSHKeyPair.fromPem(await keyFile.readAsString());
-        }
-      } catch (_) {}
-    }
-    try {
-      final id = await IdentityService.loadIdentity();
-      if (id != null && id.isNotEmpty) {
-        identities = [...(identities ?? const <SSHKeyPair>[]), ...id];
-      }
-    } catch (_) {}
-    final pwd = await SshCredentialsStore.readPassword(host.id);
-    final client = SSHClient(
-      socket,
-      username: host.username,
-      identities: (identities != null && identities.isNotEmpty)
-          ? identities
-          : null,
-      onPasswordRequest: () async => pwd,
-      onUserInfoRequest: (req) async => req.prompts
-          .map((p) =>
-              p.promptText.toLowerCase().contains('password') && pwd != null
-                  ? pwd
-                  : '')
-          .toList(),
-      onVerifyHostKey: (type, fingerprint) async => true,
-      handshakeTimeout: const Duration(seconds: 12),
-      authTimeout: const Duration(seconds: 12),
-    );
-    return _Conn(client, socket);
-  }
-
+  
   /// Fase 1 (rapida): sistema + discos + servicios + oracle + unidades
   /// auditadas del host. Sin du.
   static Future<MonitorSnapshot> fetch(SshHost host,
       {Duration timeout = const Duration(seconds: 15)}) async {
-    final conn = await _connect(host);
+    final conn = await SshConnector.connect(host);
     try {
       final t0 = DateTime.now();
       MonitorLog.write('monitor',
@@ -281,7 +232,7 @@ EOS
   /// Fase 2: directorios (favoritos SFTP del host + defaults). Segundo plano.
   static Future<List<DirInfo>> fetchDirs(SshHost host) async {
     await dirCacheLoad();
-    final conn = await _connect(host);
+    final conn = await SshConnector.connect(host);
     try {
       final favs = SftpFavoritesService.instance
           .forHost(host.id)
@@ -319,7 +270,7 @@ EOS
   /// Devuelve {ts_inicio_de_mes: bytes_acumulados} de los ultimos 12 meses.
   static Future<Map<int, double>> fetchDirHistory(
       SshHost host, String path) async {
-    final conn = await _connect(host);
+    final conn = await SshConnector.connect(host);
     try {
       final safe = path.replaceAll("'", "'\\''");
       final cmd = "LC_ALL=C; find '" + safe +

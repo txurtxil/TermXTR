@@ -6,6 +6,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 
 import '../ssh/ssh_host.dart';
 import 'monitor_models.dart';
@@ -16,16 +17,6 @@ import 'alert_service.dart';
 import 'monitor_log.dart';
 import 'monitor_service.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-  static const ok = Color(0xFF30D158);
-  static const warn = Color(0xFFFFD60A);
-  static const err = Color(0xFFFF453A);
-}
 
 class MonitorScreen extends StatefulWidget {
   final SshHost host;
@@ -158,15 +149,15 @@ class _MonitorScreenState extends State<MonitorScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
+        backgroundColor: AppColors.card,
         title: const Text('Log del Monitor',
-            style: TextStyle(color: _C.textHi, fontSize: 14)),
+            style: TextStyle(color: AppColors.textHi, fontSize: 14)),
         content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(
             child: SelectableText(log,
                 style: const TextStyle(
-                    color: _C.textLo, fontSize: 10, fontFamily: 'monospace')),
+                    color: AppColors.textLo, fontSize: 10, fontFamily: 'monospace')),
           ),
         ),
         actions: [
@@ -181,27 +172,27 @@ class _MonitorScreenState extends State<MonitorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: _C.textHi),
+        iconTheme: const IconThemeData(color: AppColors.textHi),
         title: Text('Monitor — ${widget.host.name}',
-            style: const TextStyle(color: _C.textHi, fontSize: 16)),
+            style: const TextStyle(color: AppColors.textHi, fontSize: 16)),
         actions: [
           IconButton(
             tooltip: 'Ver log',
-            icon: const Icon(Icons.receipt_long, color: _C.textLo),
+            icon: const Icon(Icons.receipt_long, color: AppColors.textLo),
             onPressed: _showLog,
           ),
           Row(children: [
             const Text('Auto',
-                style: TextStyle(color: _C.textLo, fontSize: 12)),
+                style: TextStyle(color: AppColors.textLo, fontSize: 12)),
             Switch(value: _auto, onChanged: _toggleAuto),
           ]),
           IconButton(
             tooltip: 'Actualizar',
-            icon: const Icon(Icons.refresh, color: _C.textLo),
+            icon: const Icon(Icons.refresh, color: AppColors.textLo),
             onPressed: _loading ? null : _refresh,
           ),
         ],
@@ -211,12 +202,12 @@ class _MonitorScreenState extends State<MonitorScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(_error!,
-                    style: const TextStyle(color: _C.err)),
+                    style: const TextStyle(color: AppColors.err)),
               ),
             )
           : _loading && _snap == null
               ? const Center(
-                  child: CircularProgressIndicator(color: _C.accent))
+                  child: CircularProgressIndicator(color: AppColors.accent))
               : RefreshIndicator(
                   onRefresh: _refresh,
                   child: ListView(
@@ -236,7 +227,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
                           'Solo consultas por SSH (nada instalado en el servidor). '
                           '${_snap!.ts.hour.toString().padLeft(2, '0')}:${_snap!.ts.minute.toString().padLeft(2, '0')}',
                           style:
-                              const TextStyle(color: _C.textLo, fontSize: 11),
+                              const TextStyle(color: AppColors.textLo, fontSize: 11),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -251,7 +242,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _C.card,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -259,7 +250,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
         children: [
           Text(title,
               style: const TextStyle(
-                  color: _C.textHi, fontWeight: FontWeight.w600)),
+                  color: AppColors.textHi, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           ...children,
         ],
@@ -284,19 +275,19 @@ class _MonitorScreenState extends State<MonitorScreen> {
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: _C.bg,
+          color: AppColors.bg,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Text(t, style: const TextStyle(color: _C.textHi, fontSize: 12)),
+        child: Text(t, style: const TextStyle(color: AppColors.textHi, fontSize: 12)),
       );
 
   Widget _bar(String label, double pct, String trailing) {
-    final color = pct >= 90 ? _C.err : (pct >= 75 ? _C.warn : _C.ok);
+    final color = pct >= 90 ? AppColors.err : (pct >= 75 ? AppColors.warn : AppColors.ok);
     return Column(children: [
       Row(children: [
         Expanded(
             child: Text(label,
-                style: const TextStyle(color: _C.textLo, fontSize: 12))),
+                style: const TextStyle(color: AppColors.textLo, fontSize: 12))),
         Text(trailing, style: TextStyle(color: color, fontSize: 12)),
       ]),
       const SizedBox(height: 4),
@@ -305,7 +296,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
         child: LinearProgressIndicator(
           value: (pct / 100).clamp(0.0, 1.0),
           minHeight: 6,
-          backgroundColor: _C.bg,
+          backgroundColor: AppColors.bg,
           valueColor: AlwaysStoppedAnimation(color),
         ),
       ),
@@ -329,7 +320,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
     if (dirs.isEmpty) {
       return _card(title: 'Directorios', children: const [
         Text('Midiendo carpetas (favoritos + /var /opt /tmp)...',
-            style: TextStyle(color: _C.textLo, fontSize: 12)),
+            style: TextStyle(color: AppColors.textLo, fontSize: 12)),
       ]);
     }
     final favs = SftpFavoritesService.instance;
@@ -348,8 +339,8 @@ class _MonitorScreenState extends State<MonitorScreen> {
                     : Icons.star_border,
                 size: 18,
                 color: favs.isFavorite(widget.host.id, d.path)
-                    ? _C.warn
-                    : _C.textLo,
+                    ? AppColors.warn
+                    : AppColors.textLo,
               ),
               tooltip: 'Favorito (medido aqui y en el navegador SFTP)',
               onPressed: () async {
@@ -365,7 +356,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
           ),
           Expanded(
               child: Text(d.path,
-                  style: const TextStyle(color: _C.textLo, fontSize: 13))),
+                  style: const TextStyle(color: AppColors.textLo, fontSize: 13))),
           Text(
               d.slow
                   ? (() {
@@ -377,7 +368,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
                       return 'lento (>20s)';
                     })()
                   : MonitorSnapshot.humanBytes(d.bytes),
-              style: const TextStyle(color: _C.textHi, fontSize: 13)),
+              style: const TextStyle(color: AppColors.textHi, fontSize: 13)),
           if (total > 0 && !d.slow) ...[
             const SizedBox(width: 8),
             SizedBox(
@@ -387,8 +378,8 @@ class _MonitorScreenState extends State<MonitorScreen> {
                 child: LinearProgressIndicator(
                   value: (d.bytes / total).clamp(0.0, 1.0),
                   minHeight: 4,
-                  backgroundColor: _C.bg,
-                  valueColor: const AlwaysStoppedAnimation(_C.accent),
+                  backgroundColor: AppColors.bg,
+                  valueColor: const AlwaysStoppedAnimation(AppColors.accent),
                 ),
               ),
             ),
@@ -399,17 +390,17 @@ class _MonitorScreenState extends State<MonitorScreen> {
     rows.add(Padding(
       padding: const EdgeInsets.only(top: 6),
       child: Row(children: [
-        const Icon(Icons.create_new_folder, size: 18, color: _C.textLo),
+        const Icon(Icons.create_new_folder, size: 18, color: AppColors.textLo),
         const SizedBox(width: 8),
         Expanded(
           child: TextField(
             controller: _newDirController,
-            style: const TextStyle(color: _C.textHi, fontSize: 13),
+            style: const TextStyle(color: AppColors.textHi, fontSize: 13),
             decoration: InputDecoration(
               hintText: 'Anadir carpeta (ej. /u01)',
-              hintStyle: const TextStyle(color: _C.textLo, fontSize: 12),
+              hintStyle: const TextStyle(color: AppColors.textLo, fontSize: 12),
               filled: true,
-              fillColor: _C.bg,
+              fillColor: AppColors.bg,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide.none,
@@ -420,7 +411,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.add, color: _C.accent),
+          icon: const Icon(Icons.add, color: AppColors.accent),
           tooltip: 'Medir y guardar como favorito',
           onPressed: () async {
             var t = _newDirController.text.trim();
@@ -447,16 +438,16 @@ class _MonitorScreenState extends State<MonitorScreen> {
     return _card(title: 'Servicios systemd', children: [
       Row(children: [
         Icon(failed > 0 ? Icons.error : Icons.check_circle,
-            color: failed > 0 ? _C.err : _C.ok, size: 16),
+            color: failed > 0 ? AppColors.err : AppColors.ok, size: 16),
         const SizedBox(width: 8),
         Text('unidades fallidas: $failed',
             style: TextStyle(
-                color: failed > 0 ? _C.err : _C.textLo, fontSize: 13)),
+                color: failed > 0 ? AppColors.err : AppColors.textLo, fontSize: 13)),
         const SizedBox(width: 16),
-        const Icon(Icons.play_circle, color: _C.ok, size: 16),
+        const Icon(Icons.play_circle, color: AppColors.ok, size: 16),
         const SizedBox(width: 4),
         Text('servicios en marcha: ${s.servicesRunning}',
-            style: const TextStyle(color: _C.textLo, fontSize: 13)),
+            style: const TextStyle(color: AppColors.textLo, fontSize: 13)),
       ]),
       if (s.unitStates.isNotEmpty) ...[
         const SizedBox(height: 6),
@@ -465,19 +456,19 @@ class _MonitorScreenState extends State<MonitorScreen> {
             Icon(
                 e.value == 'active' ? Icons.check_circle : Icons.error,
                 size: 14,
-                color: e.value == 'active' ? _C.ok : _C.err),
+                color: e.value == 'active' ? AppColors.ok : AppColors.err),
             const SizedBox(width: 6),
             Expanded(
                 child: Text('${e.key} — ${e.value}',
                     style: TextStyle(
-                        color: e.value == 'active' ? _C.textLo : _C.err,
+                        color: e.value == 'active' ? AppColors.textLo : AppColors.err,
                         fontSize: 12))),
           ]),
       ],
       if (s.failedNames.isNotEmpty) ...[
         const SizedBox(height: 6),
         for (final n in s.failedNames)
-          Text('x $n', style: const TextStyle(color: _C.err, fontSize: 12)),
+          Text('x $n', style: const TextStyle(color: AppColors.err, fontSize: 12)),
       ],
     ]);
   }
@@ -536,32 +527,32 @@ class _MonitorScreenState extends State<MonitorScreen> {
       if (_histBusy)
         const Padding(
           padding: EdgeInsets.all(8),
-          child: CircularProgressIndicator(color: _C.accent),
+          child: CircularProgressIndicator(color: AppColors.accent),
         )
       else if (spark.isEmpty)
         const Text(
             'Aun no hay muestras para este rango: usa el Monitor unos dias, o reconstruye el pasado.',
-            style: TextStyle(color: _C.textLo, fontSize: 11))
+            style: TextStyle(color: AppColors.textLo, fontSize: 11))
       else ...[
         Text(spark,
             style: const TextStyle(
-                color: _C.accent, fontSize: 14, fontFamily: 'monospace')),
+                color: AppColors.accent, fontSize: 14, fontFamily: 'monospace')),
         const SizedBox(height: 4),
         Text(
           'min ${MonitorSnapshot.humanBytes(vals.reduce((a, b) => a < b ? a : b))}'
           ' · max ${MonitorSnapshot.humanBytes(vals.reduce((a, b) => a > b ? a : b))}'
           ' · ahora ${MonitorSnapshot.humanBytes(vals.last)}'
           '${vals.length > 1 ? ' · crecimiento +' + MonitorSnapshot.humanBytes(vals.last - vals.first) : ''}',
-          style: const TextStyle(color: _C.textLo, fontSize: 11),
+          style: const TextStyle(color: AppColors.textLo, fontSize: 11),
         ),
       ],
       if (_histSel.startsWith('d:'))
         TextButton.icon(
           onPressed: _histBusy ? null : _backfillHist,
-          icon: const Icon(Icons.history, size: 16, color: _C.accent),
+          icon: const Icon(Icons.history, size: 16, color: AppColors.accent),
           label: const Text(
               'Reconstruir 12 meses desde el disco (fechas de modificacion)',
-              style: TextStyle(color: _C.accent, fontSize: 11)),
+              style: TextStyle(color: AppColors.accent, fontSize: 11)),
         ),
     ]);
   }
@@ -575,7 +566,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
       return Row(children: [
         Expanded(
             child: Text(label,
-                style: const TextStyle(color: _C.textLo, fontSize: 13))),
+                style: const TextStyle(color: AppColors.textLo, fontSize: 13))),
         Switch(
             value: v,
             onChanged: (nv) async {
@@ -589,7 +580,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
     return _card(title: 'Widget de fondo fantasma (este servidor)', children: [
       const Text(
           'Administra lo que la sombra translucida muestra en la terminal de ESTE host.',
-          style: TextStyle(color: _C.textLo, fontSize: 12)),
+          style: TextStyle(color: AppColors.textLo, fontSize: 12)),
       sw('Carga', _cfg.showLoad, (v) => _cfg.showLoad = v),
       sw('Disco de /', _cfg.showDisk, (v) => _cfg.showDisk = v),
       sw('Memoria', _cfg.showMem, (v) => _cfg.showMem = v),
@@ -597,7 +588,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
       sw('Directorios favoritos', _cfg.showDirs, (v) => _cfg.showDirs = v),
       const SizedBox(height: 4),
       Row(children: [
-        const Icon(Icons.blur_off, size: 16, color: _C.textLo),
+        const Icon(Icons.blur_off, size: 16, color: AppColors.textLo),
         Expanded(
           child: Slider(
             value: GhostSettings.opacity,
@@ -611,7 +602,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
             },
           ),
         ),
-        const Icon(Icons.blur_on, size: 16, color: _C.textLo),
+        const Icon(Icons.blur_on, size: 16, color: AppColors.textLo),
       ]),
       TextButton.icon(
         onPressed: () {
@@ -619,20 +610,20 @@ class _MonitorScreenState extends State<MonitorScreen> {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('Sombra actualizada en la terminal')));
         },
-        icon: const Icon(Icons.refresh, size: 16, color: _C.accent),
+        icon: const Icon(Icons.refresh, size: 16, color: AppColors.accent),
         label: const Text('Recargar sombra ahora',
-            style: TextStyle(color: _C.accent, fontSize: 11)),
+            style: TextStyle(color: AppColors.accent, fontSize: 11)),
       ),
-      const Divider(color: _C.textLo, height: 12),
+      const Divider(color: AppColors.textLo, height: 12),
       const Text('Servicios auditados (aparecen en la sombra y arriba):',
-          style: TextStyle(color: _C.textLo, fontSize: 12)),
+          style: TextStyle(color: AppColors.textLo, fontSize: 12)),
       for (final u in _cfg.units)
         Row(children: [
           Expanded(
               child: Text(u,
-                  style: const TextStyle(color: _C.textHi, fontSize: 13))),
+                  style: const TextStyle(color: AppColors.textHi, fontSize: 13))),
           IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18, color: _C.textLo),
+            icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.textLo),
             onPressed: () async {
               _cfg.units.remove(u);
               await save();
@@ -644,12 +635,12 @@ class _MonitorScreenState extends State<MonitorScreen> {
         Expanded(
           child: TextField(
             controller: _unitCtrl,
-            style: const TextStyle(color: _C.textHi, fontSize: 13),
+            style: const TextStyle(color: AppColors.textHi, fontSize: 13),
             decoration: InputDecoration(
               hintText: 'unidad systemd (ej. ssh, docker)',
-              hintStyle: const TextStyle(color: _C.textLo, fontSize: 12),
+              hintStyle: const TextStyle(color: AppColors.textLo, fontSize: 12),
               filled: true,
-              fillColor: _C.bg,
+              fillColor: AppColors.bg,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide.none,
@@ -660,7 +651,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.add, color: _C.accent),
+          icon: const Icon(Icons.add, color: AppColors.accent),
           onPressed: () async {
             final t = _unitCtrl.text.trim();
             if (t.isEmpty || _cfg.units.contains(t)) return;
@@ -678,7 +669,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
     if (!o.present) {
       return _card(title: 'Oracle', children: const [
         Text('Oracle no detectado en este host (sin sqlplus)',
-            style: TextStyle(color: _C.textLo, fontSize: 12)),
+            style: TextStyle(color: AppColors.textLo, fontSize: 12)),
       ]);
     }
     final tbs = o.tablespaces.entries
@@ -691,17 +682,17 @@ class _MonitorScreenState extends State<MonitorScreen> {
     return _card(title: 'Oracle', children: [
       Row(children: [
         Icon(o.up ? Icons.check_circle : Icons.cancel,
-            color: o.up ? _C.ok : _C.err, size: 16),
+            color: o.up ? AppColors.ok : AppColors.err, size: 16),
         const SizedBox(width: 8),
         Text('instancia ${o.up ? 'UP' : 'DOWN'}',
-            style: const TextStyle(color: _C.textHi, fontSize: 13)),
+            style: const TextStyle(color: AppColors.textHi, fontSize: 13)),
         if (o.listenerUp != null) ...[
           const SizedBox(width: 16),
           Icon(o.listenerUp! ? Icons.wifi : Icons.wifi_off,
-              color: o.listenerUp! ? _C.ok : _C.err, size: 16),
+              color: o.listenerUp! ? AppColors.ok : AppColors.err, size: 16),
           const SizedBox(width: 4),
           Text('listener ${o.listenerUp! ? 'UP' : 'DOWN'}',
-              style: const TextStyle(color: _C.textHi, fontSize: 13)),
+              style: const TextStyle(color: AppColors.textHi, fontSize: 13)),
         ],
       ]),
       if (tbs.isNotEmpty) ...[

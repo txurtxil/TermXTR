@@ -7,17 +7,11 @@
 // se miden en el layout real (posiciones de widgets claveados).
 
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 
 import 'ssh_host.dart';
 import 'ssh_hosts_service.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-}
 
 class HostMapScreen extends StatefulWidget {
   const HostMapScreen({super.key});
@@ -41,7 +35,7 @@ class _HostMapScreenState extends State<HostMapScreen> {
     if (port == 3306 || port == 5432 || port == 6379 || port == 27017) return const Color(0xFFBF5AF2);
     if (port == 445 || port == 139 || port == 135) return const Color(0xFF64D2FF);
     if (port == 53 || port == 67 || port == 68) return const Color(0xFF30B0C7);
-    return _C.textLo;
+    return AppColors.textLo;
   }
 
   Map<String, dynamic>? _auditOf(SshHost h) => h.audit;
@@ -122,15 +116,15 @@ class _HostMapScreenState extends State<HostMapScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
 
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        title: const Text('Mapa de hosts', style: TextStyle(color: _C.textHi)),
-        iconTheme: const IconThemeData(color: _C.textHi),
+        title: const Text('Mapa de hosts', style: TextStyle(color: AppColors.textHi)),
+        iconTheme: const IconThemeData(color: AppColors.textHi),
       ),
       body: hosts.isEmpty
-          ? const Center(child: Text('Sin hosts todavia.', style: TextStyle(color: _C.textLo)))
+          ? const Center(child: Text('Sin hosts todavia.', style: TextStyle(color: AppColors.textLo)))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(12),
               child: Stack(
@@ -152,9 +146,9 @@ class _HostMapScreenState extends State<HostMapScreen> {
                             for (final g in gateways)
                               Chip(
                                 key: _routerKeys[g],
-                                avatar: const Icon(Icons.router, size: 18, color: _C.accent),
-                                label: Text('Router $g', style: const TextStyle(color: _C.textHi, fontSize: 12)),
-                                backgroundColor: _C.card,
+                                avatar: const Icon(Icons.router, size: 18, color: AppColors.accent),
+                                label: Text('Router $g', style: const TextStyle(color: AppColors.textHi, fontSize: 12)),
+                                backgroundColor: AppColors.card,
                               ),
                           ],
                         ),
@@ -173,7 +167,7 @@ class _HostMapScreenState extends State<HostMapScreen> {
                           padding: EdgeInsets.all(8),
                           child: Text(
                             'Consejo: manten pulsado un host y elige "Auditar servicios" para rellenar su tarjeta.',
-                            style: TextStyle(color: _C.textLo, fontSize: 12),
+                            style: TextStyle(color: AppColors.textLo, fontSize: 12),
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -206,7 +200,7 @@ class _HostMapScreenState extends State<HostMapScreen> {
         width: 250,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: _C.card,
+          color: AppColors.card,
           borderRadius: BorderRadius.circular(12),
           border: Border(left: BorderSide(color: groupColor, width: 4)),
         ),
@@ -215,16 +209,16 @@ class _HostMapScreenState extends State<HostMapScreen> {
           children: [
             Row(
               children: [
-                Expanded(child: Text(h.name, style: const TextStyle(color: _C.textHi, fontSize: 14, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                Expanded(child: Text(h.name, style: const TextStyle(color: AppColors.textHi, fontSize: 14, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
                 if (lanIp != null)
-                  Text(lanIp, style: const TextStyle(color: _C.textLo, fontSize: 11, fontFamily: 'monospace')),
+                  Text(lanIp, style: const TextStyle(color: AppColors.textLo, fontSize: 11, fontFamily: 'monospace')),
               ],
             ),
             if (h.group != null && h.group!.isNotEmpty)
               Text(h.group!, style: TextStyle(color: groupColor, fontSize: 11)),
             const SizedBox(height: 6),
             if (audit == null)
-              const Text('Sin auditar', style: TextStyle(color: _C.textLo, fontSize: 12)),
+              const Text('Sin auditar', style: TextStyle(color: AppColors.textLo, fontSize: 12)),
             ...[
               Wrap(
                 spacing: 4,
@@ -237,14 +231,14 @@ class _HostMapScreenState extends State<HostMapScreen> {
               if (gateway != null && gateway.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text('Gateway: $gateway', style: const TextStyle(color: _C.textLo, fontSize: 11)),
+                  child: Text('Gateway: $gateway', style: const TextStyle(color: AppColors.textLo, fontSize: 11)),
                 ),
               if (peers.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     'Conecta con: ${peers.map((p) => p.name).join(', ')}',
-                    style: const TextStyle(color: _C.textLo, fontSize: 11),
+                    style: const TextStyle(color: AppColors.textLo, fontSize: 11),
                   ),
                 ),
             ],
@@ -261,29 +255,29 @@ class _HostMapScreenState extends State<HostMapScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: Text(h.name, style: const TextStyle(color: _C.textHi, fontSize: 15)),
+        backgroundColor: AppColors.card,
+        title: Text(h.name, style: const TextStyle(color: AppColors.textHi, fontSize: 15)),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView(
             shrinkWrap: true,
             children: [
-              Text('Auditado: ${audit?['at'] ?? '-'}', style: const TextStyle(color: _C.textLo, fontSize: 11)),
-              Text('IP LAN: ${audit?['lanIp'] ?? '-'}  ·  Gateway: ${audit?['gateway'] ?? '-'}', style: const TextStyle(color: _C.textLo, fontSize: 11)),
+              Text('Auditado: ${audit?['at'] ?? '-'}', style: const TextStyle(color: AppColors.textLo, fontSize: 11)),
+              Text('IP LAN: ${audit?['lanIp'] ?? '-'}  ·  Gateway: ${audit?['gateway'] ?? '-'}', style: const TextStyle(color: AppColors.textLo, fontSize: 11)),
               const SizedBox(height: 8),
-              const Text('Servicios', style: TextStyle(color: _C.textHi, fontSize: 13, fontWeight: FontWeight.w600)),
-              if (services.isEmpty) const Text('(ninguno detectado)', style: TextStyle(color: _C.textLo, fontSize: 12)),
+              const Text('Servicios', style: TextStyle(color: AppColors.textHi, fontSize: 13, fontWeight: FontWeight.w600)),
+              if (services.isEmpty) const Text('(ninguno detectado)', style: TextStyle(color: AppColors.textLo, fontSize: 12)),
               for (final s in services)
-                Text('${s['proto']}  :${s['port']}  ${s['program']}', style: const TextStyle(color: _C.textLo, fontSize: 12, fontFamily: 'monospace')),
+                Text('${s['proto']}  :${s['port']}  ${s['program']}', style: const TextStyle(color: AppColors.textLo, fontSize: 12, fontFamily: 'monospace')),
               const SizedBox(height: 8),
-              const Text('Vecinos ARP', style: TextStyle(color: _C.textHi, fontSize: 13, fontWeight: FontWeight.w600)),
-              if (arp.isEmpty) const Text('(ninguno)', style: TextStyle(color: _C.textLo, fontSize: 12)),
+              const Text('Vecinos ARP', style: TextStyle(color: AppColors.textHi, fontSize: 13, fontWeight: FontWeight.w600)),
+              if (arp.isEmpty) const Text('(ninguno)', style: TextStyle(color: AppColors.textLo, fontSize: 12)),
               for (final e in arp.entries)
-                Text('${e.key}  ${e.value}', style: const TextStyle(color: _C.textLo, fontSize: 11, fontFamily: 'monospace')),
+                Text('${e.key}  ${e.value}', style: const TextStyle(color: AppColors.textLo, fontSize: 11, fontFamily: 'monospace')),
             ],
           ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar', style: TextStyle(color: _C.textLo)))],
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar', style: TextStyle(color: AppColors.textLo)))],
       ),
     );
   }
@@ -325,7 +319,7 @@ class _MapPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = _C.accent.withValues(alpha: 0.5)
+      ..color = AppColors.accent.withValues(alpha: 0.5)
       ..strokeWidth = 1.2;
     for (final l in links) {
       final start = Offset(l.router.dx + 60, l.router.dy + 20);

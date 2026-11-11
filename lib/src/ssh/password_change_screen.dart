@@ -25,6 +25,7 @@ import 'dart:convert';
 
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 import 'package:flutter/services.dart';
 
 import '../storage/app_paths.dart';
@@ -34,16 +35,6 @@ import 'identity_service.dart';
 import 'robust_exec.dart';
 import 'ssh_host.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-  static const err = Color(0xFFFF453A);
-  static const ok = Color(0xFF34C759);
-  static const warn = Color(0xFFFFCC00);
-}
 
 class _PwResult {
   final bool ok;
@@ -297,18 +288,18 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
   Widget build(BuildContext context) {
     final targets = _selected.length + (_router.enabled ? 1 : 0);
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: _C.textHi),
+        iconTheme: const IconThemeData(color: AppColors.textHi),
         title: const Text('Cambiar contraseña',
-            style: TextStyle(color: _C.textHi, fontSize: 16)),
+            style: TextStyle(color: AppColors.textHi, fontSize: 16)),
         actions: [
           if (_results.isNotEmpty)
             IconButton(
               tooltip: 'Copiar todos los resultados',
-              icon: const Icon(Icons.copy_all, color: _C.textLo),
+              icon: const Icon(Icons.copy_all, color: AppColors.textLo),
               onPressed: () => _copyAll(context),
             ),
         ],
@@ -317,7 +308,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
           child: FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: _C.accent),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
             icon: const Icon(Icons.key),
             label: Text('Cambiar en $targets equipos'),
             onPressed: targets == 0 ? null : _submit,
@@ -325,7 +316,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
         ),
       ),
       body: _loadingHosts
-          ? const Center(child: CircularProgressIndicator(color: _C.accent))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
           : ListView(
               padding: const EdgeInsets.all(12),
               children: [
@@ -345,8 +336,8 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                       groupValue: _mode,
                       onChanged: (v) => setState(() => _mode = v!),
                       title: const Text('La cuenta de conexión de cada host (vía sudo)',
-                          style: TextStyle(color: _C.textHi, fontSize: 13)),
-                      activeColor: _C.accent,
+                          style: TextStyle(color: AppColors.textHi, fontSize: 13)),
+                      activeColor: AppColors.accent,
                     ),
                   ),
                   Expanded(
@@ -356,8 +347,8 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                       groupValue: _mode,
                       onChanged: (v) => setState(() => _mode = v!),
                       title: const Text('Otra cuenta vía sudo (chpasswd)',
-                          style: TextStyle(color: _C.textHi, fontSize: 13)),
-                      activeColor: _C.accent,
+                          style: TextStyle(color: AppColors.textHi, fontSize: 13)),
+                      activeColor: AppColors.accent,
                     ),
                   ),
                 ]),
@@ -366,7 +357,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: TextField(
                       controller: _otherUserCtrl,
-                      style: const TextStyle(color: _C.textHi, fontSize: 14),
+                      style: const TextStyle(color: AppColors.textHi, fontSize: 14),
                       decoration: _dec('Usuario objetivo (p. ej. root)',
                           icon: Icons.person),
                     ),
@@ -375,23 +366,23 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                   dense: true,
                   value: _updateStored,
                   onChanged: (v) => setState(() => _updateStored = v ?? true),
-                  activeColor: _C.accent,
+                  activeColor: AppColors.accent,
                   title: const Text(
                       'Si sale bien, actualizar la contraseña guardada en la app',
-                      style: TextStyle(color: _C.textHi, fontSize: 13)),
+                      style: TextStyle(color: AppColors.textHi, fontSize: 13)),
                 ),
-                const Divider(color: _C.card, height: 24),
+                const Divider(color: AppColors.card, height: 24),
                 CheckboxListTile(
                   dense: true,
                   value: _router.enabled,
                   onChanged: (v) => setState(() => _router.enabled = v ?? false),
-                  activeColor: _C.warn,
-                  secondary: const Icon(Icons.router, color: _C.warn),
+                  activeColor: AppColors.warn,
+                  secondary: const Icon(Icons.router, color: AppColors.warn),
                   title: const Text('Router / gateway (CLI propio)',
-                      style: TextStyle(color: _C.textHi)),
+                      style: TextStyle(color: AppColors.textHi)),
                   subtitle: const Text(
                       'config account password user … (comando del CLI)',
-                      style: TextStyle(color: _C.textLo, fontSize: 11)),
+                      style: TextStyle(color: AppColors.textLo, fontSize: 11)),
                 ),
                 if (_router.enabled)
                   Padding(
@@ -401,7 +392,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                         flex: 3,
                         child: TextField(
                           controller: _router.hostnameCtrl,
-                          style: const TextStyle(color: _C.textHi, fontSize: 13),
+                          style: const TextStyle(color: AppColors.textHi, fontSize: 13),
                           decoration: _dec('Host', icon: Icons.dns),
                         ),
                       ),
@@ -410,7 +401,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                         child: TextField(
                           controller: _router.portCtrl,
                           keyboardType: TextInputType.number,
-                          style: const TextStyle(color: _C.textHi, fontSize: 13),
+                          style: const TextStyle(color: AppColors.textHi, fontSize: 13),
                           decoration: _dec('Puerto'),
                         ),
                       ),
@@ -419,7 +410,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                         flex: 2,
                         child: TextField(
                           controller: _router.userCtrl,
-                          style: const TextStyle(color: _C.textHi, fontSize: 13),
+                          style: const TextStyle(color: AppColors.textHi, fontSize: 13),
                           decoration: _dec('Usuario', icon: Icons.person),
                         ),
                       ),
@@ -438,11 +429,11 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                       }
                     }),
                     title: Text(h.name,
-                        style: const TextStyle(color: _C.textHi)),
+                        style: const TextStyle(color: AppColors.textHi)),
                     subtitle: Text(
                         '${h.username}@${h.hostname}${h.port != 22 ? ':${h.port}' : ''}',
-                        style: const TextStyle(color: _C.textLo, fontSize: 12)),
-                    activeColor: _C.accent,
+                        style: const TextStyle(color: AppColors.textLo, fontSize: 12)),
+                    activeColor: AppColors.accent,
                   ),
                 const SizedBox(height: 12),
                 if (_started) ...[
@@ -455,12 +446,12 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                             width: 14,
                             height: 14,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: _C.accent)),
+                                strokeWidth: 2, color: AppColors.accent)),
                         const SizedBox(width: 8),
                         Text(
                             'Aplicando... ${_results.length}/$targets',
                             style: const TextStyle(
-                                color: _C.textLo, fontSize: 12)),
+                                color: AppColors.textLo, fontSize: 12)),
                       ]),
                     ),
                   for (final h in _hosts)
@@ -492,18 +483,18 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _C.card,
-        title: const Text('Cambiar contraseña', style: TextStyle(color: _C.textHi, fontSize: 16)),
+        backgroundColor: AppColors.card,
+        title: const Text('Cambiar contraseña', style: TextStyle(color: AppColors.textHi, fontSize: 16)),
         content: const Text(
             'Se cambiará la contraseña en TODOS los equipos seleccionados y el router si está marcado. Si un equipo usa la misma contraseña para sudo y la cambias solo en una cuenta, el sudo puede pedir la vieja.\n\n¿Continuar?',
-            style: TextStyle(color: _C.textLo, fontSize: 13)),
+            style: TextStyle(color: AppColors.textLo, fontSize: 13)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar', style: TextStyle(color: _C.textLo))),
+              child: const Text('Cancelar', style: TextStyle(color: AppColors.textLo))),
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Cambiar', style: TextStyle(color: _C.err))),
+              child: const Text('Cambiar', style: TextStyle(color: AppColors.err))),
         ],
       ),
     );
@@ -512,10 +503,10 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
 
   InputDecoration _dec(String hint, {IconData? icon}) => InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: _C.textLo, fontSize: 13),
-        prefixIcon: icon != null ? Icon(icon, color: _C.textLo, size: 18) : null,
+        hintStyle: const TextStyle(color: AppColors.textLo, fontSize: 13),
+        prefixIcon: icon != null ? Icon(icon, color: AppColors.textLo, size: 18) : null,
         filled: true,
-        fillColor: _C.card,
+        fillColor: AppColors.card,
         isDense: true,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
       );
@@ -525,13 +516,13 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
     return TextField(
       controller: ctrl,
       obscureText: hidden,
-      style: const TextStyle(color: _C.textHi, fontSize: 14),
+      style: const TextStyle(color: AppColors.textHi, fontSize: 14),
       decoration: _dec(hint, icon: Icons.lock).copyWith(
         suffixIcon: toggle == null
             ? null
             : IconButton(
                 icon: Icon(hidden ? Icons.visibility : Icons.visibility_off,
-                    color: _C.textLo, size: 18),
+                    color: AppColors.textLo, size: 18),
                 onPressed: toggle),
       ),
     );
@@ -539,7 +530,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
 
   Widget _resultCard(String name, _PwResult r) {
     return Card(
-      color: _C.card,
+      color: AppColors.card,
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -548,14 +539,14 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
           children: [
             Row(children: [
               Icon(r.ok ? Icons.check_circle : Icons.error,
-                  size: 16, color: r.ok ? _C.ok : _C.err),
+                  size: 16, color: r.ok ? AppColors.ok : AppColors.err),
               const SizedBox(width: 6),
               Expanded(
                   child: Text(name,
                       style: const TextStyle(
-                          color: _C.textHi, fontWeight: FontWeight.w500))),
+                          color: AppColors.textHi, fontWeight: FontWeight.w500))),
               Text('${r.duration.inMilliseconds} ms',
-                  style: const TextStyle(color: _C.textLo, fontSize: 10)),
+                  style: const TextStyle(color: AppColors.textLo, fontSize: 10)),
             ]),
             const SizedBox(height: 6),
             Column(
@@ -564,7 +555,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                 SelectableText(
                   r.output,
                   style: TextStyle(
-                    color: r.ok ? _C.textHi : _C.err,
+                    color: r.ok ? AppColors.textHi : AppColors.err,
                     fontFamily: 'monospace',
                     fontSize: 12,
                   ),
@@ -573,7 +564,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
                   alignment: Alignment.centerRight,
                   child: IconButton(
                     visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.copy, size: 14, color: _C.textLo),
+                    icon: const Icon(Icons.copy, size: 14, color: AppColors.textLo),
                     tooltip: 'Copiar salida',
                     onPressed: () async {
                       await Clipboard.setData(ClipboardData(text: r.output));

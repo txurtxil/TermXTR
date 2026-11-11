@@ -16,15 +16,8 @@ import 'robust_exec.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
+import '../ui/app_theme.dart';
 
-class _C {
-  static const bg = Color(0xFF1C1C1E);
-  static const card = Color(0xFF2C2C2E);
-  static const textHi = Color(0xFFEAEAEC);
-  static const textLo = Color(0xFF9A9AA0);
-  static const accent = Color(0xFF5E9BD6);
-  static const err = Color(0xFFFF453A);
-}
 
 class _CmdResult {
   final String cmd;
@@ -451,18 +444,18 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _C.bg,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: _C.bg,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: _C.textHi),
+        iconTheme: const IconThemeData(color: AppColors.textHi),
         title: const Text('Router · comandos LAN',
-            style: TextStyle(color: _C.textHi, fontSize: 16)),
+            style: TextStyle(color: AppColors.textHi, fontSize: 16)),
         actions: [
           if (_results.isNotEmpty)
             IconButton(
               tooltip: 'Copiar informe completo',
-              icon: const Icon(Icons.copy_all, color: _C.textLo),
+              icon: const Icon(Icons.copy_all, color: AppColors.textLo),
               onPressed: () => _copyOutput(context, _reportText()),
             ),
         ],
@@ -475,7 +468,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
               flex: 3,
               child: TextField(
                 controller: _hostCtrl,
-                style: const TextStyle(color: _C.textHi, fontSize: 13),
+                style: const TextStyle(color: AppColors.textHi, fontSize: 13),
                 decoration: _dec('Router (host)', icon: Icons.dns),
               ),
             ),
@@ -484,7 +477,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
               child: TextField(
                 controller: _portCtrl,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: _C.textHi, fontSize: 13),
+                style: const TextStyle(color: AppColors.textHi, fontSize: 13),
                 decoration: _dec('Puerto'),
               ),
             ),
@@ -494,7 +487,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
             Expanded(
               child: TextField(
                 controller: _userCtrl,
-                style: const TextStyle(color: _C.textHi, fontSize: 13),
+                style: const TextStyle(color: AppColors.textHi, fontSize: 13),
                 decoration: _dec('Usuario', icon: Icons.person),
               ),
             ),
@@ -504,12 +497,12 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
               child: TextField(
                 controller: _passCtrl,
                 obscureText: _hidePass,
-                style: const TextStyle(color: _C.textHi, fontSize: 13),
+                style: const TextStyle(color: AppColors.textHi, fontSize: 13),
                 decoration: _dec('Contraseña', icon: Icons.lock).copyWith(
                   suffixIcon: IconButton(
                     icon: Icon(
                         _hidePass ? Icons.visibility : Icons.visibility_off,
-                        color: _C.textLo,
+                        color: AppColors.textLo,
                         size: 18),
                     onPressed: () => setState(() => _hidePass = !_hidePass),
                   ),
@@ -523,13 +516,13 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
               child: Checkbox(
                 value: _savePass,
                 onChanged: (v) => setState(() => _savePass = v ?? false),
-                activeColor: _C.accent,
+                activeColor: AppColors.accent,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
             const Expanded(
               child: Text('Recordar contraseña en este dispositivo',
-                  style: TextStyle(color: _C.textLo, fontSize: 12)),
+                  style: TextStyle(color: AppColors.textLo, fontSize: 12)),
             ),
           ]),
           const SizedBox(height: 8),
@@ -538,16 +531,16 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
             Expanded(
               child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: _C.accent)),
+                      side: const BorderSide(color: AppColors.accent)),
                   icon: _connecting
                       ? const SizedBox(
                           width: 14,
                           height: 14,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: _C.accent))
-                      : const Icon(Icons.cable, color: _C.accent),
+                              strokeWidth: 2, color: AppColors.accent))
+                      : const Icon(Icons.cable, color: AppColors.accent),
                   label: Text(_connecting ? 'Conectando…' : 'Probar conexion',
-                      style: const TextStyle(color: _C.accent)),
+                      style: const TextStyle(color: AppColors.accent)),
                   onPressed: _connecting ? null : _probe,
                 ),
               ),
@@ -555,7 +548,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
             Expanded(
               flex: 2,
               child: FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: _C.accent),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
                 icon: _runningBatch
                     ? const SizedBox(
                         width: 14,
@@ -574,18 +567,18 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
           TextField(
             controller: _customCtrl,
             style: const TextStyle(
-                color: _C.textHi, fontFamily: 'monospace', fontSize: 13),
+                color: AppColors.textHi, fontFamily: 'monospace', fontSize: 13),
             decoration: InputDecoration(
               hintText: 'Comando personalizado del CLI (p. ej. "show ?")…',
-              hintStyle: const TextStyle(color: _C.textLo, fontSize: 13),
+              hintStyle: const TextStyle(color: AppColors.textLo, fontSize: 13),
               filled: true,
-              fillColor: _C.card,
+              fillColor: AppColors.card,
               isDense: true,
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide.none),
               suffixIcon: IconButton(
-                icon: const Icon(Icons.send, color: _C.accent),
+                icon: const Icon(Icons.send, color: AppColors.accent),
                 onPressed: _runCustom,
               ),
             ),
@@ -598,12 +591,12 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
                 controller: _pingCtrl,
                 keyboardType: TextInputType.number,
                 style: const TextStyle(
-                    color: _C.textHi, fontFamily: 'monospace', fontSize: 13),
+                    color: AppColors.textHi, fontFamily: 'monospace', fontSize: 13),
                 decoration: InputDecoration(
                   hintText: 'Ping (sondeo TCP) a IP de la LAN…',
-                  hintStyle: const TextStyle(color: _C.textLo, fontSize: 13),
+                  hintStyle: const TextStyle(color: AppColors.textLo, fontSize: 13),
                   filled: true,
-                  fillColor: _C.card,
+                  fillColor: AppColors.card,
                   isDense: true,
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -614,7 +607,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
             ),
             const SizedBox(width: 8),
             IconButton.filled(
-              style: IconButton.styleFrom(backgroundColor: _C.accent),
+              style: IconButton.styleFrom(backgroundColor: AppColors.accent),
               icon: const Icon(Icons.network_ping, color: Colors.white),
               tooltip: 'Ping / sondeo TCP desde el movil',
               onPressed: _runPing,
@@ -627,7 +620,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
               'CLI propio del router (show/config/iptables/tcpdump/backup…). '
               'Salida cruda: lo que falle se ve y se ajusta. La contraseña '
               'no se guarda nunca.',
-              style: TextStyle(color: _C.textLo, fontSize: 11),
+              style: TextStyle(color: AppColors.textLo, fontSize: 11),
             ),
           ),
           const SizedBox(height: 12),
@@ -639,11 +632,11 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
 
   InputDecoration _dec(String hint, {IconData? icon}) => InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: _C.textLo, fontSize: 13),
+        hintStyle: const TextStyle(color: AppColors.textLo, fontSize: 13),
         prefixIcon:
-            icon != null ? Icon(icon, color: _C.textLo, size: 18) : null,
+            icon != null ? Icon(icon, color: AppColors.textLo, size: 18) : null,
         filled: true,
-        fillColor: _C.card,
+        fillColor: AppColors.card,
         isDense: true,
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -653,7 +646,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
   Widget _card(int i, _CmdResult r) {
     final open = _expanded.contains(i);
     return Card(
-      color: _C.card,
+      color: AppColors.card,
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ExpansionTile(
         key: PageStorageKey('rc$i'),
@@ -662,25 +655,25 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
             setState(() => v ? _expanded.add(i) : _expanded.remove(i)),
         backgroundColor: Colors.transparent,
         collapsedBackgroundColor: Colors.transparent,
-        iconColor: _C.accent,
-        collapsedIconColor: _C.textLo,
+        iconColor: AppColors.accent,
+        collapsedIconColor: AppColors.textLo,
         leading: Icon(
             r.ok ? (open ? Icons.terminal : Icons.check_circle) : Icons.error,
             size: 16,
-            color: r.ok ? (open ? _C.accent : _C.accent) : _C.err),
+            color: r.ok ? (open ? AppColors.accent : AppColors.accent) : AppColors.err),
         title: Text(r.cmd,
             style: const TextStyle(
-                color: _C.textHi,
+                color: AppColors.textHi,
                 fontFamily: 'monospace',
                 fontSize: 13)),
         subtitle: Text('${r.duration.inMilliseconds} ms',
-            style: const TextStyle(color: _C.textLo, fontSize: 10)),
+            style: const TextStyle(color: AppColors.textLo, fontSize: 10)),
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Container(
               width: double.infinity,
-              color: _C.bg,
+              color: AppColors.bg,
               padding: const EdgeInsets.all(8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -691,7 +684,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
                   Text(
                     r.output,
                     style: TextStyle(
-                      color: r.ok ? _C.textHi : _C.err,
+                      color: r.ok ? AppColors.textHi : AppColors.err,
                       fontFamily: 'monospace',
                       fontSize: 12,
                     ),
@@ -700,7 +693,7 @@ class _RouterInfoScreenState extends State<RouterInfoScreen> {
                     alignment: Alignment.centerRight,
                     child: IconButton(
                       visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.copy, size: 14, color: _C.textLo),
+                      icon: const Icon(Icons.copy, size: 14, color: AppColors.textLo),
                       tooltip: 'Copiar salida',
                       onPressed: () => _copyOutput(context, r.output),
                     ),
