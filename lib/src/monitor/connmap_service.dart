@@ -193,7 +193,6 @@ EOS
         }
       } catch (e) {
         failures.add(h.name);
-        MonitorLog.write('connmap',
         final em = e.toString();
         MonitorLog.write('connmap',
             'fallo en \${h.name}: ' +
