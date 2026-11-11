@@ -913,11 +913,15 @@ class _GhostMeterState extends State<_GhostMeter> {
       if (id.isEmpty) return;
       final mc = await GhostMetricCache.get(id);
       final dv = await widget.s.ghostDirsPreview();
+      final hasFavs = await widget.s.hasGhostFavorites();
       if (!mounted) return;
       setState(() {
         if (mc != null && _line.isEmpty) _line = mc;
         if (dv != null) {
           _dirs = dv.split('\n').where((e) => e.trim().isNotEmpty).toList();
+          _dirsPending = false;
+        } else if (!hasFavs) {
+          // sin favoritos no hay nada que medir: el reloj de arena no aplica
           _dirsPending = false;
         }
       });

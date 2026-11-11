@@ -113,27 +113,14 @@ class TerminalSession {
     }
   }
 
-  /// v2.18.4/5: du PARALELO de las carpetas favoritas del host (para la
-  /// sombra fantasma). v2.18.5: si el du no responde a tiempo se muestra el
-  /// último tamaño conocido de la caché con su antigüedad (~2h).
+  /// v2.20.7: extras de la sombra (carpetas favoritas + unidades auditadas).
+  /// Las UNIDADES se consultan SIEMPRE, independientemente de que haya
+  /// favoritos (antes: un early return por 'sin favoritos' saltaba las
+  /// unidades y docker jamas aparecia en hosts sin carpetas marcadas).
   Future<String?> monitorGhostDirs() async {
     final c = _ssh;
     if (c == null) return null;
     await dirCacheLoad();
-    final favs = SftpFavoritesService.instance
-        .forHost(sourceHost.id)
-        .map((f) => f.path.startsWith('/') ? f.path : '/${f.path}')
-        .toSet()
-        .take(5);
-    if (favs.isEmpty) return null;
-    final dirList = favs.map((e) => "'$e'").join(' ');
-    String? raw;
-    try {
-      final r = await c
-          .run('for d in $dirList; do ( out=\$(timeout 20 du -x -s -B1 "\$d" 2>/dev/null | awk \'{print \$1}\'); echo "__D__ \$d"; echo "\${out:-TO}" ) & done; wait')
-          .timeout(const Duration(seconds: 25));
-      raw = utf8.decode(r, allowMalformed: true).trim();
-    } catch (_) {}
     final lines = <String>[];
     String? cur;
     void flush(String? path, String? val) {
@@ -152,24 +139,38 @@ class TerminalSession {
         lines.add('$name\t${_humGhost(cb)}~$age');
       }
     }
-    if (raw != null && raw.isNotEmpty) {
-      for (final l in raw.split('\n')) {
-        final t = l.trim();
-        if (t.startsWith('__D__ ')) {
-          flush(cur, null);
-          cur = t.substring(6).trim();
-          continue;
-        }
-        if (cur != null) {
-          flush(cur, t);
-          cur = null;
+    final favs = SftpFavoritesService.instance
+        .forHost(sourceHost.id)
+        .map((f) => f.path.startsWith('/') ? f.path : '/${f.path}')
+        .toSet()
+        .take(5)
+        .toList();
+    if (favs.isNotEmpty) {
+      final dirList = favs.map((e) => "'$e'").join(' ');
+      String? raw;
+      try {
+        final r = await c
+            .run('for d in $dirList; do ( out=\$(timeout 20 du -x -s -B1 "\$d" 2>/dev/null | awk \'{print \$1}\'); echo "__D__ \$d"; echo "\${out:-TO}" ) & done; wait')
+            .timeout(const Duration(seconds: 25));
+        raw = utf8.decode(r, allowMalformed: true).trim();
+      } catch (_) {}
+      if (raw != null && raw.isNotEmpty) {
+        for (final l in raw.split('\n')) {
+          final t = l.trim();
+          if (t.startsWith('__D__ ')) {
+            flush(cur, null);
+            cur = t.substring(6).trim();
+            continue;
+          }
+          if (cur != null) {
+            flush(cur, t);
+            cur = null;
+          }
         }
       }
+      flush(cur, null);
     }
-    flush(cur, null);
-    MonitorLog.write('ghost-dirs',
-        'favs=' + favs.join(' ') + ' -> ' + lines.length.toString() + ' lineas');
-    // v2.18.8: unidades auditadas (config del widget): 'u\t<unidad>\t<estado>'
+    // unidades auditadas: SIEMPRE (no dependen de favoritos)
     try {
       final cfg = await GhostConfigStore.forHost(sourceHost.id);
       if (cfg.units.isNotEmpty) {
@@ -181,7 +182,22 @@ class TerminalSession {
         if (ut.isNotEmpty) lines.addAll(ut.split('\n'));
       }
     } catch (_) {}
+    MonitorLog.write('ghost-dirs',
+        'favs=' + favs.join(' ') + ' -> ' + lines.length.toString() + ' lineas');
     return lines.isEmpty ? null : lines.join('\n');
+  }
+
+  /// true si este host tiene carpetas favoritas (la sombra asi sabe si el
+  /// reloj de arena tiene sentido o no).
+  Future<bool> hasGhostFavorites() async {
+    try {
+      final n = SftpFavoritesService.instance
+          .forHost(sourceHost.id)
+          .length;
+      return n > 0;
+    } catch (_) {
+      return false;
+    }
   }
 
   static String _humGhost(double b) {
