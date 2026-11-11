@@ -141,7 +141,8 @@ class MonitorService {
           ts: DateTime.now(),
           oracle: OracleInfo(present: false),
           fs: <FsInfo>[],
-          dirs: <DirInfo>[]);
+          dirs: <DirInfo>[],
+          failedNames: <String>[]);
 
       // 1) nucleo: df + load + mem + failed + deteccion oracle
       const core = r'''
@@ -151,9 +152,11 @@ df -hP -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs
 echo __TX_LOAD__
 cut -d' ' -f1-3 /proc/loadavg
 echo __TX_MEM__
-awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{printf "%.1f",(t-a)/t*100}' /proc/meminfo
+awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{printf "%d",(t-a)/t*100}' /proc/meminfo
 echo __TX_FAIL__
-systemctl --failed --no-legend --plain 2>/dev/null | grep -c '.'
+systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $2}' | head -5
+echo __TX_ACTIVE__
+systemctl list-units --type=service --state=running --no-legend --plain 2>/dev/null | wc -l
 echo __TX_OH__
 command -v sqlplus >/dev/null 2>&1 && echo yes || echo no
 echo __TX_END__
@@ -162,6 +165,7 @@ echo __TX_END__
           allowMalformed: true);
       MonitorLog.write('core', coreRaw.trim());
       _parseCore(snap, coreRaw);
+      snap.failedUnits = snap.failedNames.length;
 
       // 2) directorios (du acotado, timeout server-side de 6s por dir)
       // v2.18.2: los directorios medidos son los FAVORITOS SFTP del host
@@ -257,10 +261,16 @@ EOS
           break;
         case '__TX_MEM__':
           snap.load = LoadInfo(snap.load?.l1 ?? 0, snap.load?.l5 ?? 0,
-              snap.load?.l15 ?? 0, double.tryParse(l) ?? 0);
+              snap.load?.l15 ?? 0,
+              double.tryParse(l.replaceAll(',', '.')) ?? 0);
           break;
         case '__TX_FAIL__':
-          snap.failedUnits = int.tryParse(l) ?? 0;
+          if (l.isNotEmpty && !l.startsWith('__TX_')) {
+            snap.failedNames.add(l);
+          }
+          break;
+        case '__TX_ACTIVE__':
+          snap.servicesRunning = int.tryParse(l) ?? 0;
           break;
         case '__TX_OH__':
           if (l == 'yes') snap.oracle = OracleInfo(present: true);

@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 import 'dart:async';
+import '../monitor/ghost_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
@@ -842,10 +843,10 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
 }
 
 
-/// v2.18.2: SOMBRA FANTASMA del monitor — metricas (carga + disco de /)
-/// pintadas translucidas ARRIBA A LA DERECHA del terminal, sin comerse
-/// ningun gesto (IgnorePointer). Poll cada 30s por exec concurrente en la
-/// sesion; nada se instala en el servidor.
+/// v2.18.6: SOMBRA FANTASMA — carga/disco/memoria cada 30s y CARPETAS
+/// FAVORITAS auditadas (lineas ya formateadas "nombre\ttamano[~edad]") cada
+/// 5 min. Nitidez configurable (GhostSettings, slider en el Monitor).
+/// IgnorePointer: nunca bloquea gestos de la terminal.
 class _GhostMeter extends StatefulWidget {
   final dynamic s;
   const _GhostMeter({required this.s});
@@ -854,47 +855,79 @@ class _GhostMeter extends StatefulWidget {
 }
 
 class _GhostMeterState extends State<_GhostMeter> {
-  Timer? _t;
+  Timer? _tFast;
+  Timer? _tSlow;
   String _line = '';
+  List<String> _dirs = const [];
 
   @override
   void initState() {
     super.initState();
-    _poll();
-    _t = Timer.periodic(const Duration(seconds: 30), (_) => _poll());
+    GhostSettings.load();
+    _pollFast();
+    _pollSlow();
+    _tFast = Timer.periodic(const Duration(seconds: 30), (_) => _pollFast());
+    _tSlow = Timer.periodic(const Duration(minutes: 5), (_) => _pollSlow());
   }
 
   @override
   void dispose() {
-    _t?.cancel();
+    _tFast?.cancel();
+    _tSlow?.cancel();
     super.dispose();
   }
 
-  Future<void> _poll() async {
+  Future<void> _pollFast() async {
     try {
       final v = await widget.s.monitorGhostLine();
       if (mounted && v != null && v != _line) setState(() => _line = v);
     } catch (_) {}
   }
 
+  Future<void> _pollSlow() async {
+    try {
+      final v = await widget.s.monitorGhostDirs();
+      if (!mounted || v == null) return;
+      setState(() => _dirs =
+          v.split('\n').where((e) => e.trim().isNotEmpty).toList());
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_line.isEmpty) return const SizedBox.shrink();
+    if (_line.isEmpty && _dirs.isEmpty) return const SizedBox.shrink();
     final parts = _line.split('\n');
     final load = parts.isNotEmpty ? parts[0] : '?';
     final disk = parts.length > 1 ? parts[1] : '?';
+    final mem = parts.length > 2 ? parts[2] : '?';
+    final op = GhostSettings.opacity;
+    final rows = <Widget>[
+      Text('⚡ $load  ▣ $disk  ▥ ${mem}%',
+          style: TextStyle(
+              color: Colors.white.withValues(alpha: op),
+              fontSize: 10,
+              fontFamily: 'monospace')),
+    ];
+    for (final d in _dirs) {
+      final p = d.split('\t');
+      if (p.length < 2) continue;
+      rows.add(Text('${p[0]} ${p[1]}',
+          style: TextStyle(
+              color: Colors.white.withValues(alpha: op * 0.85),
+              fontSize: 9,
+              fontFamily: 'monospace')));
+    }
     return IgnorePointer(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.25),
+          color: Colors.black.withValues(alpha: op * 0.55),
           borderRadius: BorderRadius.circular(6),
         ),
-        child: Text('⚡ $load  ▣ $disk',
-            style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.35),
-                fontSize: 10,
-                fontFamily: 'monospace')),
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: rows),
       ),
     );
   }

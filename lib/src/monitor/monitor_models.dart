@@ -42,6 +42,8 @@ class MonitorSnapshot {
   List<FsInfo> fs;
   List<DirInfo> dirs;
   int failedUnits;
+  List<String> failedNames;
+  int servicesRunning;
   OracleInfo oracle;
   MonitorSnapshot(
       {required this.ts,
@@ -49,6 +51,8 @@ class MonitorSnapshot {
       this.fs = const [],
       this.dirs = const [],
       this.failedUnits = 0,
+      this.failedNames = const [],
+      this.servicesRunning = 0,
       required this.oracle});
 
   static String humanBytes(double b) {

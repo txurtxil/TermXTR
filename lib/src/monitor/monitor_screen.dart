@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../ssh/ssh_host.dart';
 import 'monitor_models.dart';
 import '../sftp/sftp_favorites_service.dart';
+import 'ghost_settings.dart';
 import 'monitor_log.dart';
 import 'monitor_service.dart';
 
@@ -169,7 +170,8 @@ class _MonitorScreenState extends State<MonitorScreen> {
                         _secLoad(_snap!.load),
                         _secFs(_snap!.fs),
                         _secDirs(_snap!.dirs),
-                        _secSystemd(_snap!.failedUnits),
+                        _secSystemd(_snap!),
+                        _secGhost(),
                         _secOracle(_snap!.oracle),
                         const SizedBox(height: 20),
                         Text(
@@ -377,7 +379,8 @@ class _MonitorScreenState extends State<MonitorScreen> {
     return _card(title: 'Directorios', children: rows);
   }
 
-  Widget _secSystemd(int failed) {
+  Widget _secSystemd(MonitorSnapshot s) {
+    final failed = s.failedUnits;
     return _card(title: 'Servicios systemd', children: [
       Row(children: [
         Icon(failed > 0 ? Icons.error : Icons.check_circle,
@@ -386,6 +389,41 @@ class _MonitorScreenState extends State<MonitorScreen> {
         Text('unidades fallidas: $failed',
             style: TextStyle(
                 color: failed > 0 ? _C.err : _C.textLo, fontSize: 13)),
+        const SizedBox(width: 16),
+        const Icon(Icons.play_circle, color: _C.ok, size: 16),
+        const SizedBox(width: 4),
+        Text('servicios en marcha: ${s.servicesRunning}',
+            style: const TextStyle(color: _C.textLo, fontSize: 13)),
+      ]),
+      if (s.failedNames.isNotEmpty) ...[
+        const SizedBox(height: 6),
+        for (final n in s.failedNames)
+          Text('x $n', style: const TextStyle(color: _C.err, fontSize: 12)),
+      ],
+    ]);
+  }
+
+  Widget _secGhost() {
+    return _card(title: 'Sombra fantasma (terminal)', children: [
+      const Text(
+          'Nitidez del panel translucido de la terminal: carga, disco, memoria y carpetas favoritas.',
+          style: TextStyle(color: _C.textLo, fontSize: 12)),
+      Row(children: [
+        const Icon(Icons.blur_off, size: 16, color: _C.textLo),
+        Expanded(
+          child: Slider(
+            value: GhostSettings.opacity,
+            min: 0.15,
+            max: 0.95,
+            divisions: 16,
+            label: '${(GhostSettings.opacity * 100).round()}%',
+            onChanged: (v) {
+              GhostSettings.set(v);
+              setState(() {});
+            },
+          ),
+        ),
+        const Icon(Icons.blur_on, size: 16, color: _C.textLo),
       ]),
     ]);
   }

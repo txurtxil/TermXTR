@@ -65,15 +65,16 @@ class TerminalSession {
   TerminalSession(this.name, {required this.sourceHost, this.password})
       : recorder = TerminalRecorder(label: name);
 
-  /// v2.18.2: poll ligero para la SOMBRA FANTASMA del monitor (exec
+  /// v2.18.2/6: poll ligero para la SOMBRA FANTASMA del monitor (exec
   /// concurrente sobre la conexion de la sesion; solo lectura). Devuelve
-  /// dos lineas: load 1m y porcentaje de uso de / (o null si no se pudo).
+  /// TRES lineas: load 1m, uso de / en % y memoria en %. v2.18.6: mem con
+  /// printf %d (el separador decimal es_ES rompia el parseo -> 0.0%).
   Future<String?> monitorGhostLine() async {
     final c = _ssh;
     if (c == null) return null;
     try {
       final r = await c
-          .run("LC_ALL=C; cut -d' ' -f1 /proc/loadavg; df -hP / | tail -1 | awk '{print \$5}'")
+          .run("LC_ALL=C; cut -d' ' -f1 /proc/loadavg; df -hP / | tail -1 | awk '{print \$5}'; awk '/MemTotal/{t=\$2}/MemAvailable/{a=\$2}END{printf \"%d\",(t-a)/t*100}' /proc/meminfo")
           .timeout(const Duration(seconds: 8));
       final t = utf8.decode(r, allowMalformed: true).trim();
       return t.isEmpty ? null : t;
@@ -81,6 +82,7 @@ class TerminalSession {
       return null;
     }
   }
+
 
   /// v2.18.4/5: du PARALELO de las carpetas favoritas del host (para la
   /// sombra fantasma). v2.18.5: si el du no responde a tiempo se muestra el
