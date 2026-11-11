@@ -870,6 +870,7 @@ class _GhostMeterState extends State<_GhostMeter> {
     super.initState();
     GhostSettings.load();
     _loadCfg();
+    _previewDirs();
     _pollFast();
     _pollSlow();
     _tFast = Timer.periodic(const Duration(seconds: 30), (_) => _pollFast());
@@ -893,6 +894,15 @@ class _GhostMeterState extends State<_GhostMeter> {
     _tFast?.cancel();
     _tSlow?.cancel();
     super.dispose();
+  }
+
+  Future<void> _previewDirs() async {
+    try {
+      final v = await widget.s.ghostDirsPreview();
+      if (!mounted || v == null) return;
+      setState(() => _dirs =
+          v.split('\n').where((e) => e.trim().isNotEmpty).toList());
+    } catch (_) {}
   }
 
   Future<void> _pollFast() async {

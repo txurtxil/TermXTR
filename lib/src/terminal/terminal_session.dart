@@ -85,6 +85,33 @@ class TerminalSession {
   }
 
 
+  /// v2.20.1: vista previa INSTANTANEA de carpetas favoritas desde la
+  /// cache (sin ejecutar nada en el servidor) — la sombra pinta esto al
+  /// conectar y el du real lo refresca despues.
+  Future<String?> ghostDirsPreview() async {
+    await dirCacheLoad();
+    try {
+      final hostId = sourceHost.id;
+      final favs = SftpFavoritesService.instance
+          .forHost(hostId)
+          .map((f) => f.path.startsWith('/') ? f.path : '/\${f.path}')
+          .toSet()
+          .take(5);
+      final lines = <String>[];
+      for (final f in favs) {
+        final b = dirCacheGet(hostId, f);
+        if (b != null) {
+          var name = f == '/' ? '/' : f.split('/').last;
+          if (name.length > 14) name = name.substring(0, 14);
+          lines.add('\$name\t\${_humGhost(b)}~\${dirCacheAge(hostId, f)}');
+        }
+      }
+      return lines.isEmpty ? null : lines.join('\n');
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// v2.18.4/5: du PARALELO de las carpetas favoritas del host (para la
   /// sombra fantasma). v2.18.5: si el du no responde a tiempo se muestra el
   /// último tamaño conocido de la caché con su antigüedad (~2h).
@@ -102,8 +129,8 @@ class TerminalSession {
     String? raw;
     try {
       final r = await c
-          .run('for d in $dirList; do ( out=\$(timeout 6 du -x -s -B1 "\$d" 2>/dev/null | awk \'{print \$1}\'); echo "__D__ \$d"; echo "\${out:-TO}" ) & done; wait')
-          .timeout(const Duration(seconds: 12));
+          .run('for d in $dirList; do ( out=\$(timeout 20 du -x -s -B1 "\$d" 2>/dev/null | awk \'{print \$1}\'); echo "__D__ \$d"; echo "\${out:-TO}" ) & done; wait')
+          .timeout(const Duration(seconds: 25));
       raw = utf8.decode(r, allowMalformed: true).trim();
     } catch (_) {}
     final lines = <String>[];

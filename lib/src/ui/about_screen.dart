@@ -1,5 +1,7 @@
 // lib/src/ui/about_screen.dart
-// v2.20.0: pantalla "Acerca de" — version, descripcion, repo y licencias.
+// v2.20.1: "Acerca de" con la estructura del Acerca de de LMB10: nombre +
+// version, tagline, AUTOR (SurferRule), LICENCIA y enlaces (adaptados a
+// TermXTR; sin dependencia url_launcher: los enlaces son seleccionables).
 
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -24,7 +26,7 @@ class _AboutScreenState extends State<AboutScreen> {
   void initState() {
     super.initState();
     PackageInfo.fromPlatform()
-        .then((p) => setState(() => _v = 'v${p.version} (build ${p.buildNumber})'))
+        .then((p) => setState(() => _v = 'v${p.version}'))
         .catchError((_) => setState(() => _v = ''));
   }
 
@@ -40,30 +42,23 @@ class _AboutScreenState extends State<AboutScreen> {
             style: TextStyle(color: _C.textHi, fontSize: 16)),
       ),
       body: ListView(padding: const EdgeInsets.all(16), children: [
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Text('TermXTR',
+              style: TextStyle(
+                  color: _C.textHi,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(width: 8),
+          Text(_v,
+              style: const TextStyle(color: _C.textLo, fontSize: 13)),
+        ]),
+        const SizedBox(height: 10),
         const Center(
-            child: Text('TermXTR',
-                style: TextStyle(
-                    color: _C.textHi,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700))),
-        const SizedBox(height: 4),
-        Center(
-            child: Text(_v.isEmpty ? '' : _v,
-                style: const TextStyle(color: _C.accent, fontSize: 13))),
+            child: Text(
+                'La navaja suiza del administrador de sistemas: SSH/SFTP con\nclaves, ProxyJump, Wake-on-LAN, Monitor de sistemas (Linux y\nOracle) y sombra fantasma. Solo consultas: nada instalado\nen los servidores.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _C.textLo, fontSize: 12))),
         const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-              color: _C.card, borderRadius: BorderRadius.circular(10)),
-          child: const Text(
-            'Cliente SSH/SFTP con identidad de claves, ProxyJump, Wake-on-LAN, '
-            'Monitor de sistemas (Linux y Oracle) y widget de fondo fantasma. '
-            'La navaja suiza del administrador de sistemas: todo por SSH, '
-            'sin instalar nada en los servidores.',
-            style: TextStyle(color: _C.textLo, fontSize: 13),
-          ),
-        ),
-        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -71,25 +66,54 @@ class _AboutScreenState extends State<AboutScreen> {
           child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Repositorio',
-                    style: TextStyle(
-                        color: _C.textHi, fontWeight: FontWeight.w600)),
-                SizedBox(height: 6),
-                SelectableText('github.com/txurtxil/TermXTR',
+                Text('AUTOR',
                     style: TextStyle(
                         color: _C.accent,
-                        fontSize: 13,
-                        fontFamily: 'monospace')),
-                SizedBox(height: 10),
-                Text('Licencias',
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1)),
+                SizedBox(height: 4),
+                Text('SurferRule',
+                    style: TextStyle(color: _C.textHi, fontSize: 13)),
+                SizedBox(height: 12),
+                Text('LICENCIA',
                     style: TextStyle(
-                        color: _C.textHi, fontWeight: FontWeight.w600)),
-                SizedBox(height: 6),
+                        color: _C.accent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1)),
+                SizedBox(height: 4),
                 Text(
-                    'Codigo propio bajo licencia del autor. Incluye software de '
-                    'terceros: Flutter, dartssh2, xterm.dart, cryptography y '
-                    'device_info_plus (sus licencias MIT/BSD aplican).',
+                    'Codigo propio del autor. Incluye Flutter, dartssh2, '
+                    'xterm.dart, cryptography, device_info_plus y '
+                    'package_info_plus (sus licencias MIT/BSD aplican).',
                     style: TextStyle(color: _C.textLo, fontSize: 12)),
+                SizedBox(height: 12),
+                Text('ENLACES',
+                    style: TextStyle(
+                        color: _C.accent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1)),
+                SizedBox(height: 6),
+                SelectableText(
+                    'Repositorio:  github.com/txurtxil/TermXTR',
+                    style: TextStyle(
+                        color: _C.accent,
+                        fontSize: 12,
+                        fontFamily: 'monospace')),
+                SelectableText(
+                    'Releases:      github.com/txurtxil/TermXTR/releases',
+                    style: TextStyle(
+                        color: _C.accent,
+                        fontSize: 12,
+                        fontFamily: 'monospace')),
+                SelectableText(
+                    'Ko-fi:         ko-fi.com/txurtxil',
+                    style: TextStyle(
+                        color: _C.accent,
+                        fontSize: 12,
+                        fontFamily: 'monospace')),
               ]),
         ),
       ]),

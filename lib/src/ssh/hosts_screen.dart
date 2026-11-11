@@ -553,8 +553,8 @@ class _HostsScreenState extends State<HostsScreen> {
                 alignment: Alignment.center,
                 child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               ),
-        title: Text(h.name, style: const TextStyle(color: _C.textHi, fontWeight: FontWeight.w500)),
-        subtitle: Text(_subtitle(h), style: const TextStyle(color: _C.textLo, fontSize: 12)),
+        title: Text(h.name, style: const TextStyle(color: _C.textHi, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+        subtitle: Text(_subtitle(h), style: const TextStyle(color: _C.textLo, fontSize: 12), overflow: TextOverflow.ellipsis),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -597,10 +597,12 @@ class _HostsScreenState extends State<HostsScreen> {
                     Positioned(right: 6, top: 6, child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: Color(0xFF34C759), shape: BoxShape.circle))),
                 ],
               ),
-            const Icon(Icons.chevron_right, color: _C.textLo),
-            // v2.19.0: acciones rapidas de sysadmin junto al menu.
+            // v2.20.1: solo accion rapida Monitor (chevron y wake salen:
+            // con 4+ iconos el titulo se comprimia hasta romperse en
+            // vertical, un caracter por linea).
             IconButton(
               tooltip: 'Monitor de sistemas',
+              visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.query_stats,
                   size: 18, color: _C.textLo),
               onPressed: () => Navigator.push(
@@ -608,16 +610,6 @@ class _HostsScreenState extends State<HostsScreen> {
                   MaterialPageRoute(
                       builder: (_) => MonitorScreen(host: h))),
             ),
-            if (h.macAddress != null)
-              IconButton(
-                tooltip: 'Encender (Wake-on-LAN)',
-                icon: const Icon(Icons.power_settings_new,
-                    size: 18, color: _C.textLo),
-                onPressed: () => _wake(h),
-              ),
-            // v2.19.0: menu agrupado por secciones + fondo opaco (el fondo
-            // semitransparente dejaba ver los avatares de los hosts de
-            // detras, el glitch de las capturas).
             PopupMenuTheme(
               data: const PopupMenuThemeData(color: _C.card),
               child: PopupMenuButton<String>(
