@@ -778,7 +778,7 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
                 children: [
                   Offstage(offstage: sftpOpen, child: terminalPane),
                   if (_sftpOpened.contains(s)) Offstage(offstage: !sftpOpen, child: SftpBrowserScreen(host: s.sourceHost!, rootfsPath: AppPaths.base, embedded: true, onOpenTerminal: (_) => setState(() => _sftpOpen.remove(s)))),
-                  Positioned(top: 4, right: 8, child: _GhostMeter(s: s)),
+                  _GhostMeter(s: s),
                 ],
               );
               // v2.13.10: sugerencia fantasma DENTRO del terminal, difuminada
@@ -845,12 +845,9 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
 }
 
 
-/// v2.20.3: SOMBRA FANTASMA INSTANTANEA — pinta al arrancar desde las
-/// caches locales (metricas + carpetas favoritas) SIN esperar al SSH, y
-/// reintenta los polls cada 2s hasta el primer exito (el fallo tipico del
-/// primer poll: el SSH aun no estaba conectado y antes se esperaba 30s/3min
-/// al siguiente tick). Directorios favoritas ARRIBA (muy importante para el
-/// owner), sparklines despues. Nitidez/config/recarga manuales conservadas.
+/// v2.21.1: SOMBRA FANTASMA arrastrable — se mueve con el dedo (arrastre
+/// sobre el panel), doble toque vuelve arriba-derecha, posicion persistida
+/// en GhostSettings. Resto intacto: metricas/dirs/sparklines/config/nitidez.
 class _GhostMeter extends StatefulWidget {
   final dynamic s;
   const _GhostMeter({required this.s});
@@ -871,11 +868,15 @@ class _GhostMeterState extends State<_GhostMeter> {
   bool _dirsPending = true;
   final List<double> _loads = [];
   final List<double> _mems = [];
+  // v2.21.1: posicion arrastrada (null = defecto arriba-derecha)
+  double? _dx;
+  double? _dy;
 
   @override
   void initState() {
     super.initState();
     GhostSettings.load();
+    _loadPos();
     _loadCfg();
     _paintFromCaches();
     _pollFast();
@@ -886,6 +887,16 @@ class _GhostMeterState extends State<_GhostMeter> {
       if (mounted) setState(() => _dirsPending = false);
     });
     GhostRefreshBus.n.addListener(_onBus);
+  }
+
+  Future<void> _loadPos() async {
+    await GhostSettings.load();
+    if (mounted) {
+      setState(() {
+        _dx = GhostSettings.posX;
+        _dy = GhostSettings.posY;
+      });
+    }
   }
 
   void _onBus() {
@@ -906,7 +917,6 @@ class _GhostMeterState extends State<_GhostMeter> {
     } catch (_) {}
   }
 
-  /// v2.20.3: pintado INSTANTANEO desde caches locales (sin SSH).
   Future<void> _paintFromCaches() async {
     try {
       final h = widget.s.sourceHost;
@@ -915,7 +925,6 @@ class _GhostMeterState extends State<_GhostMeter> {
       final mc = await GhostMetricCache.get(id);
       final String? dv = await widget.s.ghostDirsPreview();
       final bool hasFavs = await widget.s.hasGhostFavorites();
-      MonitorLog.write('ghost-paint', 'mc=${mc == null ? "null" : mc.length.toString() + "ch"} dv=${dv == null ? "null" : dv.length.toString() + "ch"} favs=$hasFavs');
       if (!mounted) return;
       setState(() {
         if (mc != null && _line.isEmpty) _line = mc;
@@ -923,7 +932,6 @@ class _GhostMeterState extends State<_GhostMeter> {
           _dirs = dv.split('\n').where((e) => e.trim().isNotEmpty).toList();
           _dirsPending = false;
         } else if (!hasFavs) {
-          // sin favoritos no hay nada que medir: el reloj de arena no aplica
           _dirsPending = false;
         }
       });
@@ -957,7 +965,6 @@ class _GhostMeterState extends State<_GhostMeter> {
       final String? v = await widget.s.monitorGhostLine();
       if (!mounted) return;
       if (v == null) {
-        // SSH aun no listo (o cayo): reintento en 2s, no en el tick de 30s
         _scheduleRetry();
         return;
       }
@@ -976,7 +983,6 @@ class _GhostMeterState extends State<_GhostMeter> {
       if (_hostId.isNotEmpty && p.length >= 3) {
         GhostMetricCache.put(_hostId, p[0], p[1], p[2]);
       }
-      // carpetas favoritas frescas desde la cache en cada ciclo (barato)
       final String? dv = await widget.s.ghostDirsPreview();
       if (mounted && dv != null) {
         setState(() {
@@ -984,8 +990,7 @@ class _GhostMeterState extends State<_GhostMeter> {
           _dirsPending = false;
         });
       }
-    } catch (e) {
-      MonitorLog.write('ghost-widget-error', 'fast: ' + e.toString());
+    } catch (_) {
       _scheduleRetry();
     }
   }
@@ -994,7 +999,6 @@ class _GhostMeterState extends State<_GhostMeter> {
     try {
       final String? v = await widget.s.monitorGhostDirs();
       if (!mounted) return;
-      MonitorLog.write('ghost-widget', 'slow recibio: ' + (v == null ? 'NULL' : v.length.toString() + 'ch -> ' + v.replaceAll('\n', ' | ')));
       if (v == null) {
         _scheduleRetry();
         return;
@@ -1003,11 +1007,22 @@ class _GhostMeterState extends State<_GhostMeter> {
         _dirs = v.split('\n').where((e) => e.trim().isNotEmpty).toList();
         _dirsPending = false;
       });
-      MonitorLog.write('ghost-widget', 'slow pintado: ' + _dirs.length.toString() + ' lineas');
-    } catch (e) {
-      MonitorLog.write('ghost-widget-error', 'slow: ' + e.toString());
+    } catch (_) {
       _scheduleRetry();
     }
+  }
+
+  // v2.21.1: arrastre
+  void _ensureDragPos() {
+    if (_dx != null) return;
+    try {
+      final rb = context.findRenderObject() as RenderBox?;
+      if (rb == null) return;
+      final tl = rb.localToGlobal(Offset.zero);
+      final scr = MediaQuery.of(context).size;
+      _dx = tl.dx.clamp(0.0, scr.width - 48);
+      _dy = tl.dy.clamp(0.0, scr.height - 48);
+    } catch (_) {}
   }
 
   static String _spark(List<double> vals) {
@@ -1045,19 +1060,13 @@ class _GhostMeterState extends State<_GhostMeter> {
               fontSize: 10,
               fontFamily: 'monospace')));
     }
-    // v2.20.3 MUY IMPORTANTE (owner): directorios favoritos ARRIBA.
-    // v2.20.4: conmutable desde el Monitor ('Directorios favoritos').
-    if (_cfg.showDirs && _dirs.isEmpty && _dirsPending) {
+    if (_dirs.isEmpty && _dirsPending && _cfg.showDirs) {
       rows.add(Text('⏳ midiendo carpetas...',
           style: TextStyle(
               color: Colors.white.withValues(alpha: op * 0.7),
               fontSize: 9,
               fontFamily: 'monospace')));
     }
-    // v2.20.6: unidades auditadas SIEMPRE visibles (no dependen del switch
-    // 'Directorios favoritos' — ese solo gobierna las carpetas). Bug: al
-    // anadir el switch en v2.20.4 las unidades quedaron atadas a el y con el
-    // switch off desaparecian carpetas Y servicios auditados.
     for (final d in _dirs) {
       final p = d.split('\t');
       if (p.length == 3 && p[0] == 'u') {
@@ -1094,7 +1103,25 @@ class _GhostMeterState extends State<_GhostMeter> {
       }
     }
     if (rows.isEmpty) return const SizedBox.shrink();
-    return IgnorePointer(
+    final panel = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onPanUpdate: (d) {
+        _ensureDragPos();
+        setState(() {
+          _dx = (_dx ?? 0) + d.delta.dx;
+          _dy = (_dy ?? 4) + d.delta.dy;
+          if (_dx! < 0) _dx = 0;
+          if (_dy! < 0) _dy = 0;
+        });
+      },
+      onPanEnd: (_) => GhostSettings.setPos(_dx, _dy),
+      onDoubleTap: () {
+        setState(() {
+          _dx = null;
+          _dy = null;
+        });
+        GhostSettings.setPos(null, null);
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         decoration: BoxDecoration(
@@ -1107,5 +1134,9 @@ class _GhostMeterState extends State<_GhostMeter> {
             children: rows),
       ),
     );
+    if (_dx == null || _dy == null) {
+      return Positioned(top: 4, right: 8, child: panel);
+    }
+    return Positioned(left: _dx!, top: _dy!, child: panel);
   }
 }

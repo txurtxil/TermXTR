@@ -11,6 +11,8 @@ import '../storage/app_paths.dart';
 
 class GhostSettings {
   static double opacity = 0.55;
+  static double? posX;
+  static double? posY;
 
   static Future<void> load() async {
     try {
@@ -18,6 +20,8 @@ class GhostSettings {
       if (await f.exists()) {
         final m = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
         opacity = ((m['opacity'] as num?)?.toDouble() ?? 0.55).clamp(0.15, 0.95);
+        posX = (m['posX'] as num?)?.toDouble();
+        posY = (m['posY'] as num?)?.toDouble();
       }
     } catch (_) {}
   }
@@ -81,3 +85,19 @@ class GhostMetricCache {
     await save();
   }
 }
+
+  /// Posicion arrastrada del widget (null = defecto arriba-derecha).
+  static Future<void> setPos(double? x, double? y) async {
+    posX = x;
+    posY = y;
+    try {
+      await load();
+      final f = File('${AppPaths.base}/ghost_settings.json');
+      final m = <String, dynamic>{'opacity': opacity};
+      if (x != null && y != null) {
+        m['posX'] = x;
+        m['posY'] = y;
+      }
+      await f.writeAsString(jsonEncode(m), flush: true);
+    } catch (_) {}
+  }
