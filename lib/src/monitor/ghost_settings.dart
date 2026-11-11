@@ -1,11 +1,11 @@
 // lib/src/monitor/ghost_settings.dart
-// v2.18.6: nitidez configurable de la sombra fantasma (opacidad del texto),
-// ajustable desde el Monitor y persistida en JSON.
+// v2.21.1: nitidez + POSICION ARRASTRABLE del widget fantasma, persistidas
+// en JSON (ghost_settings.json).
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'dart:io';
 
 import '../storage/app_paths.dart';
 
@@ -28,27 +28,42 @@ class GhostSettings {
 
   static Future<void> set(double v) async {
     opacity = v.clamp(0.15, 0.95);
+    await _save();
+  }
+
+  /// Posicion arrastrada (null = defecto arriba-derecha).
+  static Future<void> setPos(double? x, double? y) async {
+    posX = x;
+    posY = y;
+    await _save();
+  }
+
+  static Future<void> _save() async {
     try {
+      final m = <String, dynamic>{'opacity': opacity};
+      if (posX != null && posY != null) {
+        m['posX'] = posX;
+        m['posY'] = posY;
+      }
       await File('${AppPaths.base}/ghost_settings.json')
-          .writeAsString(jsonEncode({'opacity': opacity}), flush: true);
+          .writeAsString(jsonEncode(m), flush: true);
     } catch (_) {}
   }
 }
 
-/// v2.20.2: bus manual de refresco de la sombra. El boton "Recargar" del
-/// Monitor hace bump() y el widget fantasma reacciona (preview + polls).
+/// Bus manual de refresco de la sombra. El boton "Recargar" del Monitor
+/// hace bump() y el widget fantasma reacciona (preview + polls).
 class GhostRefreshBus {
   static final ValueNotifier<int> n = ValueNotifier<int>(0);
   static void bump() => n.value++;
 }
 
-/// v2.20.3: cache de las metricas de la sombra (carga/disco/mem) por host:
-/// la sombra pinta AL INSTANTE lo ultimo conocido aunque el SSH aun este
-/// conectando, y el poll en vivo lo refresca segundos despues.
+
+/// v2.20.3: cache de metricas de la sombra (carga/disco/mem) por host.
 class GhostMetricCache {
   static Map<String, dynamic> _m = {};
 
-  static File get _f => File('\${AppPaths.base}/ghost_metric_cache.json');
+  static File get _f => File('${AppPaths.base}/ghost_metric_cache.json');
 
   static Future<void> load() async {
     try {
@@ -64,8 +79,6 @@ class GhostMetricCache {
     } catch (_) {}
   }
 
-  /// Devuelve las tres lineas crudas (carga, disco, mem) como las espera
-  /// el widget, o null si no hay nada guardado para ese host.
   static Future<String?> get(String hostId) async {
     await load();
     final e = _m[hostId] as Map<String, dynamic>?;
@@ -85,19 +98,3 @@ class GhostMetricCache {
     await save();
   }
 }
-
-  /// Posicion arrastrada del widget (null = defecto arriba-derecha).
-  static Future<void> setPos(double? x, double? y) async {
-    posX = x;
-    posY = y;
-    try {
-      await load();
-      final f = File('${AppPaths.base}/ghost_settings.json');
-      final m = <String, dynamic>{'opacity': opacity};
-      if (x != null && y != null) {
-        m['posX'] = x;
-        m['posY'] = y;
-      }
-      await f.writeAsString(jsonEncode(m), flush: true);
-    } catch (_) {}
-  }
