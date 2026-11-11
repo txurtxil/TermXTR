@@ -177,32 +177,33 @@ class _MapScreenState extends State<MapScreen>
       }
     }
     if (best == null) return;
+    final e = best;
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.card,
       builder: (ctx) => Padding(
         padding: const EdgeInsets.all(16),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('${best.fromName}  →  ${best.toName}',
+          Text('${e.fromName}  →  ${e.toName}',
               style: const TextStyle(
                   color: AppColors.textHi,
                   fontWeight: FontWeight.w600,
                   fontSize: 15)),
           const SizedBox(height: 8),
           Row(children: [
-            Icon(Icons.cable, size: 16, color: _edgeColor(best)),
+            Icon(Icons.cable, size: 16, color: _edgeColor(e)),
             const SizedBox(width: 6),
-            Text('${best.service} · puerto ${best.port}',
-                style: TextStyle(color: _edgeColor(best), fontSize: 13)),
+            Text('${e.service} · puerto ${e.port}',
+                style: TextStyle(color: _edgeColor(e), fontSize: 13)),
           ]),
-          if (best.process != null && best.process!.isNotEmpty)
+          if (e.process != null && e.process!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Row(children: [
                 const Icon(Icons.terminal, size: 14, color: AppColors.textLo),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text(best.process!,
+                  child: Text(e.process!,
                       style:
                           const TextStyle(color: AppColors.textLo, fontSize: 12)),
                 ),
@@ -217,7 +218,7 @@ class _MapScreenState extends State<MapScreen>
                   style: TextStyle(color: AppColors.textLo, fontSize: 12)),
             ]),
           ),
-          Text('×${best.count}',
+          Text('×${e.count}',
               style: const TextStyle(color: AppColors.textHi, fontSize: 18)),
         ]),
       ),
