@@ -465,7 +465,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
                 color: e.value == 'active' ? _C.ok : _C.err),
             const SizedBox(width: 6),
             Expanded(
-                child: Text('\${e.key} — \${e.value}',
+                child: Text('${e.key} — ${e.value}',
                     style: TextStyle(
                         color: e.value == 'active' ? _C.textLo : _C.err,
                         fontSize: 12))),
