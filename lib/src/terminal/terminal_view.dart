@@ -913,8 +913,8 @@ class _GhostMeterState extends State<_GhostMeter> {
       final id = h?.id?.toString() ?? '';
       if (id.isEmpty) return;
       final mc = await GhostMetricCache.get(id);
-      final dv = await widget.s.ghostDirsPreview();
-      final hasFavs = await widget.s.hasGhostFavorites();
+      final String? dv = await widget.s.ghostDirsPreview();
+      final bool hasFavs = await widget.s.hasGhostFavorites();
       MonitorLog.write('ghost-paint', 'mc=\${mc == null ? "null" : mc.length.toString() + "ch"} dv=\${dv == null ? "null" : dv.length.toString() + "ch"} favs=\$hasFavs');
       if (!mounted) return;
       setState(() {
@@ -954,7 +954,7 @@ class _GhostMeterState extends State<_GhostMeter> {
 
   Future<void> _pollFast() async {
     try {
-      final v = await widget.s.monitorGhostLine();
+      final String? v = await widget.s.monitorGhostLine();
       if (!mounted) return;
       if (v == null) {
         // SSH aun no listo (o cayo): reintento en 2s, no en el tick de 30s
@@ -977,7 +977,7 @@ class _GhostMeterState extends State<_GhostMeter> {
         GhostMetricCache.put(_hostId, p[0], p[1], p[2]);
       }
       // carpetas favoritas frescas desde la cache en cada ciclo (barato)
-      final dv = await widget.s.ghostDirsPreview();
+      final String? dv = await widget.s.ghostDirsPreview();
       if (mounted && dv != null) {
         setState(() {
           _dirs = dv.split('\n').where((e) => e.trim().isNotEmpty).toList();
@@ -992,7 +992,7 @@ class _GhostMeterState extends State<_GhostMeter> {
 
   Future<void> _pollSlow() async {
     try {
-      final v = await widget.s.monitorGhostDirs();
+      final String? v = await widget.s.monitorGhostDirs();
       if (!mounted) return;
       MonitorLog.write('ghost-widget', 'slow recibio: ' + (v == null ? 'NULL' : v.length.toString() + 'ch -> ' + v.replaceAll('\n', ' | ')));
       if (v == null) {
