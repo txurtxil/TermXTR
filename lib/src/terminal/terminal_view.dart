@@ -881,7 +881,7 @@ class _GhostMeterState extends State<_GhostMeter> {
     _pollSlow();
     _tFast = Timer.periodic(const Duration(seconds: 30), (_) => _pollFast());
     _tSlow = Timer.periodic(const Duration(minutes: 3), (_) => _pollSlow());
-    _pendingTimeout = Timer(const Duration(seconds: 90), () {
+    _pendingTimeout = Timer(const Duration(minutes: 3), () {
       if (mounted) setState(() => _dirsPending = false);
     });
     GhostRefreshBus.n.addListener(_onBus);

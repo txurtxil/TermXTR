@@ -11,6 +11,7 @@ import '../ssh/ssh_credentials_store.dart';
 import '../ssh/ssh_hosts_service.dart';
 import '../monitor/monitor_service.dart';
 import '../monitor/ghost_config.dart';
+import '../monitor/monitor_log.dart';
 import '../sftp/sftp_favorites_service.dart';
 import '../storage/app_paths.dart';
 import 'terminal_recorder.dart';
@@ -166,6 +167,8 @@ class TerminalSession {
       }
     }
     flush(cur, null);
+    MonitorLog.write('ghost-dirs',
+        'favs=' + favs.join(' ') + ' -> ' + lines.length.toString() + ' lineas');
     // v2.18.8: unidades auditadas (config del widget): 'u\t<unidad>\t<estado>'
     try {
       final cfg = await GhostConfigStore.forHost(sourceHost.id);

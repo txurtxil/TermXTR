@@ -213,7 +213,8 @@ class MonitorService {
           oracle: OracleInfo(present: false),
           fs: <FsInfo>[],
           dirs: <DirInfo>[],
-          failedNames: <String>[]);
+          failedNames: <String>[],
+          unitStates: <String, String>{});
       final cfg = await GhostConfigStore.forHost(host.id);
 
       // v2.18.8: el printf del awk lleva barra-n (sin ella el marcador
