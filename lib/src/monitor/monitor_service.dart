@@ -226,8 +226,7 @@ df -hP -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs
 echo __TX_LOAD__
 cut -d' ' -f1-3 /proc/loadavg
 echo __TX_MEM__
-awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{printf "%d
-",(t-a)/t*100}' /proc/meminfo
+awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{printf "%d\n",(t-a)/t*100}' /proc/meminfo
 echo __TX_FAIL__
 systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $2}' | head -5
 echo __TX_ACTIVE__
