@@ -1047,13 +1047,13 @@ class _GhostMeterState extends State<_GhostMeter> {
       final p = d.split('\t');
       if (p.length == 3 && p[0] == 'u') {
         final ok = p[2] == 'active';
-        rows.add(Text('\${ok ? 'ok' : 'KO'} \${p[1]}',
+        rows.add(Text('${ok ? 'ok' : 'KO'} ${p[1]}',
             style: TextStyle(
                 color: Colors.white.withValues(alpha: ok ? op * 0.85 : op),
                 fontSize: 9,
                 fontFamily: 'monospace')));
       } else if (p.length >= 2) {
-        rows.add(Text('\${p[0]} \${p[1]}',
+        rows.add(Text('${p[0]} ${p[1]}',
             style: TextStyle(
                 color: Colors.white.withValues(alpha: op * 0.85),
                 fontSize: 9,
@@ -1064,14 +1064,14 @@ class _GhostMeterState extends State<_GhostMeter> {
       final spLoad = _spark(_loads);
       final spMem = _spark(_mems);
       if (spLoad.isNotEmpty) {
-        rows.add(Text('carga \$spLoad',
+        rows.add(Text('carga $spLoad',
             style: TextStyle(
                 color: Colors.white.withValues(alpha: op * 0.75),
                 fontSize: 8,
                 fontFamily: 'monospace')));
       }
       if (spMem.isNotEmpty) {
-        rows.add(Text('mem   \$spMem',
+        rows.add(Text('mem   $spMem',
             style: TextStyle(
                 color: Colors.white.withValues(alpha: op * 0.75),
                 fontSize: 8,

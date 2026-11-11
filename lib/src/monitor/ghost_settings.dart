@@ -66,7 +66,7 @@ class GhostMetricCache {
     await load();
     final e = _m[hostId] as Map<String, dynamic>?;
     if (e == null) return null;
-    return '\${e['l']}\n\${e['d']}\n\${e['m']}';
+    return [e['l'], e['d'], e['m']].join(String.fromCharCode(10));
   }
 
   static Future<void> put(
