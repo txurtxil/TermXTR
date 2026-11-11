@@ -20,6 +20,7 @@ class ConnMapScreen extends StatefulWidget {
 class _ConnMapScreenState extends State<ConnMapScreen> {
   List<ConnEdge>? _edges;
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -33,7 +34,7 @@ class _ConnMapScreenState extends State<ConnMapScreen> {
       final e = await ConnMapService.collect(widget.hosts);
       if (mounted) setState(() { _edges = e; _loading = false; });
     } catch (err) {
-      if (mounted) setState(() { _edges = []; _loading = false; });
+      if (mounted) setState(() { _edges = []; _loading = false; _error = err.toString(); });
     }
   }
 
@@ -56,7 +57,16 @@ class _ConnMapScreenState extends State<ConnMapScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
-          : _edges == null || _edges!.isEmpty
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text('Error recolectando: ' + _error!,
+                        style: const TextStyle(color: AppColors.err),
+                        textAlign: TextAlign.center),
+                  ),
+                )
+              : _edges == null || _edges!.isEmpty
               ? const Center(
                   child: Padding(
                     padding: EdgeInsets.all(24),

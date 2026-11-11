@@ -1,7 +1,7 @@
 // lib/src/monitor/connmap_service.dart
-// v2.23.1: mapa de CONEXIONES — aristas reales entre hosts + nodo "externo"
-// (todo lo que no es un host configurado: el movil, internet...). Fase 1:
-// ss -tnp state established (fallback netstat). Fase 2: v$session de Oracle.
+// v2.23.2: parser robusto - algunos ss (con filtro 'state established') NO
+// imprimen la columna State: se buscan los DOS primeros tokens con forma
+// IP:puerto en vez de indices fijos. Timeout de conexion corto (6s).
 
 import 'dart:convert';
 
@@ -58,6 +58,13 @@ class ConnMapService {
     return i > 0 ? (int.tryParse(addr.substring(i + 1)) ?? 0) : 0;
   }
 
+  static bool _isAddr(String t) {
+    return t.contains(':') &&
+        t.length > 4 &&
+        RegExp(r'^[0-9]').hasMatch(t) &&
+        !t.startsWith('users:');
+  }
+
   static Future<List<ConnEdge>> collect(List<SshHost> hosts) async {
     final known = <String, SshHost>{};
     for (final h in hosts) {
@@ -66,6 +73,7 @@ class ConnMapService {
     const extName = '· externo ·';
     const extIp = '<ext>';
     final edges = <String, ConnEdge>{};
+    final failures = <String>[];
 
     void addEdge(String fromIp, String fromName, String toIp, String toName,
         int port, String? process, int count) {
@@ -92,21 +100,30 @@ class ConnMapService {
 
     for (final h in hosts) {
       try {
-        final conn = await SshConnector.connect(h);
+        final conn = await SshConnector.connect(h,
+            timeout: const Duration(seconds: 6));
         try {
           final raw = utf8.decode(
               await conn.c
                   .run("LC_ALL=C; ss -tnp state established 2>/dev/null || "
                       "netstat -tnp 2>/dev/null | grep ESTABLISHED")
-                  .timeout(const Duration(seconds: 15)),
+                  .timeout(const Duration(seconds: 12)),
               allowMalformed: true);
+          var parsed = 0;
           for (final line in raw.split('\n')) {
-            final t = line.trim().split(RegExp(r'\s+'));
-            if (t.length < 5) continue;
-            final local = t[3];
-            final remote = t[4];
-            if (!local.contains(':') || !remote.contains(':')) continue;
-            if (!RegExp(r'^[0-9]').hasMatch(local)) continue; // solo IPv4
+            String? local;
+            String? remote;
+            for (final tok in line.trim().split(RegExp(r'\s+'))) {
+              if (_isAddr(tok)) {
+                if (local == null) {
+                  local = tok;
+                } else {
+                  remote = tok;
+                  break;
+                }
+              }
+            }
+            if (local == null || remote == null) continue;
             final lip = _ipOf(local);
             final rip = _ipOf(remote);
             final lport = _portOf(local);
@@ -116,15 +133,14 @@ class ConnMapService {
             final proc = _processOf(line);
             final lsvc = kServiceByPort.containsKey(lport);
             final rsvc = kServiceByPort.containsKey(rport);
+            parsed++;
             if (lh != null && rh != null) {
-              // arista interna: el dueno del puerto de servicio es el destino
               if (rsvc || !lsvc) {
                 addEdge(lip, lh.name, rip, rh.name, rport, proc, 1);
               } else {
                 addEdge(rip, rh.name, lip, lh.name, lport, proc, 1);
               }
             } else if (lh != null) {
-              // movil/internet <-> host conocido (agregado como "externo")
               if (lsvc) {
                 addEdge(extIp, extName, lip, lh.name, lport, proc, 1);
               } else if (rsvc) {
@@ -138,7 +154,8 @@ class ConnMapService {
               }
             }
           }
-          // Fase 2: Oracle v$session (aristas DB con nombre de cliente)
+          MonitorLog.write(
+              'connmap', h.name + ': ' + parsed.toString() + ' lineas');
           try {
             const oh = r"""
 sqlplus -s / as sysdba <<'EOS' 2>/dev/null
@@ -147,7 +164,7 @@ select machine||'|'||program||'|'||count(*) from v$session where type='USER' gro
 EOS
 """;
             final oraw = utf8.decode(
-                await conn.c.run(oh).timeout(const Duration(seconds: 10)),
+                await conn.c.run(oh).timeout(const Duration(seconds: 8)),
                 allowMalformed: true);
             for (final line in oraw.split('\n')) {
               final p = line.trim().split('|');
@@ -167,18 +184,24 @@ EOS
                 }
               }
               if (ip == null) continue;
-              addEdge(ip, known[ip]!.name, h.hostname, h.name, 1521, program, n);
+              addEdge(
+                  ip, known[ip]!.name, h.hostname, h.name, 1521, program, n);
             }
           } catch (_) {}
         } finally {
           conn.close();
         }
       } catch (e) {
-        MonitorLog.write('connmap', 'fallo en ${h.name}: ${e.toString().substring(0, 80)}');
+        failures.add(h.name);
+        MonitorLog.write('connmap',
+            'fallo en ${h.name}: ${e.toString().substring(0, 60)}');
       }
     }
     final out = edges.values.toList()
       ..sort((a, b) => b.count.compareTo(a.count));
+    if (out.isEmpty && failures.isNotEmpty) {
+      throw StateError('sin datos: fallo en ' + failures.join(', '));
+    }
     return out;
   }
 
