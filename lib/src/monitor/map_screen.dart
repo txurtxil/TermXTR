@@ -1,8 +1,7 @@
 // lib/src/monitor/map_screen.dart
-// v2.24.0: MAPA UNIFICADO — unifica "Mapa de hosts" y "Mapa de conexiones".
-// Grafo: nodos arrastrables (posicion persistida), aristas etiquetadas con
-// servicio/puerto/conteo, grosor proporcional, colores por familia. Pestana
-// Lista: la tabla de aristas. Nodos: estado (sondeo), top servicios.
+// v2.24.1: MAPA UNIFICADO — aristas con brillo LED por tipo de servicio,
+// toque en arista -> ficha de detalle, leyenda de colores, nodos con margen
+// anti-corte, arrastre persistido. Pestana Lista como vista complementaria.
 
 import 'dart:convert';
 import 'dart:io';
@@ -70,14 +69,12 @@ class _MapScreenState extends State<MapScreen>
       }
     } catch (_) {}
     final List<String> failures = [];
-    // aristas (recolecta interna, loguea fallos por host)
     List<ConnEdge> edges;
     try {
       edges = await ConnMapService.collect(widget.hosts);
     } catch (e) {
       edges = const [];
     }
-    // sondeo paralelo de estado
     final upMap = <String, bool>{};
     await Future.wait(widget.hosts.map((h) async {
       try {
@@ -97,8 +94,7 @@ class _MapScreenState extends State<MapScreen>
         ..addAll(edges);
       _nodes.clear();
       for (final h in widget.hosts) {
-        _nodes.add(_Node(h.hostname, h.name,
-            up: upMap[h.hostname] ?? false)
+        _nodes.add(_Node(h.hostname, h.name, up: upMap[h.hostname] ?? false)
           ..fx = ((_layout[h.hostname]?['fx']) as num?)?.toDouble() ?? -1
           ..fy = ((_layout[h.hostname]?['fy']) as num?)?.toDouble() ?? -1);
       }
@@ -112,7 +108,6 @@ class _MapScreenState extends State<MapScreen>
           ? 'fallo en: ' + failures.join(', ')
           : null;
     });
-    // layout circular para los que no tienen posicion guardada
     WidgetsBinding.instance.addPostFrameCallback((_) => _autoLayout());
   }
 
@@ -127,8 +122,8 @@ class _MapScreenState extends State<MapScreen>
     pend.sort((a, b) => b.name.compareTo(a.name));
     for (var i = 0; i < pend.length; i++) {
       final ang = -pi / 2 + (2 * pi * i / pend.length);
-      pend[i].fx = ((cx + r * cos(ang)) / size.width).clamp(0.08, 0.92);
-      pend[i].fy = ((cy + r * sin(ang)) / size.height).clamp(0.10, 0.90);
+      pend[i].fx = ((cx + r * cos(ang)) / size.width).clamp(0.12, 0.88);
+      pend[i].fy = ((cy + r * sin(ang)) / size.height).clamp(0.12, 0.88);
     }
     setState(() {});
   }
@@ -143,20 +138,90 @@ class _MapScreenState extends State<MapScreen>
     } catch (_) {}
   }
 
-  _Node? _nodeById(String id) {
-    for (final n in _nodes) {
-      if (n.id == id) return n;
-    }
-    return null;
-  }
-
   Color _edgeColor(ConnEdge e) {
-    if (e.port == 1521) return const Color(0xFFFF6B6B);
+    if (e.port == 1521) return const Color(0xFFFF5C5C);
     if (e.service.contains('Tomcat')) return const Color(0xFFFFA94D);
     if (e.service.contains('Nagios')) return const Color(0xFF69DB7C);
-    if (e.port == 22) return AppColors.textLo;
-    if (e.port == 443 || e.port == 80) return AppColors.accent;
-    return AppColors.textLo;
+    if (e.service.contains('rsyslog')) return const Color(0xFF74C0FC);
+    if (e.port == 22) return const Color(0xFFB2B2B8);
+    if (e.port == 443 || e.port == 80) return const Color(0xFF5E9BD6);
+    return const Color(0xFFB2B2B8);
+  }
+
+  Offset _midOf(ConnEdge e, Size size) {
+    final a = _posOf(e.fromIp, size);
+    final b = _posOf(e.toIp, size);
+    final mid = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
+    final ctrl = Offset(mid.dx, mid.dy - 18);
+    // punto medio de una curva cuadratica: 0.25a + 0.5c + 0.25b
+    return Offset(0.25 * a.dx + 0.5 * ctrl.dx + 0.25 * b.dx,
+        0.25 * a.dy + 0.5 * ctrl.dy + 0.25 * b.dy);
+  }
+
+  Offset _posOf(String id, Size size) {
+    for (final n in _nodes) {
+      if (n.id == id) return Offset(n.fx * size.width, n.fy * size.height);
+    }
+    return Offset(size.width / 2, size.height / 2);
+  }
+
+  void _onTapGraph(TapDownDetails d, Size size) {
+    ConnEdge? best;
+    var bd = 34.0;
+    for (final e in _edges) {
+      final m = _midOf(e, size);
+      final dist = (m - d.localPosition).distance;
+      if (dist < bd) {
+        bd = dist;
+        best = e;
+      }
+    }
+    if (best == null) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.card,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('${best.fromName}  →  ${best.toName}',
+              style: const TextStyle(
+                  color: AppColors.textHi,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15)),
+          const SizedBox(height: 8),
+          Row(children: [
+            Icon(Icons.cable, size: 16, color: _edgeColor(best)),
+            const SizedBox(width: 6),
+            Text('${best.service} · puerto ${best.port}',
+                style: TextStyle(color: _edgeColor(best), fontSize: 13)),
+          ]),
+          if (best.process != null && best.process!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(children: [
+                const Icon(Icons.terminal, size: 14, color: AppColors.textLo),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(best.process!,
+                      style:
+                          const TextStyle(color: AppColors.textLo, fontSize: 12)),
+                ),
+              ]),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(children: const [
+              Icon(Icons.repeat, size: 14, color: AppColors.textLo),
+              SizedBox(width: 6),
+              Text('conexiones observadas (muestreo en vivo)',
+                  style: TextStyle(color: AppColors.textLo, fontSize: 12)),
+            ]),
+          ),
+          Text('×${best.count}',
+              style: const TextStyle(color: AppColors.textHi, fontSize: 18)),
+        ]),
+      ),
+    );
   }
 
   @override
@@ -206,28 +271,30 @@ class _MapScreenState extends State<MapScreen>
     }
     return LayoutBuilder(
       builder: (ctx, c) {
-        final pos = <String, Offset>{};
-        for (final n in _nodes) {
-          pos[n.id] = Offset(n.fx * c.maxWidth, n.fy * c.maxHeight);
-        }
+        final size = Size(c.maxWidth, c.maxHeight);
+        final mx = 64.0 / size.width;
+        final my = 46.0 / size.height;
         return Stack(
           children: [
             Positioned.fill(
-              child: CustomPaint(
-                painter: _EdgePainter(_edges, pos, _nodeById, _edgeColor),
+              child: GestureDetector(
+                onTapDown: (d) => _onTapGraph(d, size),
+                child: CustomPaint(
+                  painter: _EdgePainter(_edges, _nodes, _edgeColor),
+                ),
               ),
             ),
             for (final n in _nodes)
               Positioned(
-                left: pos[n.id]!.dx - 52,
-                top: pos[n.id]!.dy - 22,
+                left: n.fx * size.width - 52,
+                top: n.fy * size.height - 22,
                 child: GestureDetector(
                   onPanUpdate: (d) {
                     setState(() {
-                      n.fx = ((n.fx * c.maxWidth + d.delta.dx) / c.maxWidth)
-                          .clamp(0.06, 0.94);
-                      n.fy = ((n.fy * c.maxHeight + d.delta.dy) / c.maxHeight)
-                          .clamp(0.06, 0.94);
+                      n.fx = ((n.fx * size.width + d.delta.dx) / size.width)
+                          .clamp(mx, 1 - mx);
+                      n.fy = ((n.fy * size.height + d.delta.dy) / size.height)
+                          .clamp(my, 1 - my);
                     });
                   },
                   onPanEnd: (_) => _saveLayout(),
@@ -236,12 +303,20 @@ class _MapScreenState extends State<MapScreen>
                     padding:
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
                     decoration: BoxDecoration(
-                      color: n.external
-                          ? AppColors.cardAlt
-                          : (n.up ? AppColors.card : AppColors.cardAlt),
+                      color: n.external ? AppColors.cardAlt : AppColors.card,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                          color: n.up ? AppColors.ok : AppColors.border),
+                        color: n.up ? AppColors.ok : AppColors.border,
+                        width: n.up ? 1.4 : 1,
+                      ),
+                      boxShadow: n.up
+                          ? [
+                              BoxShadow(
+                                color: AppColors.ok.withValues(alpha: 0.25),
+                                blurRadius: 8,
+                              )
+                            ]
+                          : null,
                     ),
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                       Row(children: [
@@ -267,6 +342,21 @@ class _MapScreenState extends State<MapScreen>
                   ),
                 ),
               ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 8,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  _LegendChip('Oracle', Color(0xFFFF5C5C)),
+                  _LegendChip('Tomcat', Color(0xFFFFA94D)),
+                  _LegendChip('Nagios', Color(0xFF69DB7C)),
+                  _LegendChip('SSH', Color(0xFFB2B2B8)),
+                  _LegendChip('Web', Color(0xFF5E9BD6)),
+                ],
+              ),
+            ),
           ],
         );
       },
@@ -325,36 +415,89 @@ class _MapScreenState extends State<MapScreen>
   }
 }
 
+class _LegendChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _LegendChip(this.label, this.color);
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.7), blurRadius: 6)],
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(color: AppColors.textLo, fontSize: 9)),
+      ]),
+    );
+  }
+}
+
 class _EdgePainter extends CustomPainter {
   final List<ConnEdge> edges;
-  final Map<String, Offset> pos;
-  final _Node? Function(String) nodeById;
+  final List<_Node> nodes;
   final Color Function(ConnEdge) colorOf;
-  _EdgePainter(this.edges, this.pos, this.nodeById, this.colorOf);
+  _EdgePainter(this.edges, this.nodes, this.colorOf);
+
+  Offset _posOf(String id, Size size) {
+    for (final n in nodes) {
+      if (n.id == id) return Offset(n.fx * size.width, n.fy * size.height);
+    }
+    return Offset(size.width / 2, size.height / 2);
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
     for (final e in edges) {
-      final a = pos[e.fromIp];
-      final b = pos[e.toIp];
-      if (a == null || b == null) continue;
+      final a = _posOf(e.fromIp, size);
+      final b = _posOf(e.toIp, size);
       final color = colorOf(e);
-      final stroke = (1.2 + min(e.count, 12) * 0.28);
+      final stroke = 1.4 + min(e.count, 12) * 0.3;
       final mid = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
       final ctrl = Offset(mid.dx, mid.dy - 18);
       final path = Path()
         ..moveTo(a.dx, a.dy)
         ..quadraticBezierTo(ctrl.dx, ctrl.dy, b.dx, b.dy);
+      // brillo LED: halo ancho suave + nucleo brillante
       canvas.drawPath(
           path,
           Paint()
-            ..color = color.withValues(alpha: 0.65)
+            ..color = color.withValues(alpha: 0.10)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = stroke * 4.5
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
+      canvas.drawPath(
+          path,
+          Paint()
+            ..color = color.withValues(alpha: 0.30)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = stroke * 2
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2));
+      canvas.drawPath(
+          path,
+          Paint()
+            ..color = color.withValues(alpha: 0.95)
             ..style = PaintingStyle.stroke
             ..strokeWidth = stroke);
-      // flecha en destino
+      // flecha
       final dir = (b - ctrl);
       final d2 = Offset.fromDirection(dir.direction, 14);
-      final p = Paint()..color = color.withValues(alpha: 0.8);
+      final p = Paint()
+        ..color = color
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
       canvas.drawPath(
           Path()
             ..moveTo(b.dx, b.dy)
@@ -366,16 +509,20 @@ class _EdgePainter extends CustomPainter {
       final tp = TextPainter(
         text: TextSpan(
           text: '${e.service} ×${e.count}',
-          style: TextStyle(color: color, fontSize: 9),
+          style: TextStyle(
+              color: color, fontSize: 9, fontWeight: FontWeight.w600),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
+      final labelMid = Offset(0.25 * a.dx + 0.5 * ctrl.dx + 0.25 * b.dx,
+          0.25 * a.dy + 0.5 * ctrl.dy + 0.25 * b.dy);
       final pill = RRect.fromRectAndRadius(
-          Rect.fromCenter(center: mid, width: tp.width + 10, height: 16),
+          Rect.fromCenter(
+              center: labelMid, width: tp.width + 10, height: 16),
           const Radius.circular(8));
       canvas.drawRRect(
-          pill, Paint()..color = AppColors.bg.withValues(alpha: 0.85));
-      tp.paint(canvas, Offset(mid.dx - tp.width / 2, mid.dy - 8));
+          pill, Paint()..color = AppColors.bg.withValues(alpha: 0.88));
+      tp.paint(canvas, Offset(labelMid.dx - tp.width / 2, labelMid.dy - 8));
     }
   }
 

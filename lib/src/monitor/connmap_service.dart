@@ -173,16 +173,7 @@ EOS
               final program = p[1].trim();
               final n = int.tryParse(p[2].trim()) ?? 1;
               if (machine.isEmpty) continue;
-              String? ip = known.containsKey(machine) ? machine : null;
-              if (ip == null) {
-                for (final e in known.entries) {
-                  if (machine.contains(e.value.name) ||
-                      e.value.name.contains(machine)) {
-                    ip = e.key;
-                    break;
-                  }
-                }
-              }
+              String? ip = _matchMachine(machine, known);
               if (ip == null) continue;
               addEdge(
                   ip, known[ip]!.name, h.hostname, h.name, 1521, program, n);
@@ -205,6 +196,33 @@ EOS
       throw StateError('sin datos: fallo en ' + failures.join(', '));
     }
     return out;
+  }
+
+  /// Empareja el nombre de maquina de v\$session (p. ej. 'tomcat1.midom')
+  /// con un host configurado, por IP exacta, nombre exacto o prefijo.
+  static String? _matchMachine(String machine, Map<String, SshHost> known) {
+    if (known.containsKey(machine)) return machine;
+    final m = machine.toLowerCase();
+    final first = m.split('.').first;
+    for (final e in known.entries) {
+      final hn = e.value.name.toLowerCase();
+      final hh = e.key.toLowerCase();
+      if (m == hn || m == hh) return e.key;
+      if (hn.isNotEmpty && (m.startsWith(hn) || hn.startsWith(m))) {
+        return e.key;
+      }
+      if (first.isNotEmpty &&
+          hn.isNotEmpty &&
+          (first == hn || hn.startsWith(first) || first.startsWith(hn))) {
+        return e.key;
+      }
+      if (first.isNotEmpty &&
+          hh.isNotEmpty &&
+          (first == hh || hh.startsWith(first))) {
+        return e.key;
+      }
+    }
+    return null;
   }
 
   static String? _processOf(String line) {
