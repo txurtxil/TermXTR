@@ -15,6 +15,7 @@ import '../monitor/monitor_screen.dart';
 import 'password_change_screen.dart';
 import 'router_info_screen.dart';
 import 'identity_screen.dart';
+import '../ui/about_screen.dart';
 import 'identity_service.dart';
 import 'snippets_screen.dart';
 import 'ssh_server_screen.dart';
@@ -415,6 +416,7 @@ class _HostsScreenState extends State<HostsScreen> {
               }
               if (val == 'export') _exportHosts();
               if (val == 'import') _importHosts();
+              if (val == 'about') Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen()));
             },
             itemBuilder: (ctx) => [
               const PopupMenuItem(value: 'passwd', child: ListTile(dense: true, leading: Icon(Icons.key, color: _C.textLo), title: Text('Cambiar contraseña', style: TextStyle(color: _C.textHi)))),
@@ -429,6 +431,7 @@ class _HostsScreenState extends State<HostsScreen> {
               const PopupMenuItem(value: 'map', child: ListTile(dense: true, leading: Icon(Icons.map, color: _C.textLo), title: Text('Mapa de hosts', style: TextStyle(color: _C.textHi)))),
               const PopupMenuItem(value: 'export', child: ListTile(dense: true, leading: Icon(Icons.upload, color: _C.textLo), title: Text('Exportar hosts a fichero', style: TextStyle(color: _C.textHi)))),
               const PopupMenuItem(value: 'import', child: ListTile(dense: true, leading: Icon(Icons.download, color: _C.textLo), title: Text('Importar hosts de fichero', style: TextStyle(color: _C.textHi)))),
+              const PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline, color: _C.textLo), title: Text('Acerca de', style: TextStyle(color: _C.textHi)))),
             ],
           ),
         ],

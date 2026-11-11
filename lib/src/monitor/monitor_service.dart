@@ -76,6 +76,68 @@ String dirCacheAge(String hostId, String path) {
   }
 }
 
+// v2.20.0: historial local de metricas (JSONL en el movil). Cada fetch
+// guarda % de discos y bytes de directorios -> tendencias por fechas sin
+// instalar nada en el servidor. Rotacion suave a 2 MB.
+File get _samplesFile => File('\${AppPaths.base}/monitor_samples.jsonl');
+
+Future<void> sampleAppend(
+    String hostId, Map<String, double> mounts, Map<String, double> dirs) async {
+  try {
+    final rec = jsonEncode({
+      'ts': DateTime.now().millisecondsSinceEpoch,
+      'h': hostId,
+      'm': mounts,
+      'd': dirs,
+    });
+    final f = _samplesFile;
+    await f.writeAsString('\$rec\n', mode: FileMode.append, flush: true);
+    if (await f.length() > 2 * 1024 * 1024) {
+      final lines = await f.readAsLines();
+      await f.writeAsString(lines.sublist(lines.length ~/ 2).join('\n') + '\n');
+    }
+  } catch (_) {}
+}
+
+Future<List<Map<String, dynamic>>> sampleQuery(
+    String hostId, String kind, String key, int sinceMs) async {
+  try {
+    final f = _samplesFile;
+    if (!await f.exists()) return const [];
+    final byTs = <int, double>{};
+    for (final l in await f.readAsLines()) {
+      try {
+        final r = jsonDecode(l) as Map<String, dynamic>;
+        if (r['h'] != hostId) continue;
+        final ts = r['ts'] as int;
+        if (ts < sinceMs) continue;
+        final v = (r[kind == 'mount' ? 'm' : 'd'] as Map<String, dynamic>?)?[key];
+        if (v is num) byTs[ts] = v.toDouble();
+      } catch (_) {}
+    }
+    final ts = byTs.keys.toList()..sort();
+    return [for (final k in ts) {'ts': k, 'v': byTs[k]}];
+  } catch (_) {
+    return const [];
+  }
+}
+
+Future<void> sampleBackfill(
+    String hostId, String path, Map<int, double> monthCumBytes) async {
+  for (final e in monthCumBytes.entries) {
+    try {
+      final rec = jsonEncode({
+        'ts': e.key,
+        'h': hostId,
+        'd': {path: e.value},
+        'backfilled': true,
+      });
+      await _samplesFile.writeAsString('\$rec\n',
+          mode: FileMode.append, flush: true);
+    } catch (_) {}
+  }
+}
+
 class _Conn {
   final SSHClient c;
   final SSHSocket s;
@@ -187,6 +249,8 @@ echo __TX_END__
       MonitorLog.write('core', coreRaw.trim());
       _parseCore(snap, coreRaw);
       snap.failedUnits = snap.failedNames.length;
+      await sampleAppend(host.id,
+          {for (final f in snap.fs) f.mount: f.pct}, const {});
 
       if (snap.oracle.present) {
         const oh = r"""
@@ -242,7 +306,47 @@ EOS
       for (final d in dirs) {
         if (!d.slow) await dirCachePut(host.id, d.path, d.bytes);
       }
+      await sampleAppend(host.id, const {},
+          {for (final d in dirs) if (!d.slow) d.path: d.bytes});
       return dirs;
+    } finally {
+      conn.close();
+    }
+  }
+
+  /// v2.20.0: reconstruye el historial de UNA carpeta desde las fechas de
+  /// modificacion de sus ficheros (un solo paseo de find; suma por mes).
+  /// Devuelve {ts_inicio_de_mes: bytes_acumulados} de los ultimos 12 meses.
+  static Future<Map<int, double>> fetchDirHistory(
+      SshHost host, String path) async {
+    final conn = await _connect(host);
+    try {
+      final safe = path.replaceAll("'", "'\\''");
+      final cmd = "LC_ALL=C; find '" + safe +
+          "' -type f -printf '%TY-%Tm %s\\n' 2>/dev/null | awk '{a[\$1]+=\$2} END{for (k in a) print k, a[k]}'";
+      final raw = utf8.decode(
+          await conn.c.run(cmd).timeout(const Duration(seconds: 90)),
+          allowMalformed: true);
+      final buckets = <String, double>{};
+      for (final l in raw.split('\n')) {
+        final p = l.trim().split(RegExp(r'\s+'));
+        if (p.length == 2) {
+          final v = double.tryParse(p[1]);
+          if (v != null) buckets[p[0]] = v;
+        }
+      }
+      final keys = buckets.keys.toList()..sort();
+      var cum = 0.0;
+      final out = <int, double>{};
+      for (final k in keys) {
+        cum += buckets[k]!;
+        final ym = k.split('-');
+        if (ym.length == 2) {
+          final dt = DateTime(int.parse(ym[0]), int.parse(ym[1]), 1);
+          out[dt.millisecondsSinceEpoch] = cum;
+        }
+      }
+      return out;
     } finally {
       conn.close();
     }

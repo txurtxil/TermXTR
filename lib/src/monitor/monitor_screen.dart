@@ -40,6 +40,10 @@ class _MonitorScreenState extends State<MonitorScreen> {
   String? _error;
   bool _auto = false;
   GhostCfg _cfg = GhostCfg();
+  String _histSel = '';
+  int _histRange = 7 * 24;
+  List<Map<String, dynamic>> _histData = [];
+  bool _histBusy = false;
   final _unitCtrl = TextEditingController();
   Timer? _timer;
   final _newDirController = TextEditingController();
@@ -67,6 +71,33 @@ class _MonitorScreenState extends State<MonitorScreen> {
   void _capToast() {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Maximo 5 carpetas favoritas (quita una primero)')));
+  }
+
+  Future<void> _loadHist() async {
+    if (_histSel.isEmpty) return;
+    final kind = _histSel.startsWith('m:') ? 'mount' : 'dir';
+    final key = _histSel.substring(2);
+    final since = DateTime.now()
+        .subtract(Duration(hours: _histRange))
+        .millisecondsSinceEpoch;
+    final data = await sampleQuery(widget.host.id, kind, key, since);
+    if (!mounted) return;
+    setState(() => _histData = data);
+  }
+
+  Future<void> _backfillHist() async {
+    if (!_histSel.startsWith('d:') || _histBusy) return;
+    setState(() => _histBusy = true);
+    try {
+      final hist = await MonitorService.fetchDirHistory(
+          widget.host, _histSel.substring(2));
+      if (hist.isNotEmpty) {
+        await sampleBackfill(widget.host.id, _histSel.substring(2), hist);
+        _histRange = 24 * 365;
+        await _loadHist();
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _histBusy = false);
   }
 
   Future<void> _loadCfg() async {
@@ -194,6 +225,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
                         _secFs(_snap!.fs),
                         _secDirs(_snap!.dirs),
                         _secSystemd(_snap!),
+                        _secHistory(),
                         _secGhost(),
                         _secOracle(_snap!.oracle),
                         const SizedBox(height: 20),
@@ -444,6 +476,90 @@ class _MonitorScreenState extends State<MonitorScreen> {
         for (final n in s.failedNames)
           Text('x $n', style: const TextStyle(color: _C.err, fontSize: 12)),
       ],
+    ]);
+  }
+
+  static String _sparkBig(List<double> vals) {
+    if (vals.length < 2) return '';
+    const ch = '▁▂▃▄▅▆▇█';
+    final lo = vals.reduce((a, b) => a < b ? a : b);
+    final hi = vals.reduce((a, b) => a > b ? a : b);
+    if (hi == lo) return ch[0] * vals.length;
+    final take = vals.length > 44 ? vals.sublist(vals.length - 44) : vals;
+    return take
+        .map((v) => ch[((v - lo) / (hi - lo) * 7.999).clamp(0, 7).floor()])
+        .join();
+  }
+
+  Widget _secHistory() {
+    final snap = _snap;
+    if (snap == null) return const SizedBox.shrink();
+    final targets = <String>[
+      for (final f in snap.fs) 'm:${f.mount}',
+      for (final d in snap.dirs) 'd:${d.path}',
+    ];
+    if (targets.isEmpty) return const SizedBox.shrink();
+    if (_histSel.isEmpty || !targets.contains(_histSel)) {
+      _histSel = targets.first;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadHist());
+    }
+    final vals = [for (final e in _histData) e['v'] as double];
+    final spark = _sparkBig(vals);
+    return _card(title: 'Historial de uso', children: [
+      Wrap(spacing: 6, runSpacing: -8, children: [
+        for (final t in targets)
+          ChoiceChip(
+            label: Text(t.substring(2), style: const TextStyle(fontSize: 11)),
+            selected: _histSel == t,
+            onSelected: (_) {
+              _histSel = t;
+              _loadHist();
+            },
+          ),
+      ]),
+      const SizedBox(height: 4),
+      Wrap(spacing: 6, children: [
+        for (final r in [('24h', 24), ('7d', 7 * 24), ('1m', 30 * 24), ('1a', 365 * 24)])
+          ChoiceChip(
+            label: Text(r.$1, style: const TextStyle(fontSize: 11)),
+            selected: _histRange == r.$2,
+            onSelected: (_) {
+              _histRange = r.$2;
+              _loadHist();
+            },
+          ),
+      ]),
+      const SizedBox(height: 8),
+      if (_histBusy)
+        const Padding(
+          padding: EdgeInsets.all(8),
+          child: CircularProgressIndicator(color: _C.accent),
+        )
+      else if (spark.isEmpty)
+        const Text(
+            'Aun no hay muestras para este rango: usa el Monitor unos dias, o reconstruye el pasado.',
+            style: TextStyle(color: _C.textLo, fontSize: 11))
+      else ...[
+        Text(spark,
+            style: const TextStyle(
+                color: _C.accent, fontSize: 14, fontFamily: 'monospace')),
+        const SizedBox(height: 4),
+        Text(
+          'min ${MonitorSnapshot.humanBytes(vals.reduce((a, b) => a < b ? a : b))}'
+          ' · max ${MonitorSnapshot.humanBytes(vals.reduce((a, b) => a > b ? a : b))}'
+          ' · ahora ${MonitorSnapshot.humanBytes(vals.last)}'
+          '${vals.length > 1 ? ' · crecimiento +' + MonitorSnapshot.humanBytes(vals.last - vals.first) : ''}',
+          style: const TextStyle(color: _C.textLo, fontSize: 11),
+        ),
+      ],
+      if (_histSel.startsWith('d:'))
+        TextButton.icon(
+          onPressed: _histBusy ? null : _backfillHist,
+          icon: const Icon(Icons.history, size: 16, color: _C.accent),
+          label: const Text(
+              'Reconstruir 12 meses desde el disco (fechas de modificacion)',
+              style: TextStyle(color: _C.accent, fontSize: 11)),
+        ),
     ]);
   }
 
