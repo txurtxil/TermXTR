@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../ssh/ssh_host.dart';
 import 'monitor_models.dart';
 import '../sftp/sftp_favorites_service.dart';
+import 'ghost_config.dart';
 import 'ghost_settings.dart';
 import 'monitor_log.dart';
 import 'monitor_service.dart';
@@ -38,6 +39,8 @@ class _MonitorScreenState extends State<MonitorScreen> {
   bool _loading = true;
   String? _error;
   bool _auto = false;
+  GhostCfg _cfg = GhostCfg();
+  final _unitCtrl = TextEditingController();
   Timer? _timer;
   final _newDirController = TextEditingController();
 
@@ -51,6 +54,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
   void dispose() {
     _timer?.cancel();
     _newDirController.dispose();
+    _unitCtrl.dispose();
     super.dispose();
   }
 
@@ -65,7 +69,13 @@ class _MonitorScreenState extends State<MonitorScreen> {
         content: Text('Maximo 5 carpetas favoritas (quita una primero)')));
   }
 
+  Future<void> _loadCfg() async {
+    _cfg = await GhostConfigStore.forHost(widget.host.id);
+    if (mounted) setState(() {});
+  }
+
   Future<void> _refresh() async {
+    _loadCfg();
     if (!mounted) return;
     setState(() {
       _loading = true;
@@ -413,6 +423,22 @@ class _MonitorScreenState extends State<MonitorScreen> {
         Text('servicios en marcha: ${s.servicesRunning}',
             style: const TextStyle(color: _C.textLo, fontSize: 13)),
       ]),
+      if (s.unitStates.isNotEmpty) ...[
+        const SizedBox(height: 6),
+        for (final e in s.unitStates.entries)
+          Row(children: [
+            Icon(
+                e.value == 'active' ? Icons.check_circle : Icons.error,
+                size: 14,
+                color: e.value == 'active' ? _C.ok : _C.err),
+            const SizedBox(width: 6),
+            Expanded(
+                child: Text('\${e.key} — \${e.value}',
+                    style: TextStyle(
+                        color: e.value == 'active' ? _C.textLo : _C.err,
+                        fontSize: 12))),
+          ]),
+      ],
       if (s.failedNames.isNotEmpty) ...[
         const SizedBox(height: 6),
         for (final n in s.failedNames)
@@ -422,10 +448,34 @@ class _MonitorScreenState extends State<MonitorScreen> {
   }
 
   Widget _secGhost() {
-    return _card(title: 'Sombra fantasma (terminal)', children: [
+    Future<void> save() async {
+      await GhostConfigStore.put(widget.host.id, _cfg);
+    }
+
+    Widget sw(String label, bool v, void Function(bool) set) {
+      return Row(children: [
+        Expanded(
+            child: Text(label,
+                style: const TextStyle(color: _C.textLo, fontSize: 13))),
+        Switch(
+            value: v,
+            onChanged: (nv) async {
+              set(nv);
+              await save();
+              if (mounted) setState(() {});
+            }),
+      ]);
+    }
+
+    return _card(title: 'Widget de fondo fantasma (este servidor)', children: [
       const Text(
-          'Nitidez del panel translucido de la terminal: carga, disco, memoria y carpetas favoritas.',
+          'Administra lo que la sombra translucida muestra en la terminal de ESTE host.',
           style: TextStyle(color: _C.textLo, fontSize: 12)),
+      sw('Carga', _cfg.showLoad, (v) => _cfg.showLoad = v),
+      sw('Disco de /', _cfg.showDisk, (v) => _cfg.showDisk = v),
+      sw('Memoria', _cfg.showMem, (v) => _cfg.showMem = v),
+      sw('Sparklines de historial', _cfg.showSparks, (v) => _cfg.showSparks = v),
+      const SizedBox(height: 4),
       Row(children: [
         const Icon(Icons.blur_off, size: 16, color: _C.textLo),
         Expanded(
@@ -442,6 +492,54 @@ class _MonitorScreenState extends State<MonitorScreen> {
           ),
         ),
         const Icon(Icons.blur_on, size: 16, color: _C.textLo),
+      ]),
+      const Divider(color: _C.textLo, height: 12),
+      const Text('Servicios auditados (aparecen en la sombra y arriba):',
+          style: TextStyle(color: _C.textLo, fontSize: 12)),
+      for (final u in _cfg.units)
+        Row(children: [
+          Expanded(
+              child: Text(u,
+                  style: const TextStyle(color: _C.textHi, fontSize: 13))),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, size: 18, color: _C.textLo),
+            onPressed: () async {
+              _cfg.units.remove(u);
+              await save();
+              await _refresh();
+            },
+          ),
+        ]),
+      Row(children: [
+        Expanded(
+          child: TextField(
+            controller: _unitCtrl,
+            style: const TextStyle(color: _C.textHi, fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'unidad systemd (ej. ssh, docker)',
+              hintStyle: const TextStyle(color: _C.textLo, fontSize: 12),
+              filled: true,
+              fillColor: _C.bg,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            ),
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.add, color: _C.accent),
+          onPressed: () async {
+            final t = _unitCtrl.text.trim();
+            if (t.isEmpty || _cfg.units.contains(t)) return;
+            _cfg.units.add(t);
+            _unitCtrl.clear();
+            await save();
+            await _refresh();
+          },
+        ),
       ]),
     ]);
   }

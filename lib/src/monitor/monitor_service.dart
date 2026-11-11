@@ -1,7 +1,9 @@
 // lib/src/monitor/monitor_service.dart
-// Servicio del Monitor de sistemas (v2.18.7). Comandos read-only por SSH;
+// Servicio del Monitor de sistemas (v2.18.8). Comandos read-only por SSH;
 // nada instalado en el servidor. Dos fases: fetch() (sistema, rapido) y
-// fetchDirs() (directorios en segundo plano).
+// fetchDirs() (directorios, segundo plano). v2.18.8: fix parseo df (se
+// descarta la cabecera y se limpia el % de Use%) + servicios auditados
+// (unidades configurables por host en la sombra/Monitor).
 
 import 'dart:convert';
 import 'dart:io';
@@ -13,6 +15,7 @@ import '../ssh/ssh_credentials_store.dart';
 import '../ssh/ssh_host.dart';
 import '../sftp/sftp_favorites_service.dart';
 import '../storage/app_paths.dart';
+import 'ghost_config.dart';
 import 'monitor_log.dart';
 import 'monitor_models.dart';
 
@@ -134,7 +137,8 @@ class MonitorService {
     return _Conn(client, socket);
   }
 
-  /// Fase 1 (rapida): sistema + discos + servicios + oracle. Sin du.
+  /// Fase 1 (rapida): sistema + discos + servicios + oracle + unidades
+  /// auditadas del host. Sin du.
   static Future<MonitorSnapshot> fetch(SshHost host,
       {Duration timeout = const Duration(seconds: 15)}) async {
     final conn = await _connect(host);
@@ -148,10 +152,11 @@ class MonitorService {
           fs: <FsInfo>[],
           dirs: <DirInfo>[],
           failedNames: <String>[]);
+      final cfg = await GhostConfigStore.forHost(host.id);
 
-      // v2.18.7: el printf del awk LLEVA barra-n: sin ella el siguiente
-      // echo se pegaba ("62__TX_FAIL__") y la memoria parseaba 0.0%.
-      const core = r"""
+      // v2.18.8: el printf del awk lleva barra-n (sin ella el marcador
+      // siguiente se pegaba y la memoria parseaba 0.0%).
+      var core = r"""
 LC_ALL=C; export LC_ALL
 echo __TX_DF__
 df -hP -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs
@@ -164,10 +169,19 @@ echo __TX_FAIL__
 systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $2}' | head -5
 echo __TX_ACTIVE__
 systemctl list-units --type=service --state=running --no-legend --plain 2>/dev/null | wc -l
+echo __TX_UNITS__
+for u in @@UNITS@@; do printf "%s %s
+" "$u" "$(systemctl is-active $u 2>/dev/null)"; done
 echo __TX_OH__
 command -v sqlplus >/dev/null 2>&1 && echo yes || echo no
 echo __TX_END__
 """;
+      if (cfg.units.isEmpty) {
+        core = core.replaceAll('for u in @@UNITS@@; do', 'for u in; do');
+      } else {
+        core = core.replaceAll(
+            '@@UNITS@@', cfg.units.map((e) => '"$e"').join(' '));
+      }
       final coreRaw = utf8.decode(await conn.c.run(core).timeout(timeout),
           allowMalformed: true);
       MonitorLog.write('core', coreRaw.trim());
@@ -246,8 +260,11 @@ EOS
       switch (section) {
         case '__TX_DF__':
           final p = l.split(RegExp(r'\s+'));
-          if (p.length >= 6) {
-            snap.fs.add(FsInfo(p[5], double.tryParse(p[4]) ?? 0, p[3], p[1]));
+          // v2.18.8: descartar la cabecera y limpiar el % de Use%
+          // (double.tryParse("76%") daba null -> barras siempre a 0).
+          if (p.length >= 6 && p[0] != 'Filesystem') {
+            final pct = double.tryParse(p[4].replaceAll('%', '')) ?? 0;
+            snap.fs.add(FsInfo(p[5], pct, p[3], p[1]));
           }
           break;
         case '__TX_LOAD__':
@@ -274,6 +291,12 @@ EOS
           break;
         case '__TX_ACTIVE__':
           snap.servicesRunning = int.tryParse(l) ?? 0;
+          break;
+        case '__TX_UNITS__':
+          final p = l.split(' ');
+          if (p.length >= 2 && !p[0].startsWith('__TX_')) {
+            snap.unitStates[p[0]] = p[1];
+          }
           break;
         case '__TX_OH__':
           if (l == 'yes') snap.oracle = OracleInfo(present: true);

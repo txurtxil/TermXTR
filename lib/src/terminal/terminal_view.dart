@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 import 'dart:async';
 import '../monitor/ghost_settings.dart';
+import '../monitor/ghost_config.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
@@ -843,9 +844,10 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
 }
 
 
-/// v2.18.7: SOMBRA FANTASMA — carga/disco/memoria cada 30s con SPARKLINES
-/// de historial (anillo en memoria: ~20 min) + carpetas favoritas cada
-/// 5 min. Nitidez configurable (GhostSettings). IgnorePointer.
+/// v2.18.8: SOMBRA FANTASMA — configurable por host (GhostConfigStore):
+/// que metricas (carga/disco/mem/sparklines) y que unidades systemd audita,
+/// administrado desde el Monitor. Carpetas favoritas cada 5 min, sparklines
+/// de historial en memoria. Nitidez: GhostSettings. IgnorePointer.
 class _GhostMeter extends StatefulWidget {
   final dynamic s;
   const _GhostMeter({required this.s});
@@ -858,6 +860,8 @@ class _GhostMeterState extends State<_GhostMeter> {
   Timer? _tSlow;
   String _line = '';
   List<String> _dirs = const [];
+  GhostCfg _cfg = GhostCfg();
+  String _hostId = '';
   final List<double> _loads = [];
   final List<double> _mems = [];
 
@@ -865,10 +869,23 @@ class _GhostMeterState extends State<_GhostMeter> {
   void initState() {
     super.initState();
     GhostSettings.load();
+    _loadCfg();
     _pollFast();
     _pollSlow();
     _tFast = Timer.periodic(const Duration(seconds: 30), (_) => _pollFast());
     _tSlow = Timer.periodic(const Duration(minutes: 5), (_) => _pollSlow());
+  }
+
+  Future<void> _loadCfg() async {
+    try {
+      final h = widget.s.sourceHost;
+      final id = h?.id?.toString() ?? '';
+      _hostId = id;
+      if (id.isNotEmpty) {
+        _cfg = await GhostConfigStore.forHost(id);
+        if (mounted) setState(() {});
+      }
+    } catch (_) {}
   }
 
   @override
@@ -926,38 +943,56 @@ class _GhostMeterState extends State<_GhostMeter> {
     final disk = parts.length > 1 ? parts[1] : '?';
     final mem = parts.length > 2 ? parts[2] : '?';
     final op = GhostSettings.opacity;
-    final rows = <Widget>[
-      Text('⚡ $load  ▣ $disk  ▥ ${mem}%',
+    final rows = <Widget>[];
+    final chips = <String>[
+      if (_cfg.showLoad) '⚡ $load',
+      if (_cfg.showDisk) '▣ $disk',
+      if (_cfg.showMem) '▥ ${mem}%',
+    ];
+    if (chips.isNotEmpty) {
+      rows.add(Text(chips.join('  '),
           style: TextStyle(
               color: Colors.white.withValues(alpha: op),
               fontSize: 10,
-              fontFamily: 'monospace')),
-    ];
-    final spLoad = _spark(_loads);
-    final spMem = _spark(_mems);
-    if (spLoad.isNotEmpty) {
-      rows.add(Text('carga $spLoad',
-          style: TextStyle(
-              color: Colors.white.withValues(alpha: op * 0.75),
-              fontSize: 8,
               fontFamily: 'monospace')));
     }
-    if (spMem.isNotEmpty) {
-      rows.add(Text('mem   $spMem',
-          style: TextStyle(
-              color: Colors.white.withValues(alpha: op * 0.75),
-              fontSize: 8,
-              fontFamily: 'monospace')));
+    if (_cfg.showSparks) {
+      final spLoad = _spark(_loads);
+      final spMem = _spark(_mems);
+      if (spLoad.isNotEmpty) {
+        rows.add(Text('carga $spLoad',
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: op * 0.75),
+                fontSize: 8,
+                fontFamily: 'monospace')));
+      }
+      if (spMem.isNotEmpty) {
+        rows.add(Text('mem   $spMem',
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: op * 0.75),
+                fontSize: 8,
+                fontFamily: 'monospace')));
+      }
     }
     for (final d in _dirs) {
       final p = d.split('\t');
-      if (p.length < 2) continue;
-      rows.add(Text('${p[0]} ${p[1]}',
-          style: TextStyle(
-              color: Colors.white.withValues(alpha: op * 0.85),
-              fontSize: 9,
-              fontFamily: 'monospace')));
+      if (p.length == 3 && p[0] == 'u') {
+        // unidad auditada: u<tab>unidad<tab>estado
+        final ok = p[2] == 'active';
+        rows.add(Text('${ok ? 'ok' : 'KO'} ${p[1]}',
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: ok ? op * 0.85 : op),
+                fontSize: 9,
+                fontFamily: 'monospace')));
+      } else if (p.length >= 2) {
+        rows.add(Text('${p[0]} ${p[1]}',
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: op * 0.85),
+                fontSize: 9,
+                fontFamily: 'monospace')));
+      }
     }
+    if (rows.isEmpty) return const SizedBox.shrink();
     return IgnorePointer(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),

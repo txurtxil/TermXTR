@@ -44,6 +44,7 @@ class MonitorSnapshot {
   int failedUnits;
   List<String> failedNames;
   int servicesRunning;
+  Map<String, String> unitStates;
   OracleInfo oracle;
   MonitorSnapshot(
       {required this.ts,
@@ -53,6 +54,7 @@ class MonitorSnapshot {
       this.failedUnits = 0,
       this.failedNames = const [],
       this.servicesRunning = 0,
+      this.unitStates = const {},
       required this.oracle});
 
   static String humanBytes(double b) {

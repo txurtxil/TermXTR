@@ -10,6 +10,7 @@ import 'command_history.dart';
 import '../ssh/ssh_credentials_store.dart';
 import '../ssh/ssh_hosts_service.dart';
 import '../monitor/monitor_service.dart';
+import '../monitor/ghost_config.dart';
 import '../sftp/sftp_favorites_service.dart';
 import '../storage/app_paths.dart';
 import 'terminal_recorder.dart';
@@ -138,6 +139,18 @@ class TerminalSession {
       }
     }
     flush(cur, null);
+    // v2.18.8: unidades auditadas (config del widget): 'u\t<unidad>\t<estado>'
+    try {
+      final cfg = await GhostConfigStore.forHost(sourceHost.id);
+      if (cfg.units.isNotEmpty) {
+        final ul = cfg.units.map((e) => '"$e"').join(' ');
+        final ur = await c
+            .run('for u in $ul; do printf "u\t%s\t%s\n" "\$u" "\$(systemctl is-active \$u 2>/dev/null)"; done')
+            .timeout(const Duration(seconds: 8));
+        final ut = utf8.decode(ur, allowMalformed: true).trim();
+        if (ut.isNotEmpty) lines.addAll(ut.split('\n'));
+      }
+    } catch (_) {}
     return lines.isEmpty ? null : lines.join('\n');
   }
 
