@@ -17,6 +17,7 @@ import 'password_change_screen.dart';
 import 'router_info_screen.dart';
 import 'identity_screen.dart';
 import '../ui/about_screen.dart';
+import '../monitor/connmap_screen.dart';
 import 'identity_service.dart';
 import 'snippets_screen.dart';
 import 'ssh_server_screen.dart';
@@ -405,6 +406,9 @@ class _HostsScreenState extends State<HostsScreen> {
               if (val == 'map') {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const HostMapScreen()));
               }
+              if (val == 'connmap') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => ConnMapScreen(hosts: SshHostsService.instance.hosts)));
+              }
               if (val == 'export') _exportHosts();
               if (val == 'import') _importHosts();
               if (val == 'about') Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen()));
@@ -420,6 +424,7 @@ class _HostsScreenState extends State<HostsScreen> {
               const PopupMenuItem(value: 'tunnels', child: ListTile(dense: true, leading: Icon(Icons.alt_route, color: AppColors.textLo), title: Text('Tuneles SSH (port forwarding)', style: TextStyle(color: AppColors.textHi)))),
               const PopupMenuItem(value: 'knownhosts', child: ListTile(dense: true, leading: Icon(Icons.verified_user, color: AppColors.textLo), title: Text('Hosts conocidos (SSH)', style: TextStyle(color: AppColors.textHi)))),
               const PopupMenuItem(value: 'map', child: ListTile(dense: true, leading: Icon(Icons.map, color: AppColors.textLo), title: Text('Mapa de hosts', style: TextStyle(color: AppColors.textHi)))),
+              const PopupMenuItem(value: 'connmap', child: ListTile(dense: true, leading: Icon(Icons.hub, color: AppColors.textLo), title: Text('Mapa de conexiones', style: TextStyle(color: AppColors.textHi)))),
               const PopupMenuItem(value: 'export', child: ListTile(dense: true, leading: Icon(Icons.upload, color: AppColors.textLo), title: Text('Exportar hosts a fichero', style: TextStyle(color: AppColors.textHi)))),
               const PopupMenuItem(value: 'import', child: ListTile(dense: true, leading: Icon(Icons.download, color: AppColors.textLo), title: Text('Importar hosts de fichero', style: TextStyle(color: AppColors.textHi)))),
               const PopupMenuItem(value: 'about', child: ListTile(dense: true, leading: Icon(Icons.info_outline, color: AppColors.textLo), title: Text('Acerca de', style: TextStyle(color: AppColors.textHi)))),
