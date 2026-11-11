@@ -1036,14 +1036,15 @@ class _GhostMeterState extends State<_GhostMeter> {
               fontFamily: 'monospace')));
     }
     // v2.20.3 MUY IMPORTANTE (owner): directorios favoritos ARRIBA.
-    if (_dirs.isEmpty && _dirsPending) {
+    // v2.20.4: conmutable desde el Monitor ('Directorios favoritos').
+    if (_cfg.showDirs && _dirs.isEmpty && _dirsPending) {
       rows.add(Text('⏳ midiendo carpetas...',
           style: TextStyle(
               color: Colors.white.withValues(alpha: op * 0.7),
               fontSize: 9,
               fontFamily: 'monospace')));
     }
-    for (final d in _dirs) {
+    for (final d in _cfg.showDirs ? _dirs : const <String>[]) {
       final p = d.split('\t');
       if (p.length == 3 && p[0] == 'u') {
         final ok = p[2] == 'active';

@@ -13,6 +13,7 @@ class GhostCfg {
   bool showDisk;
   bool showMem;
   bool showSparks;
+  bool showDirs;
   List<String> units;
 
   GhostCfg(
@@ -20,6 +21,7 @@ class GhostCfg {
       this.showDisk = true,
       this.showMem = true,
       this.showSparks = true,
+      this.showDirs = true,
       List<String>? units})
       : units = units ?? [];
 
@@ -28,11 +30,12 @@ class GhostCfg {
         showDisk: j['disk'] ?? true,
         showMem: j['mem'] ?? true,
         showSparks: j['sparks'] ?? true,
+        showDirs: j['dirs'] ?? true,
         units: (j['units'] as List?)?.cast<String>() ?? const [],
       );
 
   Map<String, dynamic> toJson() =>
-      {'load': showLoad, 'disk': showDisk, 'mem': showMem, 'sparks': showSparks, 'units': units};
+      {'load': showLoad, 'disk': showDisk, 'mem': showMem, 'sparks': showSparks, 'dirs': showDirs, 'units': units};
 }
 
 class GhostConfigStore {

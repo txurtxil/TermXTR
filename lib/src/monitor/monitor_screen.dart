@@ -591,6 +591,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
       sw('Disco de /', _cfg.showDisk, (v) => _cfg.showDisk = v),
       sw('Memoria', _cfg.showMem, (v) => _cfg.showMem = v),
       sw('Sparklines de historial', _cfg.showSparks, (v) => _cfg.showSparks = v),
+      sw('Directorios favoritos', _cfg.showDirs, (v) => _cfg.showDirs = v),
       const SizedBox(height: 4),
       Row(children: [
         const Icon(Icons.blur_off, size: 16, color: _C.textLo),
