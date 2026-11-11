@@ -1044,7 +1044,11 @@ class _GhostMeterState extends State<_GhostMeter> {
               fontSize: 9,
               fontFamily: 'monospace')));
     }
-    for (final d in _cfg.showDirs ? _dirs : const <String>[]) {
+    // v2.20.6: unidades auditadas SIEMPRE visibles (no dependen del switch
+    // 'Directorios favoritos' — ese solo gobierna las carpetas). Bug: al
+    // anadir el switch en v2.20.4 las unidades quedaron atadas a el y con el
+    // switch off desaparecian carpetas Y servicios auditados.
+    for (final d in _dirs) {
       final p = d.split('\t');
       if (p.length == 3 && p[0] == 'u') {
         final ok = p[2] == 'active';
@@ -1053,7 +1057,7 @@ class _GhostMeterState extends State<_GhostMeter> {
                 color: Colors.white.withValues(alpha: ok ? op * 0.85 : op),
                 fontSize: 9,
                 fontFamily: 'monospace')));
-      } else if (p.length >= 2) {
+      } else if (_cfg.showDirs && p.length >= 2) {
         rows.add(Text('${p[0]} ${p[1]}',
             style: TextStyle(
                 color: Colors.white.withValues(alpha: op * 0.85),
