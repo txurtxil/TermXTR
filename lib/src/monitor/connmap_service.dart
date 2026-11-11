@@ -194,7 +194,10 @@ EOS
       } catch (e) {
         failures.add(h.name);
         MonitorLog.write('connmap',
-            'fallo en ${h.name}: ${e.toString().substring(0, 60)}');
+        final em = e.toString();
+        MonitorLog.write('connmap',
+            'fallo en \${h.name}: ' +
+                (em.length > 60 ? em.substring(0, 60) : em));
       }
     }
     final out = edges.values.toList()
