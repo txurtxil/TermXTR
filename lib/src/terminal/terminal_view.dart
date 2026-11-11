@@ -844,10 +844,12 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
 }
 
 
-/// v2.20.2: SOMBRA FANTASMA — directorios favoritos SIEMPRE visibles
-/// (caché local en cada ciclo de 30s + du real cada 3 min), RELOJ DE ARENA
-/// mientras no hay medición, recarga manual (GhostRefreshBus), métricas y
-/// sparklines configurables por host, nitidez ajustable. IgnorePointer.
+/// v2.20.3: SOMBRA FANTASMA INSTANTANEA — pinta al arrancar desde las
+/// caches locales (metricas + carpetas favoritas) SIN esperar al SSH, y
+/// reintenta los polls cada 2s hasta el primer exito (el fallo tipico del
+/// primer poll: el SSH aun no estaba conectado y antes se esperaba 30s/3min
+/// al siguiente tick). Directorios favoritas ARRIBA (muy importante para el
+/// owner), sparklines despues. Nitidez/config/recarga manuales conservadas.
 class _GhostMeter extends StatefulWidget {
   final dynamic s;
   const _GhostMeter({required this.s});
@@ -859,9 +861,12 @@ class _GhostMeterState extends State<_GhostMeter> {
   Timer? _tFast;
   Timer? _tSlow;
   Timer? _pendingTimeout;
+  Timer? _retryFast;
+  Timer? _retrySlow;
   String _line = '';
   List<String> _dirs = const [];
   GhostCfg _cfg = GhostCfg();
+  String _hostId = '';
   bool _dirsPending = true;
   final List<double> _loads = [];
   final List<double> _mems = [];
@@ -871,12 +876,11 @@ class _GhostMeterState extends State<_GhostMeter> {
     super.initState();
     GhostSettings.load();
     _loadCfg();
-    _refreshDirsCache();
+    _paintFromCaches();
     _pollFast();
     _pollSlow();
     _tFast = Timer.periodic(const Duration(seconds: 30), (_) => _pollFast());
     _tSlow = Timer.periodic(const Duration(minutes: 3), (_) => _pollSlow());
-    // el reloj de arena no dura eterno: 90s sin carpetas = asumir que no hay
     _pendingTimeout = Timer(const Duration(seconds: 90), () {
       if (mounted) setState(() => _dirsPending = false);
     });
@@ -884,7 +888,7 @@ class _GhostMeterState extends State<_GhostMeter> {
   }
 
   void _onBus() {
-    _refreshDirsCache();
+    _paintFromCaches();
     _pollFast();
     _pollSlow();
   }
@@ -893,6 +897,7 @@ class _GhostMeterState extends State<_GhostMeter> {
     try {
       final h = widget.s.sourceHost;
       final id = h?.id?.toString() ?? '';
+      _hostId = id;
       if (id.isNotEmpty) {
         _cfg = await GhostConfigStore.forHost(id);
         if (mounted) setState(() {});
@@ -900,32 +905,56 @@ class _GhostMeterState extends State<_GhostMeter> {
     } catch (_) {}
   }
 
+  /// v2.20.3: pintado INSTANTANEO desde caches locales (sin SSH).
+  Future<void> _paintFromCaches() async {
+    try {
+      final h = widget.s.sourceHost;
+      final id = h?.id?.toString() ?? '';
+      if (id.isEmpty) return;
+      final mc = await GhostMetricCache.get(id);
+      final dv = await widget.s.ghostDirsPreview();
+      if (!mounted) return;
+      setState(() {
+        if (mc != null && _line.isEmpty) _line = mc;
+        if (dv != null) {
+          _dirs = dv.split('\n').where((e) => e.trim().isNotEmpty).toList();
+          _dirsPending = false;
+        }
+      });
+    } catch (_) {}
+  }
+
+  void _scheduleRetry() {
+    _retryFast ??= Timer(const Duration(seconds: 2), () {
+      _retryFast = null;
+      _pollFast();
+    });
+    _retrySlow ??= Timer(const Duration(seconds: 2), () {
+      _retrySlow = null;
+      _pollSlow();
+    });
+  }
+
   @override
   void dispose() {
     _tFast?.cancel();
     _tSlow?.cancel();
     _pendingTimeout?.cancel();
+    _retryFast?.cancel();
+    _retrySlow?.cancel();
     GhostRefreshBus.n.removeListener(_onBus);
     super.dispose();
-  }
-
-  Future<void> _refreshDirsCache() async {
-    try {
-      final v = await widget.s.ghostDirsPreview();
-      if (!mounted) return;
-      if (v != null) {
-        setState(() {
-          _dirs = v.split('\n').where((e) => e.trim().isNotEmpty).toList();
-          _dirsPending = false;
-        });
-      }
-    } catch (_) {}
   }
 
   Future<void> _pollFast() async {
     try {
       final v = await widget.s.monitorGhostLine();
-      if (!mounted || v == null) return;
+      if (!mounted) return;
+      if (v == null) {
+        // SSH aun no listo (o cayo): reintento en 2s, no en el tick de 30s
+        _scheduleRetry();
+        return;
+      }
       final p = v.split('\n');
       final l1 = double.tryParse(p.isNotEmpty ? p[0] : '');
       final mm = p.length > 2 ? double.tryParse(p[2].replaceAll(',', '.')) : null;
@@ -938,20 +967,37 @@ class _GhostMeterState extends State<_GhostMeter> {
         if (_mems.length > 40) _mems.removeAt(0);
       }
       if (v != _line) setState(() => _line = v);
-      // carpetas favoritas frescas desde la caché en cada ciclo (barato)
-      await _refreshDirsCache();
-    } catch (_) {}
+      if (_hostId.isNotEmpty && p.length >= 3) {
+        GhostMetricCache.put(_hostId, p[0], p[1], p[2]);
+      }
+      // carpetas favoritas frescas desde la cache en cada ciclo (barato)
+      final dv = await widget.s.ghostDirsPreview();
+      if (mounted && dv != null) {
+        setState(() {
+          _dirs = dv.split('\n').where((e) => e.trim().isNotEmpty).toList();
+          _dirsPending = false;
+        });
+      }
+    } catch (_) {
+      _scheduleRetry();
+    }
   }
 
   Future<void> _pollSlow() async {
     try {
       final v = await widget.s.monitorGhostDirs();
-      if (!mounted || v == null) return;
+      if (!mounted) return;
+      if (v == null) {
+        _scheduleRetry();
+        return;
+      }
       setState(() {
         _dirs = v.split('\n').where((e) => e.trim().isNotEmpty).toList();
         _dirsPending = false;
       });
-    } catch (_) {}
+    } catch (_) {
+      _scheduleRetry();
+    }
   }
 
   static String _spark(List<double> vals) {
@@ -989,25 +1035,7 @@ class _GhostMeterState extends State<_GhostMeter> {
               fontSize: 10,
               fontFamily: 'monospace')));
     }
-    if (_cfg.showSparks) {
-      final spLoad = _spark(_loads);
-      final spMem = _spark(_mems);
-      if (spLoad.isNotEmpty) {
-        rows.add(Text('carga $spLoad',
-            style: TextStyle(
-                color: Colors.white.withValues(alpha: op * 0.75),
-                fontSize: 8,
-                fontFamily: 'monospace')));
-      }
-      if (spMem.isNotEmpty) {
-        rows.add(Text('mem   $spMem',
-            style: TextStyle(
-                color: Colors.white.withValues(alpha: op * 0.75),
-                fontSize: 8,
-                fontFamily: 'monospace')));
-      }
-    }
-    // directorios favoritos: siempre que haya; si aun no, reloj de arena
+    // v2.20.3 MUY IMPORTANTE (owner): directorios favoritos ARRIBA.
     if (_dirs.isEmpty && _dirsPending) {
       rows.add(Text('⏳ midiendo carpetas...',
           style: TextStyle(
@@ -1019,16 +1047,34 @@ class _GhostMeterState extends State<_GhostMeter> {
       final p = d.split('\t');
       if (p.length == 3 && p[0] == 'u') {
         final ok = p[2] == 'active';
-        rows.add(Text('${ok ? 'ok' : 'KO'} ${p[1]}',
+        rows.add(Text('\${ok ? 'ok' : 'KO'} \${p[1]}',
             style: TextStyle(
                 color: Colors.white.withValues(alpha: ok ? op * 0.85 : op),
                 fontSize: 9,
                 fontFamily: 'monospace')));
       } else if (p.length >= 2) {
-        rows.add(Text('${p[0]} ${p[1]}',
+        rows.add(Text('\${p[0]} \${p[1]}',
             style: TextStyle(
                 color: Colors.white.withValues(alpha: op * 0.85),
                 fontSize: 9,
+                fontFamily: 'monospace')));
+      }
+    }
+    if (_cfg.showSparks) {
+      final spLoad = _spark(_loads);
+      final spMem = _spark(_mems);
+      if (spLoad.isNotEmpty) {
+        rows.add(Text('carga \$spLoad',
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: op * 0.75),
+                fontSize: 8,
+                fontFamily: 'monospace')));
+      }
+      if (spMem.isNotEmpty) {
+        rows.add(Text('mem   \$spMem',
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: op * 0.75),
+                fontSize: 8,
                 fontFamily: 'monospace')));
       }
     }
