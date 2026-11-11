@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 import 'dart:async';
 import '../monitor/ghost_settings.dart';
 import '../monitor/ghost_config.dart';
+import '../monitor/monitor_log.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
@@ -914,6 +915,7 @@ class _GhostMeterState extends State<_GhostMeter> {
       final mc = await GhostMetricCache.get(id);
       final dv = await widget.s.ghostDirsPreview();
       final hasFavs = await widget.s.hasGhostFavorites();
+      MonitorLog.write('ghost-paint', 'mc=\${mc == null ? "null" : mc.length.toString() + "ch"} dv=\${dv == null ? "null" : dv.length.toString() + "ch"} favs=\$hasFavs');
       if (!mounted) return;
       setState(() {
         if (mc != null && _line.isEmpty) _line = mc;
@@ -982,7 +984,8 @@ class _GhostMeterState extends State<_GhostMeter> {
           _dirsPending = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
+      MonitorLog.write('ghost-widget-error', 'fast: ' + e.toString());
       _scheduleRetry();
     }
   }
@@ -991,6 +994,7 @@ class _GhostMeterState extends State<_GhostMeter> {
     try {
       final v = await widget.s.monitorGhostDirs();
       if (!mounted) return;
+      MonitorLog.write('ghost-widget', 'slow recibio: ' + (v == null ? 'NULL' : v.length.toString() + 'ch -> ' + v.replaceAll('\n', ' | ')));
       if (v == null) {
         _scheduleRetry();
         return;
@@ -999,7 +1003,9 @@ class _GhostMeterState extends State<_GhostMeter> {
         _dirs = v.split('\n').where((e) => e.trim().isNotEmpty).toList();
         _dirsPending = false;
       });
-    } catch (_) {
+      MonitorLog.write('ghost-widget', 'slow pintado: ' + _dirs.length.toString() + ' lineas');
+    } catch (e) {
+      MonitorLog.write('ghost-widget-error', 'slow: ' + e.toString());
       _scheduleRetry();
     }
   }
