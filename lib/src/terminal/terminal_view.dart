@@ -915,7 +915,7 @@ class _GhostMeterState extends State<_GhostMeter> {
       final mc = await GhostMetricCache.get(id);
       final String? dv = await widget.s.ghostDirsPreview();
       final bool hasFavs = await widget.s.hasGhostFavorites();
-      MonitorLog.write('ghost-paint', 'mc=\${mc == null ? "null" : mc.length.toString() + "ch"} dv=\${dv == null ? "null" : dv.length.toString() + "ch"} favs=\$hasFavs');
+      MonitorLog.write('ghost-paint', 'mc=${mc == null ? "null" : mc.length.toString() + "ch"} dv=${dv == null ? "null" : dv.length.toString() + "ch"} favs=$hasFavs');
       if (!mounted) return;
       setState(() {
         if (mc != null && _line.isEmpty) _line = mc;

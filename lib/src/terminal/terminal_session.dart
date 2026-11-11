@@ -104,7 +104,7 @@ class TerminalSession {
         if (b != null) {
           var name = f == '/' ? '/' : f.split('/').last;
           if (name.length > 14) name = name.substring(0, 14);
-          lines.add('\$name\t\${_humGhost(b)}~\${dirCacheAge(hostId, f)}');
+          lines.add('$name\t${_humGhost(b)}~${dirCacheAge(hostId, f)}');
         }
       }
       return lines.isEmpty ? null : lines.join('\n');
