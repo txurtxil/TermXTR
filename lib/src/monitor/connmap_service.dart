@@ -1,12 +1,9 @@
 // lib/src/monitor/connmap_service.dart
-// v2.23.0: mapa de CONEXIONES — aristas reales entre los hosts configurados.
-// Fase 1: `ss -tnp state established` (fallback netstat) en cada host; se
-// conservan solo aristas cuyos DOS extremos son hosts conocidos (la LAN y
-// tu WAN entran si estan configurados). Fase 2: v$session del Oracle -> aristas
-// con el nombre real de la maquina cliente (Tomcat/Liferay). Solo consultas.
+// v2.23.1: mapa de CONEXIONES — aristas reales entre hosts + nodo "externo"
+// (todo lo que no es un host configurado: el movil, internet...). Fase 1:
+// ss -tnp state established (fallback netstat). Fase 2: v$session de Oracle.
 
 import 'dart:convert';
-import 'dart:io';
 
 import '../ssh/ssh_connector.dart';
 import '../ssh/ssh_host.dart';
@@ -66,6 +63,8 @@ class ConnMapService {
     for (final h in hosts) {
       known[h.hostname] = h;
     }
+    const extName = '· externo ·';
+    const extIp = '<ext>';
     final edges = <String, ConnEdge>{};
 
     void addEdge(String fromIp, String fromName, String toIp, String toName,
@@ -92,7 +91,6 @@ class ConnMapService {
     }
 
     for (final h in hosts) {
-      // Fase 1: aristas TCP establecidas
       try {
         final conn = await SshConnector.connect(h);
         try {
@@ -115,13 +113,29 @@ class ConnMapService {
             final rport = _portOf(remote);
             final lh = known[lip];
             final rh = known[rip];
-            if (lh == null || rh == null) continue; // solo interna
             final proc = _processOf(line);
-            // direccion: quien tiene el puerto de servicio conocido es el destino
-            if (kServiceByPort.containsKey(rport) || !kServiceByPort.containsKey(lport)) {
-              addEdge(lip, lh.name, rip, rh.name, rport, proc, 1);
-            } else {
-              addEdge(rip, rh.name, lip, lh.name, lport, proc, 1);
+            final lsvc = kServiceByPort.containsKey(lport);
+            final rsvc = kServiceByPort.containsKey(rport);
+            if (lh != null && rh != null) {
+              // arista interna: el dueno del puerto de servicio es el destino
+              if (rsvc || !lsvc) {
+                addEdge(lip, lh.name, rip, rh.name, rport, proc, 1);
+              } else {
+                addEdge(rip, rh.name, lip, lh.name, lport, proc, 1);
+              }
+            } else if (lh != null) {
+              // movil/internet <-> host conocido (agregado como "externo")
+              if (lsvc) {
+                addEdge(extIp, extName, lip, lh.name, lport, proc, 1);
+              } else if (rsvc) {
+                addEdge(lip, lh.name, extIp, extName, rport, proc, 1);
+              }
+            } else if (rh != null) {
+              if (rsvc) {
+                addEdge(extIp, extName, rip, rh.name, rport, proc, 1);
+              } else if (lsvc) {
+                addEdge(rip, rh.name, extIp, extName, lport, proc, 1);
+              }
             }
           }
           // Fase 2: Oracle v$session (aristas DB con nombre de cliente)
@@ -142,7 +156,6 @@ EOS
               final program = p[1].trim();
               final n = int.tryParse(p[2].trim()) ?? 1;
               if (machine.isEmpty) continue;
-              // resolver maquina a host conocido (por hostname o por IP)
               String? ip = known.containsKey(machine) ? machine : null;
               if (ip == null) {
                 for (final e in known.entries) {
