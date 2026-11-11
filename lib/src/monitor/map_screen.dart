@@ -1,7 +1,7 @@
 // lib/src/monitor/map_screen.dart
-// v2.24.1: MAPA UNIFICADO — aristas con brillo LED por tipo de servicio,
-// toque en arista -> ficha de detalle, leyenda de colores, nodos con margen
-// anti-corte, arrastre persistido. Pestana Lista como vista complementaria.
+// v2.24.2: arrastre por Listener (inmune a la arena de gestos del tap),
+// insignia de conexiones por nodo, icono BD en nodos Oracle, filtros por
+// servicio (grafo + lista), leyenda, aristas LED, detalle al tocar.
 
 import 'dart:convert';
 import 'dart:io';
@@ -30,6 +30,8 @@ class _Node {
   bool external;
   double fx;
   double fy;
+  int degree = 0;
+  bool isDb = false;
   _Node(this.id, this.name,
       {this.up = false, this.external = false, this.fx = 0.5, this.fy = 0.5});
 }
@@ -42,8 +44,14 @@ class _MapScreenState extends State<MapScreen>
   bool _loading = true;
   String? _error;
   Map<String, dynamic> _layout = {};
+  String _filter = 'Todos';
+  _Node? _drag;
 
   File get _layoutFile => File('${AppPaths.base}/map_layout.json');
+
+  static const _filters = [
+    'Todos', 'Oracle', 'Tomcat', 'Nagios', 'rsyslog', 'SSH', 'Web'
+  ];
 
   @override
   void initState() {
@@ -103,12 +111,52 @@ class _MapScreenState extends State<MapScreen>
           ..fx = ((_layout['<ext>']?['fx']) as num?)?.toDouble() ?? -1
           ..fy = ((_layout['<ext>']?['fy']) as num?)?.toDouble() ?? -1);
       }
+      _recalcMeta();
       _loading = false;
-      _error = _edges.isEmpty && failures.isNotEmpty
+      _error = _visibleEdges.isEmpty && failures.isNotEmpty
           ? 'fallo en: ' + failures.join(', ')
           : null;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _autoLayout());
+  }
+
+  void _recalcMeta() {
+    for (final n in _nodes) {
+      n.degree = 0;
+      n.isDb = false;
+    }
+    for (final e in _edges) {
+      for (final n in _nodes) {
+        if (n.id == e.fromIp || n.id == e.toIp) n.degree += e.count;
+      }
+      if (e.port == 1521) {
+        for (final n in _nodes) {
+          if (n.id == e.fromIp || n.id == e.toIp) n.isDb = true;
+        }
+      }
+    }
+  }
+
+  List<ConnEdge> get _visibleEdges {
+    if (_filter == 'Todos') return _edges;
+    return _edges.where((e) {
+      switch (_filter) {
+        case 'Oracle':
+          return e.port == 1521;
+        case 'Tomcat':
+          return e.service.contains('Tomcat');
+        case 'Nagios':
+          return e.service.contains('Nagios');
+        case 'rsyslog':
+          return e.service.contains('rsyslog');
+        case 'SSH':
+          return e.port == 22;
+        case 'Web':
+          return e.port == 80 || e.port == 443;
+        default:
+          return true;
+      }
+    }).toList();
   }
 
   void _autoLayout() {
@@ -148,16 +196,6 @@ class _MapScreenState extends State<MapScreen>
     return const Color(0xFFB2B2B8);
   }
 
-  Offset _midOf(ConnEdge e, Size size) {
-    final a = _posOf(e.fromIp, size);
-    final b = _posOf(e.toIp, size);
-    final mid = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
-    final ctrl = Offset(mid.dx, mid.dy - 18);
-    // punto medio de una curva cuadratica: 0.25a + 0.5c + 0.25b
-    return Offset(0.25 * a.dx + 0.5 * ctrl.dx + 0.25 * b.dx,
-        0.25 * a.dy + 0.5 * ctrl.dy + 0.25 * b.dy);
-  }
-
   Offset _posOf(String id, Size size) {
     for (final n in _nodes) {
       if (n.id == id) return Offset(n.fx * size.width, n.fy * size.height);
@@ -165,10 +203,19 @@ class _MapScreenState extends State<MapScreen>
     return Offset(size.width / 2, size.height / 2);
   }
 
+  Offset _midOf(ConnEdge e, Size size) {
+    final a = _posOf(e.fromIp, size);
+    final b = _posOf(e.toIp, size);
+    final mid = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
+    final ctrl = Offset(mid.dx, mid.dy - 18);
+    return Offset(0.25 * a.dx + 0.5 * ctrl.dx + 0.25 * b.dx,
+        0.25 * a.dy + 0.5 * ctrl.dy + 0.25 * b.dy);
+  }
+
   void _onTapGraph(TapDownDetails d, Size size) {
     ConnEdge? best;
     var bd = 34.0;
-    for (final e in _edges) {
+    for (final e in _visibleEdges) {
       final m = _midOf(e, size);
       final dist = (m - d.localPosition).distance;
       if (dist < bd) {
@@ -209,17 +256,9 @@ class _MapScreenState extends State<MapScreen>
                 ),
               ]),
             ),
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Row(children: const [
-              Icon(Icons.repeat, size: 14, color: AppColors.textLo),
-              SizedBox(width: 6),
-              Text('conexiones observadas (muestreo en vivo)',
-                  style: TextStyle(color: AppColors.textLo, fontSize: 12)),
-            ]),
-          ),
-          Text('×${e.count}',
-              style: const TextStyle(color: AppColors.textHi, fontSize: 18)),
+          const SizedBox(height: 6),
+          Text('×${e.count} conexiones',
+              style: const TextStyle(color: AppColors.textHi, fontSize: 16)),
         ]),
       ),
     );
@@ -270,6 +309,7 @@ class _MapScreenState extends State<MapScreen>
         ),
       );
     }
+    final vis = _visibleEdges;
     return LayoutBuilder(
       builder: (ctx, c) {
         final size = Size(c.maxWidth, c.maxHeight);
@@ -279,9 +319,10 @@ class _MapScreenState extends State<MapScreen>
           children: [
             Positioned.fill(
               child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
                 onTapDown: (d) => _onTapGraph(d, size),
                 child: CustomPaint(
-                  painter: _EdgePainter(_edges, _nodes, _edgeColor),
+                  painter: _EdgePainter(vis, _nodes, _edgeColor),
                 ),
               ),
             ),
@@ -289,16 +330,23 @@ class _MapScreenState extends State<MapScreen>
               Positioned(
                 left: n.fx * size.width - 52,
                 top: n.fy * size.height - 22,
-                child: GestureDetector(
-                  onPanUpdate: (d) {
+                child: Listener(
+                  onPointerDown: (e) => _drag = n,
+                  onPointerMove: (e) {
+                    if (_drag != n) return;
                     setState(() {
-                      n.fx = ((n.fx * size.width + d.delta.dx) / size.width)
+                      n.fx = ((n.fx * size.width + e.delta.dx) / size.width)
                           .clamp(mx, 1 - mx);
-                      n.fy = ((n.fy * size.height + d.delta.dy) / size.height)
+                      n.fy = ((n.fy * size.height + e.delta.dy) / size.height)
                           .clamp(my, 1 - my);
                     });
                   },
-                  onPanEnd: (_) => _saveLayout(),
+                  onPointerUp: (e) {
+                    if (_drag == n) {
+                      _drag = null;
+                      _saveLayout();
+                    }
+                  },
                   child: Container(
                     width: 104,
                     padding:
@@ -319,7 +367,8 @@ class _MapScreenState extends State<MapScreen>
                             ]
                           : null,
                     ),
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    child:
+                        Column(mainAxisSize: MainAxisSize.min, children: [
                       Row(children: [
                         Icon(Icons.circle,
                             size: 7,
@@ -327,6 +376,12 @@ class _MapScreenState extends State<MapScreen>
                                 ? AppColors.textLo
                                 : (n.up ? AppColors.ok : AppColors.err)),
                         const SizedBox(width: 4),
+                        if (n.isDb)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 3),
+                            child: Icon(Icons.storage,
+                                size: 10, color: Color(0xFFFF5C5C)),
+                          ),
                         Expanded(
                           child: Text(n.name,
                               style: const TextStyle(
@@ -334,15 +389,60 @@ class _MapScreenState extends State<MapScreen>
                               overflow: TextOverflow.ellipsis),
                         ),
                       ]),
-                      if (!n.external)
-                        Text(n.up ? 'up' : 'down',
-                            style: TextStyle(
-                                color: n.up ? AppColors.ok : AppColors.err,
-                                fontSize: 8)),
+                      Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (!n.external)
+                              Text(n.up ? 'up' : 'down',
+                                  style: TextStyle(
+                                      color: n.up
+                                          ? AppColors.ok
+                                          : AppColors.err,
+                                      fontSize: 8)),
+                            if (n.degree > 0) ...[
+                              if (!n.external)
+                                const SizedBox(width: 5),
+                              Text('×${n.degree}',
+                                  style: const TextStyle(
+                                      color: AppColors.accent, fontSize: 8)),
+                            ],
+                          ]),
                     ]),
                   ),
                 ),
               ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 6,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final f in _filters)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: FilterChip(
+                          label: Text(f,
+                              style: const TextStyle(fontSize: 10)),
+                          selected: _filter == f,
+                          onSelected: (_) => setState(() => _filter = f),
+                          selectedColor:
+                              AppColors.accent.withValues(alpha: 0.25),
+                          checkmarkColor: AppColors.textHi,
+                          labelStyle: TextStyle(
+                              color: _filter == f
+                                  ? AppColors.textHi
+                                  : AppColors.textLo,
+                              fontSize: 10),
+                          backgroundColor: AppColors.card,
+                          side: const BorderSide(color: AppColors.border),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
             Positioned(
               left: 0,
               right: 0,
@@ -365,19 +465,20 @@ class _MapScreenState extends State<MapScreen>
   }
 
   Widget _buildList() {
-    if (_edges.isEmpty) {
+    final vis = _visibleEdges;
+    if (vis.isEmpty) {
       return const Center(
-        child: Text('Sin conexiones visibles todavia.',
+        child: Text('Sin conexiones visibles para este filtro.',
             style: TextStyle(color: AppColors.textLo)),
       );
     }
     return ListView.separated(
       padding: const EdgeInsets.all(12),
-      itemCount: _edges.length,
+      itemCount: vis.length,
       separatorBuilder: (_, __) =>
           const Divider(color: AppColors.border, height: 8),
       itemBuilder: (_, i) {
-        final e = _edges[i];
+        final e = vis[i];
         return Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
@@ -385,11 +486,21 @@ class _MapScreenState extends State<MapScreen>
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${e.fromName}  →  ${e.toName}',
-                style: const TextStyle(
-                    color: AppColors.textHi,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13)),
+            Row(children: [
+              if (e.port == 1521)
+                const Padding(
+                  padding: EdgeInsets.only(right: 5),
+                  child:
+                      Icon(Icons.storage, size: 14, color: Color(0xFFFF5C5C)),
+                ),
+              Expanded(
+                child: Text('${e.fromName}  →  ${e.toName}',
+                    style: const TextStyle(
+                        color: AppColors.textHi,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13)),
+              ),
+            ]),
             const SizedBox(height: 4),
             Row(children: [
               Icon(Icons.cable, size: 14, color: _edgeColor(e)),
@@ -472,7 +583,6 @@ class _EdgePainter extends CustomPainter {
       final path = Path()
         ..moveTo(a.dx, a.dy)
         ..quadraticBezierTo(ctrl.dx, ctrl.dy, b.dx, b.dy);
-      // brillo LED: halo ancho suave + nucleo brillante
       canvas.drawPath(
           path,
           Paint()
@@ -493,7 +603,6 @@ class _EdgePainter extends CustomPainter {
             ..color = color.withValues(alpha: 0.95)
             ..style = PaintingStyle.stroke
             ..strokeWidth = stroke);
-      // flecha
       final dir = (b - ctrl);
       final d2 = Offset.fromDirection(dir.direction, 14);
       final p = Paint()
@@ -506,7 +615,6 @@ class _EdgePainter extends CustomPainter {
             ..lineTo(b.dx - d2.dx - d2.dy * 0.4, b.dy - d2.dy + d2.dx * 0.4)
             ..close(),
           p);
-      // etiqueta
       final tp = TextPainter(
         text: TextSpan(
           text: '${e.service} ×${e.count}',
@@ -518,8 +626,7 @@ class _EdgePainter extends CustomPainter {
       final labelMid = Offset(0.25 * a.dx + 0.5 * ctrl.dx + 0.25 * b.dx,
           0.25 * a.dy + 0.5 * ctrl.dy + 0.25 * b.dy);
       final pill = RRect.fromRectAndRadius(
-          Rect.fromCenter(
-              center: labelMid, width: tp.width + 10, height: 16),
+          Rect.fromCenter(center: labelMid, width: tp.width + 10, height: 16),
           const Radius.circular(8));
       canvas.drawRRect(
           pill, Paint()..color = AppColors.bg.withValues(alpha: 0.88));

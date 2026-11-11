@@ -11,6 +11,7 @@ import '../storage/app_paths.dart';
 
 class GhostSettings {
   static double opacity = 0.55;
+  static double scale = 1.0;
   static double? posX;
   static double? posY;
 
@@ -20,6 +21,7 @@ class GhostSettings {
       if (await f.exists()) {
         final m = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
         opacity = ((m['opacity'] as num?)?.toDouble() ?? 0.55).clamp(0.15, 0.95);
+        scale = ((m['scale'] as num?)?.toDouble() ?? 1.0).clamp(0.7, 2.0);
         posX = (m['posX'] as num?)?.toDouble();
         posY = (m['posY'] as num?)?.toDouble();
       }
@@ -32,6 +34,11 @@ class GhostSettings {
   }
 
   /// Posicion arrastrada (null = defecto arriba-derecha).
+  static Future<void> setScale(double v) async {
+    scale = v.clamp(0.7, 2.0);
+    await _save();
+  }
+
   static Future<void> setPos(double? x, double? y) async {
     posX = x;
     posY = y;
@@ -40,7 +47,7 @@ class GhostSettings {
 
   static Future<void> _save() async {
     try {
-      final m = <String, dynamic>{'opacity': opacity};
+      final m = <String, dynamic>{'opacity': opacity, 'scale': scale};
       if (posX != null && posY != null) {
         m['posX'] = posX;
         m['posY'] = posY;
