@@ -595,7 +595,29 @@ class _HostsScreenState extends State<HostsScreen> {
                 ],
               ),
             const Icon(Icons.chevron_right, color: _C.textLo),
-            PopupMenuButton<String>(
+            // v2.19.0: acciones rapidas de sysadmin junto al menu.
+            IconButton(
+              tooltip: 'Monitor de sistemas',
+              icon: const Icon(Icons.query_stats,
+                  size: 18, color: _C.textLo),
+              onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => MonitorScreen(host: h))),
+            ),
+            if (h.macAddress != null)
+              IconButton(
+                tooltip: 'Encender (Wake-on-LAN)',
+                icon: const Icon(Icons.power_settings_new,
+                    size: 18, color: _C.textLo),
+                onPressed: () => _wake(h),
+              ),
+            // v2.19.0: menu agrupado por secciones + fondo opaco (el fondo
+            // semitransparente dejaba ver los avatares de los hosts de
+            // detras, el glitch de las capturas).
+            PopupMenuTheme(
+              data: const PopupMenuThemeData(color: _C.card),
+              child: PopupMenuButton<String>(
               iconColor: _C.textLo,
               onSelected: (v) {
                 if (v == 'multisel') setState(() => _selectMode = true);
@@ -607,6 +629,12 @@ class _HostsScreenState extends State<HostsScreen> {
                       MaterialPageRoute(
                           builder: (_) => MonitorScreen(host: h)));
                 }
+                if (v == 'identity') {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const IdentityScreen()));
+                }
                 if (v == 'sendkey') _sendKeyToHost(h);
                 if (v == 'jump') _pickJumpHost(h);
                 if (v == 'unjump') _clearJump(h);
@@ -617,33 +645,28 @@ class _HostsScreenState extends State<HostsScreen> {
                 if (v == 'wake') _wake(h);
               },
               itemBuilder: (_) => [
-                const PopupMenuItem(
-                    value: 'multisel', child: Text('Seleccionar varios')),
-                const PopupMenuItem(
-                    value: 'move',
-                    child: Text('Mover a grupo...')),
-                const PopupMenuItem(
-                    value: 'audit',
-                    child: Text('Auditar servicios (mapa de red)')),
-                const PopupMenuItem(
-                    value: 'monitor',
-                    child: Text('Monitor de sistemas')),
-                const PopupMenuItem(
-                    value: 'sendkey',
-                    child: Text('Enviar clave publica (sin password despues)')),
+                _menuHdr('CONEXION'),
                 const PopupMenuItem(
                     value: 'jump',
                     child: Text('Conectar a traves de... (ProxyJump)')),
                 if (h.jumpHostId != null)
                   const PopupMenuItem(
-                      value: 'unjump', child: Text('Quitar salto ProxyJump')),
+                      value: 'unjump',
+                      child: Text('Quitar salto ProxyJump')),
+                _menuHdr('ADMINISTRACION'),
                 const PopupMenuItem(
-                    value: 'shutdown', child: Text('Apagar equipo')),
+                    value: 'monitor',
+                    child: Text('Monitor de sistemas')),
                 const PopupMenuItem(
-                    value: 'reboot', child: Text('Reiniciar equipo')),
+                    value: 'audit',
+                    child: Text('Auditar servicios (mapa de red)')),
                 const PopupMenuItem(
-                    value: 'prep-power',
-                    child: Text('Preparar apagado sin contrasena (una vez)')),
+                    value: 'sendkey',
+                    child: Text('Enviar clave publica')),
+                const PopupMenuItem(
+                    value: 'identity',
+                    child: Text('Identidad SSH (ver/copiar)')),
+                _menuHdr('ENERGIA'),
                 if (h.macAddress == null)
                   const PopupMenuItem(
                       value: 'setmac',
@@ -654,7 +677,20 @@ class _HostsScreenState extends State<HostsScreen> {
                   const PopupMenuItem(
                       value: 'setmac', child: Text('Cambiar MAC')),
                 ],
+                const PopupMenuItem(
+                    value: 'prep-power',
+                    child: Text('Preparar apagado sin contrasena (una vez)')),
+                const PopupMenuItem(
+                    value: 'reboot', child: Text('Reiniciar equipo')),
+                const PopupMenuItem(
+                    value: 'shutdown', child: Text('Apagar equipo')),
+                _menuHdr('ORGANIZACION'),
+                const PopupMenuItem(
+                    value: 'move', child: Text('Mover a grupo...')),
+                const PopupMenuItem(
+                    value: 'multisel', child: Text('Seleccionar varios')),
               ],
+              ),
             ),
           ],
         ),
@@ -1627,3 +1663,15 @@ class _HostEditorSheetState extends State<_HostEditorSheet> {
     );
   }
 }
+
+/// v2.19.0: cabecera de seccion para el menu agrupado del host.
+PopupMenuItem<String> _menuHdr(String t) => PopupMenuItem<String>(
+      enabled: false,
+      height: 24,
+      child: Text(t,
+          style: const TextStyle(
+              fontSize: 10,
+              color: _C.accent,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1)),
+    );
