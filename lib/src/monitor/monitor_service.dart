@@ -1,25 +1,21 @@
 // lib/src/monitor/monitor_service.dart
-// Servicio del Monitor de sistemas (v2.18.0). Conecta al host con el
-// mismo flujo de auth que la sesion terminal y lanza comandos read-only
-// agrupados. Sin agentes ni instalaciones en el servidor.
+// Servicio del Monitor de sistemas (v2.18.7). Comandos read-only por SSH;
+// nada instalado en el servidor. Dos fases: fetch() (sistema, rapido) y
+// fetchDirs() (directorios en segundo plano).
 
 import 'dart:convert';
 import 'dart:io';
-import 'dart:async';
 
 import 'package:dartssh2/dartssh2.dart';
 
 import '../ssh/identity_service.dart';
 import '../ssh/ssh_credentials_store.dart';
 import '../ssh/ssh_host.dart';
-import '../storage/app_paths.dart';
 import '../sftp/sftp_favorites_service.dart';
+import '../storage/app_paths.dart';
 import 'monitor_log.dart';
 import 'monitor_models.dart';
 
-// v2.18.5: caché de tamaños por host+path (JSON en AppPaths.base). Los du
-// de directorios grandes pueden superar el timeout: se muestra el último
-// tamaño conocido con su antigüedad (~2h) y se refresca cuando responde.
 Future<void> dirCacheLoad() async {
   try {
     final f = File('${AppPaths.base}/monitor_dir_cache.json');
@@ -69,74 +65,83 @@ String dirCacheAge(String hostId, String path) {
         as Map<String, dynamic>?;
     final ts = e?['ts'] as int?;
     if (ts == null) return '';
-    final min = DateTime.now().millisecondsSinceEpoch - ts;
-    final m = (min / 60000).round();
+    final diff = DateTime.now().millisecondsSinceEpoch - ts;
+    final m = (diff / 60000).round();
     return m < 60 ? '${m}m' : '${(m / 60).round()}h';
   } catch (_) {
     return '';
   }
 }
 
+class _Conn {
+  final SSHClient c;
+  final SSHSocket s;
+  _Conn(this.c, this.s);
+  void close() {
+    c.close();
+    try {
+      s.close();
+    } catch (_) {}
+  }
+}
+
 class MonitorService {
-  // Directorios medidos con du (acotados, con timeout server-side).
   static const _dirs = ['/var', '/opt', '/tmp'];
 
-  // v2.18.3: normaliza rutas (colapsa barras repetidas y barra final).
   static String _normPath(String p) {
     var s0 = p.replaceAll(RegExp(r'/+'), '/');
     if (s0.length > 1) s0 = s0.replaceAll(RegExp(r'/$'), '');
     return s0.isEmpty ? '/' : s0;
   }
 
-  static Future<MonitorSnapshot> fetch(SshHost host,
-      {Duration timeout = const Duration(seconds: 15)}) async {
+  static Future<_Conn> _connect(SshHost host) async {
     final socket = await SSHSocket.connect(host.hostname, host.port)
         .timeout(const Duration(seconds: 12));
-    SSHClient? client;
-    try {
-      // mismo auth que terminal_session (v2.16.1): clave del host si la
-      // hay + identidad de la app como fallback; password siempre ofrecido.
-      List<SSHKeyPair>? identities;
-      final keyPath = host.keyPath;
-      if (keyPath != null && keyPath.trim().isNotEmpty) {
-        try {
-          final keyFile = await AppPaths.resolveKey(keyPath.trim());
-          if (keyFile != null) {
-            identities = SSHKeyPair.fromPem(await keyFile.readAsString());
-          }
-        } catch (_) {}
-      }
+    List<SSHKeyPair>? identities;
+    final keyPath = host.keyPath;
+    if (keyPath != null && keyPath.trim().isNotEmpty) {
       try {
-        final id = await IdentityService.loadIdentity();
-        if (id != null && id.isNotEmpty) {
-          identities = [...(identities ?? const <SSHKeyPair>[]), ...id];
+        final keyFile = await AppPaths.resolveKey(keyPath.trim());
+        if (keyFile != null) {
+          identities = SSHKeyPair.fromPem(await keyFile.readAsString());
         }
       } catch (_) {}
-      final pwd = await SshCredentialsStore.readPassword(host.id);
-      client = SSHClient(
-        socket,
-        username: host.username,
-        identities: (identities != null && identities.isNotEmpty)
-            ? identities
-            : null,
-        onPasswordRequest: () async => pwd,
-        onUserInfoRequest: (req) async => req.prompts
-            .map((p) =>
-                p.promptText.toLowerCase().contains('password') && pwd != null
-                    ? pwd
-                    : '')
-            .toList(),
-        onVerifyHostKey: (type, fingerprint) async => true,
-        handshakeTimeout: const Duration(seconds: 12),
-        authTimeout: const Duration(seconds: 12),
-      );
+    }
+    try {
+      final id = await IdentityService.loadIdentity();
+      if (id != null && id.isNotEmpty) {
+        identities = [...(identities ?? const <SSHKeyPair>[]), ...id];
+      }
+    } catch (_) {}
+    final pwd = await SshCredentialsStore.readPassword(host.id);
+    final client = SSHClient(
+      socket,
+      username: host.username,
+      identities: (identities != null && identities.isNotEmpty)
+          ? identities
+          : null,
+      onPasswordRequest: () async => pwd,
+      onUserInfoRequest: (req) async => req.prompts
+          .map((p) =>
+              p.promptText.toLowerCase().contains('password') && pwd != null
+                  ? pwd
+                  : '')
+          .toList(),
+      onVerifyHostKey: (type, fingerprint) async => true,
+      handshakeTimeout: const Duration(seconds: 12),
+      authTimeout: const Duration(seconds: 12),
+    );
+    return _Conn(client, socket);
+  }
 
+  /// Fase 1 (rapida): sistema + discos + servicios + oracle. Sin du.
+  static Future<MonitorSnapshot> fetch(SshHost host,
+      {Duration timeout = const Duration(seconds: 15)}) async {
+    final conn = await _connect(host);
+    try {
       final t0 = DateTime.now();
       MonitorLog.write('monitor',
           'fetch ${host.name} (${host.username}@${host.hostname}:${host.port})');
-      // v2.18.1: listas growables explicitas (los defaults const del
-      // constructor no admiten add/addAll -> "Cannot add to an unmodifiable
-      // list", crash reportado 10-nov-2026).
       final snap = MonitorSnapshot(
           ts: DateTime.now(),
           oracle: OracleInfo(present: false),
@@ -144,15 +149,17 @@ class MonitorService {
           dirs: <DirInfo>[],
           failedNames: <String>[]);
 
-      // 1) nucleo: df + load + mem + failed + deteccion oracle
-      const core = r'''
+      // v2.18.7: el printf del awk LLEVA barra-n: sin ella el siguiente
+      // echo se pegaba ("62__TX_FAIL__") y la memoria parseaba 0.0%.
+      const core = r"""
 LC_ALL=C; export LC_ALL
 echo __TX_DF__
 df -hP -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs
 echo __TX_LOAD__
 cut -d' ' -f1-3 /proc/loadavg
 echo __TX_MEM__
-awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{printf "%d",(t-a)/t*100}' /proc/meminfo
+awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{printf "%d
+",(t-a)/t*100}' /proc/meminfo
 echo __TX_FAIL__
 systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $2}' | head -5
 echo __TX_ACTIVE__
@@ -160,19 +167,44 @@ systemctl list-units --type=service --state=running --no-legend --plain 2>/dev/n
 echo __TX_OH__
 command -v sqlplus >/dev/null 2>&1 && echo yes || echo no
 echo __TX_END__
-''';
-      final coreRaw = utf8.decode(await client.run(core).timeout(timeout),
+""";
+      final coreRaw = utf8.decode(await conn.c.run(core).timeout(timeout),
           allowMalformed: true);
       MonitorLog.write('core', coreRaw.trim());
       _parseCore(snap, coreRaw);
       snap.failedUnits = snap.failedNames.length;
 
-      // 2) directorios (du acotado, timeout server-side de 6s por dir)
-      // v2.18.2: los directorios medidos son los FAVORITOS SFTP del host
-      // (los que el owner mete en favoritos desde el navegador SFTP) mas
-      // los defaults; los favoritos se pintan con estrella en la pantalla.
-      // v2.18.3: favoritos normalizados y CAPADO A 5 (idea owner:
-      // favorito = auditada, maximo 5 carpetas).
+      if (snap.oracle.present) {
+        const oh = r"""
+pgrep -f ora_pmon_ >/dev/null 2>&1 && echo TX_UP || echo TX_DOWN
+command -v lsnrctl >/dev/null 2>&1 && { lsnrctl status >/dev/null 2>&1 && echo TX_LUP || echo TX_LDOWN; } || echo TX_LNA
+sqlplus -s / as sysdba <<'EOS' 2>/dev/null
+set pages 0 feed off head off
+select tablespace_name||' '||round(used_percent,1) from dba_tablespace_usage_metrics order by 2 desc fetch first 8 rows only;
+EOS
+""";
+        try {
+          final ohRaw =
+              utf8.decode(await conn.c.run(oh).timeout(timeout), allowMalformed: true);
+          MonitorLog.write('oracle', ohRaw.trim());
+          _parseOracle(snap, ohRaw);
+        } catch (e) {
+          MonitorLog.write('oracle-error', '$e');
+        }
+      }
+      MonitorLog.write('monitor',
+          'ok en ${DateTime.now().difference(t0).inMilliseconds}ms (fs=${snap.fs.length} oracle=${snap.oracle.present})');
+      return snap;
+    } finally {
+      conn.close();
+    }
+  }
+
+  /// Fase 2: directorios (favoritos SFTP del host + defaults). Segundo plano.
+  static Future<List<DirInfo>> fetchDirs(SshHost host) async {
+    await dirCacheLoad();
+    final conn = await _connect(host);
+    try {
       final favs = SftpFavoritesService.instance
           .forHost(host.id)
           .map((f) => _normPath(f.path))
@@ -184,52 +216,21 @@ echo __TX_END__
         ..._dirs.where((d) => !favs.contains(d)),
       ];
       final dirList = allDirs.map((e) => "'$e'").join(' ');
-      // v2.18.3: du EN PARALELO server-side (subshells + wait). El bucle
-      // secuencial de v2.18.2 sumaba hasta 6s por directorio y superaba el
-      // timeout del cliente (TimeoutException reportada 10-nov). Los que
-      // agotan el timeout devuelven TIMEOUT explicito.
-      const tpl = 'for d in @@DIRS@@; do ( out=\$(timeout 20 du -x -s -B1 "\$d" 2>/dev/null | awk \'{print \$1}\'); echo "__TX_DIR__ \$d"; echo "\${out:-TIMEOUT}" ) & done; wait';
+      const tpl =
+          'for d in @@DIRS@@; do ( out=\$(timeout 20 du -x -s -B1 "\$d" 2>/dev/null | awk \'{print \$1}\'); echo "__TX_DIR__ \$d"; echo "\${out:-TIMEOUT}" ) & done; wait';
       final dirsCmd = tpl.replaceAll('@@DIRS@@', dirList);
       MonitorLog.write('dirs', 'targets=${allDirs.join(' ')}');
       final dirsRaw = utf8.decode(
-          await client.run(dirsCmd).timeout(const Duration(seconds: 25)),
+          await conn.c.run(dirsCmd).timeout(const Duration(seconds: 25)),
           allowMalformed: true);
       MonitorLog.write('dirs', dirsRaw.trim());
-      snap.dirs.addAll(_parseDirs(dirsRaw));
-      for (final d in snap.dirs) {
+      final dirs = _parseDirs(dirsRaw);
+      for (final d in dirs) {
         if (!d.slow) await dirCachePut(host.id, d.path, d.bytes);
       }
-
-      // 3) oracle (solo si hay sqlplus)
-      if (snap.oracle.present) {
-        const oh = r'''
-pgrep -f ora_pmon_ >/dev/null 2>&1 && echo TX_UP || echo TX_DOWN
-command -v lsnrctl >/dev/null 2>&1 && { lsnrctl status >/dev/null 2>&1 && echo TX_LUP || echo TX_LDOWN; } || echo TX_LNA
-sqlplus -s / as sysdba <<'EOS' 2>/dev/null
-set pages 0 feed off head off
-select tablespace_name||' '||round(used_percent,1) from dba_tablespace_usage_metrics order by 2 desc fetch first 8 rows only;
-EOS
-''';
-        try {
-          final ohRaw = utf8.decode(await client.run(oh).timeout(timeout),
-              allowMalformed: true);
-          MonitorLog.write('oracle', ohRaw.trim());
-          _parseOracle(snap, ohRaw);
-        } catch (e) {
-          MonitorLog.write('oracle-error', '$e');
-        }
-      }
-      MonitorLog.write('monitor',
-          'ok en ${DateTime.now().difference(t0).inMilliseconds}ms (fs=${snap.fs.length} dirs=${snap.dirs.length} oracle=${snap.oracle.present})');
-      return snap;
-    } catch (e) {
-      MonitorLog.write('error', 'fetch ${host.name}: $e');
-      rethrow;
+      return dirs;
     } finally {
-      client?.close();
-      try {
-        await socket.close();
-      } catch (_) {}
+      conn.close();
     }
   }
 
@@ -260,7 +261,9 @@ EOS
           }
           break;
         case '__TX_MEM__':
-          snap.load = LoadInfo(snap.load?.l1 ?? 0, snap.load?.l5 ?? 0,
+          snap.load = LoadInfo(
+              snap.load?.l1 ?? 0,
+              snap.load?.l5 ?? 0,
               snap.load?.l15 ?? 0,
               double.tryParse(l.replaceAll(',', '.')) ?? 0);
           break;

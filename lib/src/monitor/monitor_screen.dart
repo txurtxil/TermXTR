@@ -78,6 +78,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
         _snap = s;
         _loading = false;
       });
+      _loadDirs();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -85,6 +86,18 @@ class _MonitorScreenState extends State<MonitorScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<void> _loadDirs() async {
+    try {
+      final dirs = await MonitorService.fetchDirs(widget.host);
+      if (!mounted) return;
+      setState(() {
+        _snap!.dirs
+          ..clear()
+          ..addAll(dirs);
+      });
+    } catch (_) {}
   }
 
   void _toggleAuto(bool v) {
@@ -268,7 +281,12 @@ class _MonitorScreenState extends State<MonitorScreen> {
   }
 
   Widget _secDirs(List<DirInfo> dirs) {
-    if (dirs.isEmpty) return const SizedBox.shrink();
+    if (dirs.isEmpty) {
+      return _card(title: 'Directorios', children: const [
+        Text('Midiendo carpetas (favoritos + /var /opt /tmp)...',
+            style: TextStyle(color: _C.textLo, fontSize: 12)),
+      ]);
+    }
     final favs = SftpFavoritesService.instance;
     final total = dirs.fold<double>(0, (a, d) => a + d.bytes);
     final rows = dirs.map((d) {

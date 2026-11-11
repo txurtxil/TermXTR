@@ -843,10 +843,9 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
 }
 
 
-/// v2.18.6: SOMBRA FANTASMA — carga/disco/memoria cada 30s y CARPETAS
-/// FAVORITAS auditadas (lineas ya formateadas "nombre\ttamano[~edad]") cada
-/// 5 min. Nitidez configurable (GhostSettings, slider en el Monitor).
-/// IgnorePointer: nunca bloquea gestos de la terminal.
+/// v2.18.7: SOMBRA FANTASMA — carga/disco/memoria cada 30s con SPARKLINES
+/// de historial (anillo en memoria: ~20 min) + carpetas favoritas cada
+/// 5 min. Nitidez configurable (GhostSettings). IgnorePointer.
 class _GhostMeter extends StatefulWidget {
   final dynamic s;
   const _GhostMeter({required this.s});
@@ -859,6 +858,8 @@ class _GhostMeterState extends State<_GhostMeter> {
   Timer? _tSlow;
   String _line = '';
   List<String> _dirs = const [];
+  final List<double> _loads = [];
+  final List<double> _mems = [];
 
   @override
   void initState() {
@@ -880,7 +881,19 @@ class _GhostMeterState extends State<_GhostMeter> {
   Future<void> _pollFast() async {
     try {
       final v = await widget.s.monitorGhostLine();
-      if (mounted && v != null && v != _line) setState(() => _line = v);
+      if (!mounted || v == null) return;
+      final p = v.split('\n');
+      final l1 = double.tryParse(p.isNotEmpty ? p[0] : '');
+      final mm = p.length > 2 ? double.tryParse(p[2].replaceAll(',', '.')) : null;
+      if (l1 != null) {
+        _loads.add(l1);
+        if (_loads.length > 40) _loads.removeAt(0);
+      }
+      if (mm != null) {
+        _mems.add(mm);
+        if (_mems.length > 40) _mems.removeAt(0);
+      }
+      if (v != _line) setState(() => _line = v);
     } catch (_) {}
   }
 
@@ -891,6 +904,18 @@ class _GhostMeterState extends State<_GhostMeter> {
       setState(() => _dirs =
           v.split('\n').where((e) => e.trim().isNotEmpty).toList());
     } catch (_) {}
+  }
+
+  static String _spark(List<double> vals) {
+    if (vals.length < 2) return '';
+    const ch = '▁▂▃▄▅▆▇█';
+    final lo = vals.reduce((a, b) => a < b ? a : b);
+    final hi = vals.reduce((a, b) => a > b ? a : b);
+    if (hi == lo) return ch[0] * vals.length;
+    final take = vals.length > 24 ? vals.sublist(vals.length - 24) : vals;
+    return take
+        .map((v) => ch[((v - lo) / (hi - lo) * 7.999).clamp(0, 7).floor()])
+        .join();
   }
 
   @override
@@ -908,6 +933,22 @@ class _GhostMeterState extends State<_GhostMeter> {
               fontSize: 10,
               fontFamily: 'monospace')),
     ];
+    final spLoad = _spark(_loads);
+    final spMem = _spark(_mems);
+    if (spLoad.isNotEmpty) {
+      rows.add(Text('carga $spLoad',
+          style: TextStyle(
+              color: Colors.white.withValues(alpha: op * 0.75),
+              fontSize: 8,
+              fontFamily: 'monospace')));
+    }
+    if (spMem.isNotEmpty) {
+      rows.add(Text('mem   $spMem',
+          style: TextStyle(
+              color: Colors.white.withValues(alpha: op * 0.75),
+              fontSize: 8,
+              fontFamily: 'monospace')));
+    }
     for (final d in _dirs) {
       final p = d.split('\t');
       if (p.length < 2) continue;
