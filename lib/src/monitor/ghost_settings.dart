@@ -3,6 +3,8 @@
 // ajustable desde el Monitor y persistida en JSON.
 
 import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 
 import '../storage/app_paths.dart';
@@ -27,4 +29,11 @@ class GhostSettings {
           .writeAsString(jsonEncode({'opacity': opacity}), flush: true);
     } catch (_) {}
   }
+}
+
+/// v2.20.2: bus manual de refresco de la sombra. El boton "Recargar" del
+/// Monitor hace bump() y el widget fantasma reacciona (preview + polls).
+class GhostRefreshBus {
+  static final ValueNotifier<int> n = ValueNotifier<int>(0);
+  static void bump() => n.value++;
 }

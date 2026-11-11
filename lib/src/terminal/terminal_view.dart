@@ -844,10 +844,10 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
 }
 
 
-/// v2.18.8: SOMBRA FANTASMA — configurable por host (GhostConfigStore):
-/// que metricas (carga/disco/mem/sparklines) y que unidades systemd audita,
-/// administrado desde el Monitor. Carpetas favoritas cada 5 min, sparklines
-/// de historial en memoria. Nitidez: GhostSettings. IgnorePointer.
+/// v2.20.2: SOMBRA FANTASMA — directorios favoritos SIEMPRE visibles
+/// (caché local en cada ciclo de 30s + du real cada 3 min), RELOJ DE ARENA
+/// mientras no hay medición, recarga manual (GhostRefreshBus), métricas y
+/// sparklines configurables por host, nitidez ajustable. IgnorePointer.
 class _GhostMeter extends StatefulWidget {
   final dynamic s;
   const _GhostMeter({required this.s});
@@ -858,10 +858,11 @@ class _GhostMeter extends StatefulWidget {
 class _GhostMeterState extends State<_GhostMeter> {
   Timer? _tFast;
   Timer? _tSlow;
+  Timer? _pendingTimeout;
   String _line = '';
   List<String> _dirs = const [];
   GhostCfg _cfg = GhostCfg();
-  String _hostId = '';
+  bool _dirsPending = true;
   final List<double> _loads = [];
   final List<double> _mems = [];
 
@@ -870,18 +871,28 @@ class _GhostMeterState extends State<_GhostMeter> {
     super.initState();
     GhostSettings.load();
     _loadCfg();
-    _previewDirs();
+    _refreshDirsCache();
     _pollFast();
     _pollSlow();
     _tFast = Timer.periodic(const Duration(seconds: 30), (_) => _pollFast());
-    _tSlow = Timer.periodic(const Duration(minutes: 5), (_) => _pollSlow());
+    _tSlow = Timer.periodic(const Duration(minutes: 3), (_) => _pollSlow());
+    // el reloj de arena no dura eterno: 90s sin carpetas = asumir que no hay
+    _pendingTimeout = Timer(const Duration(seconds: 90), () {
+      if (mounted) setState(() => _dirsPending = false);
+    });
+    GhostRefreshBus.n.addListener(_onBus);
+  }
+
+  void _onBus() {
+    _refreshDirsCache();
+    _pollFast();
+    _pollSlow();
   }
 
   Future<void> _loadCfg() async {
     try {
       final h = widget.s.sourceHost;
       final id = h?.id?.toString() ?? '';
-      _hostId = id;
       if (id.isNotEmpty) {
         _cfg = await GhostConfigStore.forHost(id);
         if (mounted) setState(() {});
@@ -893,15 +904,21 @@ class _GhostMeterState extends State<_GhostMeter> {
   void dispose() {
     _tFast?.cancel();
     _tSlow?.cancel();
+    _pendingTimeout?.cancel();
+    GhostRefreshBus.n.removeListener(_onBus);
     super.dispose();
   }
 
-  Future<void> _previewDirs() async {
+  Future<void> _refreshDirsCache() async {
     try {
       final v = await widget.s.ghostDirsPreview();
-      if (!mounted || v == null) return;
-      setState(() => _dirs =
-          v.split('\n').where((e) => e.trim().isNotEmpty).toList());
+      if (!mounted) return;
+      if (v != null) {
+        setState(() {
+          _dirs = v.split('\n').where((e) => e.trim().isNotEmpty).toList();
+          _dirsPending = false;
+        });
+      }
     } catch (_) {}
   }
 
@@ -921,6 +938,8 @@ class _GhostMeterState extends State<_GhostMeter> {
         if (_mems.length > 40) _mems.removeAt(0);
       }
       if (v != _line) setState(() => _line = v);
+      // carpetas favoritas frescas desde la caché en cada ciclo (barato)
+      await _refreshDirsCache();
     } catch (_) {}
   }
 
@@ -928,8 +947,10 @@ class _GhostMeterState extends State<_GhostMeter> {
     try {
       final v = await widget.s.monitorGhostDirs();
       if (!mounted || v == null) return;
-      setState(() => _dirs =
-          v.split('\n').where((e) => e.trim().isNotEmpty).toList());
+      setState(() {
+        _dirs = v.split('\n').where((e) => e.trim().isNotEmpty).toList();
+        _dirsPending = false;
+      });
     } catch (_) {}
   }
 
@@ -947,7 +968,9 @@ class _GhostMeterState extends State<_GhostMeter> {
 
   @override
   Widget build(BuildContext context) {
-    if (_line.isEmpty && _dirs.isEmpty) return const SizedBox.shrink();
+    if (_line.isEmpty && _dirs.isEmpty && !_dirsPending) {
+      return const SizedBox.shrink();
+    }
     final parts = _line.split('\n');
     final load = parts.isNotEmpty ? parts[0] : '?';
     final disk = parts.length > 1 ? parts[1] : '?';
@@ -984,10 +1007,17 @@ class _GhostMeterState extends State<_GhostMeter> {
                 fontFamily: 'monospace')));
       }
     }
+    // directorios favoritos: siempre que haya; si aun no, reloj de arena
+    if (_dirs.isEmpty && _dirsPending) {
+      rows.add(Text('⏳ midiendo carpetas...',
+          style: TextStyle(
+              color: Colors.white.withValues(alpha: op * 0.7),
+              fontSize: 9,
+              fontFamily: 'monospace')));
+    }
     for (final d in _dirs) {
       final p = d.split('\t');
       if (p.length == 3 && p[0] == 'u') {
-        // unidad auditada: u<tab>unidad<tab>estado
         final ok = p[2] == 'active';
         rows.add(Text('${ok ? 'ok' : 'KO'} ${p[1]}',
             style: TextStyle(

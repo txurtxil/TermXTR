@@ -609,6 +609,16 @@ class _MonitorScreenState extends State<MonitorScreen> {
         ),
         const Icon(Icons.blur_on, size: 16, color: _C.textLo),
       ]),
+      TextButton.icon(
+        onPressed: () {
+          GhostRefreshBus.bump();
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Sombra actualizada en la terminal')));
+        },
+        icon: const Icon(Icons.refresh, size: 16, color: _C.accent),
+        label: const Text('Recargar sombra ahora',
+            style: TextStyle(color: _C.accent, fontSize: 11)),
+      ),
       const Divider(color: _C.textLo, height: 12),
       const Text('Servicios auditados (aparecen en la sombra y arriba):',
           style: TextStyle(color: _C.textLo, fontSize: 12)),
