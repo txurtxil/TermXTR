@@ -1,7 +1,9 @@
+import 'src/monitor/alert_service.dart';
 import 'package:flutter/material.dart';
 import 'src/terminal/terminal_view.dart';
 
-void main() {
+Future<void> main() async {
+  await AlertService.init();
   runApp(const TermXtrApp());
 }
 

@@ -12,6 +12,7 @@ import 'monitor_models.dart';
 import '../sftp/sftp_favorites_service.dart';
 import 'ghost_config.dart';
 import 'ghost_settings.dart';
+import 'alert_service.dart';
 import 'monitor_log.dart';
 import 'monitor_service.dart';
 
@@ -120,6 +121,8 @@ class _MonitorScreenState extends State<MonitorScreen> {
         _loading = false;
       });
       _loadDirs();
+      final cfg = await GhostConfigStore.forHost(widget.host.id);
+      AlertService.check(widget.host.id, widget.host.name, s, cfg.units);
     } catch (e) {
       if (!mounted) return;
       setState(() {
