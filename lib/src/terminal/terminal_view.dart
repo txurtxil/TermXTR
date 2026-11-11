@@ -1057,14 +1057,14 @@ class _GhostMeterState extends State<_GhostMeter> {
       rows.add(Text(chips.join('  '),
           style: TextStyle(
               color: Colors.white.withValues(alpha: op),
-              fontSize: 10,
+              fontSize: 10 * GhostSettings.scale,
               fontFamily: 'monospace')));
     }
     if (_dirs.isEmpty && _dirsPending && _cfg.showDirs) {
       rows.add(Text('⏳ midiendo carpetas...',
           style: TextStyle(
               color: Colors.white.withValues(alpha: op * 0.7),
-              fontSize: 9,
+              fontSize: 9 * GhostSettings.scale,
               fontFamily: 'monospace')));
     }
     for (final d in _dirs) {
@@ -1074,13 +1074,13 @@ class _GhostMeterState extends State<_GhostMeter> {
         rows.add(Text('${ok ? 'ok' : 'KO'} ${p[1]}',
             style: TextStyle(
                 color: Colors.white.withValues(alpha: ok ? op * 0.85 : op),
-                fontSize: 9,
+                fontSize: 9 * GhostSettings.scale,
                 fontFamily: 'monospace')));
       } else if (_cfg.showDirs && p.length >= 2) {
         rows.add(Text('${p[0]} ${p[1]}',
             style: TextStyle(
                 color: Colors.white.withValues(alpha: op * 0.85),
-                fontSize: 9,
+                fontSize: 9 * GhostSettings.scale,
                 fontFamily: 'monospace')));
       }
     }
@@ -1091,14 +1091,14 @@ class _GhostMeterState extends State<_GhostMeter> {
         rows.add(Text('carga $spLoad',
             style: TextStyle(
                 color: Colors.white.withValues(alpha: op * 0.75),
-                fontSize: 8,
+                fontSize: 8 * GhostSettings.scale,
                 fontFamily: 'monospace')));
       }
       if (spMem.isNotEmpty) {
         rows.add(Text('mem   $spMem',
             style: TextStyle(
                 color: Colors.white.withValues(alpha: op * 0.75),
-                fontSize: 8,
+                fontSize: 8 * GhostSettings.scale,
                 fontFamily: 'monospace')));
       }
     }

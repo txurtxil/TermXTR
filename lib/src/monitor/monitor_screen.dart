@@ -604,6 +604,23 @@ class _MonitorScreenState extends State<MonitorScreen> {
         ),
         const Icon(Icons.blur_on, size: 16, color: AppColors.textLo),
       ]),
+      Row(children: [
+        const Icon(Icons.zoom_out, size: 16, color: AppColors.textLo),
+        Expanded(
+          child: Slider(
+            value: GhostSettings.scale,
+            min: 0.7,
+            max: 2.0,
+            divisions: 13,
+            label: '\${(GhostSettings.scale * 100).round()}%',
+            onChanged: (v) {
+              GhostSettings.setScale(v);
+              setState(() {});
+            },
+          ),
+        ),
+        const Icon(Icons.zoom_in, size: 16, color: AppColors.textLo),
+      ]),
       TextButton.icon(
         onPressed: () {
           GhostRefreshBus.bump();
