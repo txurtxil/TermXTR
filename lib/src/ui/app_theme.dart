@@ -13,4 +13,14 @@ class AppColors {
   static const ok = Color(0xFF30D158);
   static const warn = Color(0xFFFFD60A);
   static const err = Color(0xFFFF453A);
+  static const accent = Color(0xFF5E9BD6);
+  static const bg = Color(0xFF5E9BD6);
+  static const border = Color(0xFF5E9BD6);
+  static const card = Color(0xFF5E9BD6);
+  static const cardAlt = Color(0xFF3A3A3C);
+  static const err = Color(0xFF5E9BD6);
+  static const ok = Color(0xFF5E9BD6);
+  static const textHi = Color(0xFF5E9BD6);
+  static const textLo = Color(0xFF5E9BD6);
+  static const warn = Color(0xFF5E9BD6);
 }
