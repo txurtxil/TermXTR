@@ -370,6 +370,8 @@ Future<Uint8List> buildTopologyReport({
   required List<TopoNodeDto> nodes,
   required List<ConnEdge> edges,
   required String appVersion,
+  String? scopeTitle, // v2.29.0 — grupo auditado (null = todos)
+  Map<String, String>? groupOf, // v2.29.0 — grupo por nombre de nodo
 }) async {
   final doc = pw.Document();
 
@@ -549,8 +551,11 @@ Future<Uint8List> buildTopologyReport({
       pageFormat: page,
       footer: _footer(appVersion),
       build: (ctx) => [
-        _band('Informe de topologia - auditoria',
-            '${nodes.length} nodos · ${edges.length} aristas', _now()),
+        _band(
+            'Informe de topologia - auditoria',
+            '${nodes.length} nodos · ${edges.length} aristas'
+            '${scopeTitle != null && scopeTitle!.isNotEmpty ? ' · Grupo: $scopeTitle' : ''}',
+            _now()),
         pw.SizedBox(height: 8),
         pw.Container(
           width: W,
@@ -603,11 +608,20 @@ Future<Uint8List> buildTopologyReport({
         ),
         _section('Resumen de nodos'),
         _table(
-          ['Nodo', 'IP', 'Estado', 'Servicios', 'Conexiones'],
+          [
+            'Nodo',
+            if (groupOf != null) 'Grupo',
+            'IP',
+            'Estado',
+            'Servicios',
+            'Conexiones'
+          ],
           [
             for (final n in sortedNodes)
               [
                 _cell(n.name, bold: true, color: _ink),
+                if (groupOf != null)
+                  _cell(groupOf![n.name] ?? '—'),
                 () {
                   final l = (ipsOf[n.name] ?? {}).toList()..sort();
                   return _cell(l.isEmpty ? '—' : l.take(3).join(', '));

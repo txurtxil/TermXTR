@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../ssh/ssh_connector.dart';
 import '../ssh/ssh_host.dart';
+import '../ssh/ssh_hosts_service.dart';
 import '../storage/app_paths.dart';
 import '../ui/app_theme.dart';
 import 'connmap_service.dart';
@@ -44,6 +45,8 @@ class _MapScreenState extends State<MapScreen>
   final List<_Node> _nodes = [];
   final List<ConnEdge> _edges = [];
   bool _loading = true;
+  String _groupFilter = ''; // v2.29.0 '' = todos los grupos
+  Set<String> _selHosts = {}; // v2.29.0 nombres; vacio = todos
   String? _error;
   Map<String, dynamic> _layout = {};
   String _filter = 'Todos';
@@ -69,11 +72,113 @@ class _MapScreenState extends State<MapScreen>
     super.dispose();
   }
 
+  // v2.29.0 — mapa selectivo: por grupo y por host
+  List<SshHost> get _effectiveHosts {
+    var hs = widget.hosts;
+    if (_groupFilter.isNotEmpty) {
+      hs = hs.where((h) => h.group == _groupFilter).toList();
+    }
+    if (_selHosts.isNotEmpty) {
+      hs = hs.where((h) => _selHosts.contains(h.name)).toList();
+    }
+    return hs;
+  }
+
+  void _showHostPicker() {
+    final base = _groupFilter.isEmpty
+        ? widget.hosts
+        : widget.hosts.where((h) => h.group == _groupFilter).toList();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('Auditar solo estos hosts',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textHi)),
+                  ),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final h in base)
+                          CheckboxListTile(
+                            dense: true,
+                            value: _selHosts.contains(h.name),
+                            title: Text(h.name,
+                                style:
+                                    const TextStyle(color: AppColors.textHi)),
+                            subtitle: Text(
+                                '${h.hostname}${(h.group?.isEmpty ?? true) ? '' : ' · ${h.group}'}',
+                                style:
+                                    const TextStyle(color: AppColors.textLo)),
+                            onChanged: (v) => setSheet(() {
+                              if (v == true) {
+                                _selHosts.add(h.name);
+                              } else {
+                                _selHosts.remove(h.name);
+                              }
+                            }),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          _selHosts.clear();
+                          Navigator.pop(ctx);
+                          setState(() {});
+                          _load();
+                        },
+                        child: const Text('Todos',
+                            style: TextStyle(color: AppColors.textLo)),
+                      ),
+                      FilledButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          setState(() {});
+                          _load();
+                        },
+                        child: const Text('Auditar selección'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
+    if (_effectiveHosts.isEmpty) {
+      setState(() {
+        _edges.clear();
+        _nodes.clear();
+        _recalcMeta();
+        _loading = false;
+      });
+      return;
+    }
     try {
       if (await _layoutFile.exists()) {
         _layout = jsonDecode(await _layoutFile.readAsString());
@@ -82,12 +187,12 @@ class _MapScreenState extends State<MapScreen>
     final List<String> failures = [];
     List<ConnEdge> edges;
     try {
-      edges = await ConnMapService.collect(widget.hosts);
+      edges = await ConnMapService.collect(_effectiveHosts);
     } catch (e) {
       edges = const [];
     }
     final upMap = <String, bool>{};
-    await Future.wait(widget.hosts.map((h) async {
+    await Future.wait(_effectiveHosts.map((h) async {
       try {
         final c = await SshConnector.connect(h,
             timeout: const Duration(seconds: 5));
@@ -104,7 +209,7 @@ class _MapScreenState extends State<MapScreen>
         ..clear()
         ..addAll(edges);
       _nodes.clear();
-      for (final h in widget.hosts) {
+      for (final h in _effectiveHosts) {
         _nodes.add(_Node(h.hostname, h.name, up: upMap[h.hostname] ?? false)
           ..fx = ((_layout[h.hostname]?['fx']) as num?)?.toDouble() ?? -1
           ..fy = ((_layout[h.hostname]?['fy']) as num?)?.toDouble() ?? -1);
@@ -283,7 +388,9 @@ class _MapScreenState extends State<MapScreen>
                 fy: n.fy))
             .toList(),
         edges: _visibleEdges,
-        appVersion: '2.26.0',
+        appVersion: '2.29.0',
+        scopeTitle: _groupFilter.isEmpty ? null : _groupFilter,
+        groupOf: {for (final h in widget.hosts) h.name: h.group ?? ''},
       );
       await saveAndSharePdf(
           bytes,
@@ -313,6 +420,17 @@ class _MapScreenState extends State<MapScreen>
         title: const Text('Mapa',
             style: TextStyle(color: AppColors.textHi, fontSize: 16)),
         actions: [
+          IconButton(
+            tooltip: 'Seleccionar hosts',
+            icon: Icon(
+                _selHosts.isEmpty
+                    ? Icons.checklist
+                    : Icons.playlist_add_check,
+                color: _selHosts.isEmpty
+                    ? AppColors.textLo
+                    : AppColors.accent),
+            onPressed: _loading ? null : _showHostPicker,
+          ),
           IconButton(
             tooltip: 'Exportar topología PDF',
             icon: _exporting
@@ -464,11 +582,79 @@ class _MapScreenState extends State<MapScreen>
               left: 0,
               right: 0,
               top: 6,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (final f in _filters)
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (SshHostsService.instance.groupNames.isNotEmpty)
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 3),
+                            child: FilterChip(
+                              label: const Text('Todos',
+                                  style: TextStyle(fontSize: 10)),
+                              selected: _groupFilter.isEmpty,
+                              onSelected: (_) => setState(() {
+                                _groupFilter = '';
+                                _selHosts.clear();
+                                _load();
+                              }),
+                              selectedColor:
+                                  AppColors.accent.withValues(alpha: 0.25),
+                              checkmarkColor: AppColors.textHi,
+                              labelStyle: TextStyle(
+                                  color: _groupFilter.isEmpty
+                                      ? AppColors.textHi
+                                      : AppColors.textLo,
+                                  fontSize: 10),
+                              backgroundColor: AppColors.card,
+                              side:
+                                  const BorderSide(color: AppColors.border),
+                            ),
+                          ),
+                          for (final g
+                              in SshHostsService.instance.groupNames)
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 3),
+                              child: FilterChip(
+                                avatar: CircleAvatar(
+                                    radius: 5,
+                                    backgroundColor: Color(
+                                        SshHostsService.instance
+                                            .groupColor(g))),
+                                label: Text(g,
+                                    style: const TextStyle(fontSize: 10)),
+                                selected: _groupFilter == g,
+                                onSelected: (_) => setState(() {
+                                  _groupFilter = g;
+                                  _selHosts.clear();
+                                  _load();
+                                }),
+                                selectedColor:
+                                    AppColors.accent.withValues(alpha: 0.25),
+                                checkmarkColor: AppColors.textHi,
+                                labelStyle: TextStyle(
+                                    color: _groupFilter == g
+                                        ? AppColors.textHi
+                                        : AppColors.textLo,
+                                    fontSize: 10),
+                                backgroundColor: AppColors.card,
+                                side: const BorderSide(
+                                    color: AppColors.border),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final f in _filters)
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 3),
                         child: FilterChip(
@@ -488,8 +674,10 @@ class _MapScreenState extends State<MapScreen>
                           side: const BorderSide(color: AppColors.border),
                         ),
                       ),
-                  ],
-                ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
             Positioned(

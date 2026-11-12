@@ -1,4 +1,7 @@
 
+## v2.29.0 (2026-11-12)
+- MAPA SELECTIVO: el Mapa ya no audita todos los hosts de golpe - filtra por GRUPO (chips con color de grupo, usando el campo group que existia desde v2.10.0) y por HOST (boton de seleccion con checklist: 'Auditar seleccion'). El PDF de topologia hereda el alcance (titulo 'Grupo: X' y columna Grupo en el Resumen de nodos). Pensado para el trabajo: Desarrollo / Preproduccion / Produccion por separado.
+
 ## v2.28.1 (2026-11-12)
 - HOTFIX Monitor: 'Unsupported operation: Cannot add to an unmodifiable list' al abrir el Monitor - los defaults `const []` de top/temps/net (v2.25.0) no admiten .add(); el parseo ahora reasigna con spread. Leccion: un default const [] NUNCA se muta; analyze no lo detecta (fallo solo en runtime).
 
