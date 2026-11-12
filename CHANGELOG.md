@@ -1,4 +1,7 @@
 
+## v2.27.0 (2026-11-12)
+- Informe de topologia con MAS INFORMACION: cajas de nodo con estado UP/DOWN coloreado, IP(s) reales extraidas de las aristas y volumen xN; etiquetas de arista con puerto ('HTTPS :443 x12'); nueva tabla 'Resumen de nodos' (Nodo | IP | Estado | Servicios | Conexiones); detalle de conexiones ampliado con columna Proceso. APK de release renombrada a termxtr-vX.Y.Z.apk (convencion Windows).
+
 ## v2.26.0 (2026-11-12)
 - INFORMES PDF DE AUDITORIA: boton de exportar en Monitor (informe del host: sistema, discos con semaforo, top procesos, temperaturas, red, servicios systemd, Oracle con tablespaces; cabecera corporativa, tablas con rayado zebra, pie con paginacion) y en Mapa (topologia estilo Visio: nodos con LED por servicio, aristas etiquetadas y coloreadas por servicio, leyenda, tabla detalle de conexiones). Se guardan en exports/ y se comparten. Nueva dependencia: pdf.
 

@@ -365,6 +365,7 @@ Future<Uint8List> buildHostReport({
 // ---------------------------------------------------------------------------
 // Informe de topologia (mapa estilo Visio)
 // ---------------------------------------------------------------------------
+
 Future<Uint8List> buildTopologyReport({
   required List<TopoNodeDto> nodes,
   required List<ConnEdge> edges,
@@ -372,11 +373,10 @@ Future<Uint8List> buildTopologyReport({
 }) async {
   final doc = pw.Document();
 
-  // --- layout: respeta posiciones guardadas (fx/fy); fallback determinista ---
   final page = PdfPageFormat.a4.landscape;
   const margin = 30.0;
   final W = page.width - margin * 2;
-  final H = page.height - 170; // cabecera + leyenda + margen inferior
+  final H = page.height - 170;
   final pos = <String, PdfPoint>{};
   final posByName = <String, PdfPoint>{};
 
@@ -399,7 +399,20 @@ Future<Uint8List> buildTopologyReport({
     if (p != null) posByName[n.name] = p;
   }
 
-  // --- segmentos de arista ---
+  // v2.27.0: IPs y volumen de conexiones por nodo
+  final ipsOf = <String, Set<String>>{};
+  final connsOf = <String, int>{};
+  for (final e in edges) {
+    if (e.fromIp != '<ext>') {
+      ipsOf.putIfAbsent(e.fromName, () => {}).add(e.fromIp);
+    }
+    if (e.toIp != '<ext>') {
+      ipsOf.putIfAbsent(e.toName, () => {}).add(e.toIp);
+    }
+    connsOf[e.fromName] = (connsOf[e.fromName] ?? 0) + e.count;
+    connsOf[e.toName] = (connsOf[e.toName] ?? 0) + e.count;
+  }
+
   final segs = <_Seg>[];
   for (final e in edges) {
     final a = posByName[e.fromName];
@@ -408,7 +421,6 @@ Future<Uint8List> buildTopologyReport({
     segs.add(_Seg(a, b, _serviceColor(e.service), e.count));
   }
 
-  // --- servicios por nodo (LEDs) ---
   final servicesOf = <String, Set<String>>{};
   for (final e in edges) {
     servicesOf.putIfAbsent(e.fromName, () => {}).add(e.service);
@@ -419,13 +431,14 @@ Future<Uint8List> buildTopologyReport({
     legendServices.add(e.service);
   }
 
-  const boxW = 118.0;
-  const boxH = 34.0;
+  const boxW = 132.0;
+  const boxH = 42.0;
 
   pw.Widget nodeBox(TopoNodeDto n) {
     final p = posByName[n.name]!;
-    final svcs = (servicesOf[n.name] ?? {}).toList()
-      ..sort();
+    final svcs = (servicesOf[n.name] ?? {}).toList()..sort();
+    final ips = (ipsOf[n.name] ?? {}).toList()..sort();
+    final conns = connsOf[n.name] ?? 0;
     return pw.Positioned(
       left: p.x - boxW / 2,
       top: p.y - boxH / 2,
@@ -441,43 +454,60 @@ Future<Uint8List> buildTopologyReport({
             pw.BoxShadow(color: PdfColor.fromHex('#D7DEE8'), blurRadius: 3)
           ],
         ),
-        padding: pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           mainAxisAlignment: pw.MainAxisAlignment.center,
           children: [
-            pw.Text(n.name,
-                maxLines: 1,
-                style: pw.TextStyle(
-                    fontSize: 8.5,
-                    fontWeight: pw.FontWeight.bold,
-                    color: n.external ? _muted : _dark)),
-            pw.SizedBox(height: 3),
-            pw.Row(
-              children: [
-                for (final s in svcs.take(6))
-                  pw.Padding(
-                    padding: pw.EdgeInsets.only(right: 3),
-                    child: pw.Container(
-                      width: 6,
-                      height: 6,
-                      decoration: pw.BoxDecoration(
-                        shape: pw.BoxShape.circle,
-                        color: _serviceColor(s),
-                      ),
-                    ),
-                  ),
-                if (svcs.isEmpty)
-                  pw.Container(
+            pw.Row(children: [
+              pw.Expanded(
+                child: pw.Text(n.name,
+                    maxLines: 1,
+                    style: pw.TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: pw.FontWeight.bold,
+                        color: n.external ? _muted : _dark)),
+              ),
+              pw.Text(n.up ? 'UP' : (n.external ? 'ext' : 'DOWN'),
+                  style: pw.TextStyle(
+                      fontSize: 6.5,
+                      fontWeight: pw.FontWeight.bold,
+                      color: n.up
+                          ? _ok
+                          : (n.external ? _muted : _err))),
+            ]),
+            if (ips.isNotEmpty)
+              pw.Text(ips.take(2).join(', '),
+                  maxLines: 1,
+                  style: pw.TextStyle(fontSize: 6, color: _muted)),
+            pw.SizedBox(height: 2),
+            pw.Row(children: [
+              for (final s in svcs.take(6))
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(right: 3),
+                  child: pw.Container(
                     width: 6,
                     height: 6,
                     decoration: pw.BoxDecoration(
                       shape: pw.BoxShape.circle,
-                      color: _line,
+                      color: _serviceColor(s),
                     ),
                   ),
-              ],
-            ),
+                ),
+              if (svcs.isEmpty)
+                pw.Container(
+                  width: 6,
+                  height: 6,
+                  decoration: pw.BoxDecoration(
+                    shape: pw.BoxShape.circle,
+                    color: _line,
+                  ),
+                ),
+              pw.Spacer(),
+              if (conns > 0)
+                pw.Text('x$conns',
+                    style: pw.TextStyle(fontSize: 6.5, color: _inkSoft)),
+            ]),
           ],
         ),
       ),
@@ -493,13 +523,13 @@ Future<Uint8List> buildTopologyReport({
       final mx = (a.x + b.x) / 2;
       final my = (a.y + b.y) / 2;
       children.add(pw.Positioned(
-        left: mx - 34,
+        left: mx - 40,
         top: my - 5,
         child: pw.Container(
           color: _fade(PdfColors.white, 0.85),
-          padding:
-              pw.EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-          child: pw.Text('${e.service}${e.count > 1 ? ' x${e.count}' : ''}',
+          padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+          child: pw.Text(
+              '${e.service} :${e.port}${e.count > 1 ? ' x${e.count}' : ''}',
               style: pw.TextStyle(
                   fontSize: 6.5, color: _serviceColor(e.service))),
         ),
@@ -508,12 +538,18 @@ Future<Uint8List> buildTopologyReport({
     return pw.Stack(children: children);
   }
 
+  final sortedNodes = nodes.toList()
+    ..sort((a, b) {
+      if (a.external != b.external) return a.external ? -1 : 1;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+
   doc.addPage(
     pw.MultiPage(
       pageFormat: page,
       footer: _footer(appVersion),
       build: (ctx) => [
-        _band('Informe de topología — auditoría',
+        _band('Informe de topologia - auditoria',
             '${nodes.length} nodos · ${edges.length} aristas', _now()),
         pw.SizedBox(height: 8),
         pw.Container(
@@ -561,14 +597,40 @@ Future<Uint8List> buildTopologyReport({
                 ),
                 pw.SizedBox(width: 4),
                 pw.Text(s,
-                    style:
-                        pw.TextStyle(fontSize: 8, color: _inkSoft)),
+                    style: pw.TextStyle(fontSize: 8, color: _inkSoft)),
               ]),
+          ],
+        ),
+        _section('Resumen de nodos'),
+        _table(
+          ['Nodo', 'IP', 'Estado', 'Servicios', 'Conexiones'],
+          [
+            for (final n in sortedNodes)
+              [
+                _cell(n.name, bold: true, color: _ink),
+                () {
+                  final l = (ipsOf[n.name] ?? {}).toList()..sort();
+                  return _cell(l.isEmpty ? '—' : l.take(3).join(', '));
+                }(),
+                _cell(
+                  n.up
+                      ? 'UP'
+                      : (n.external ? 'agregado' : 'DOWN'),
+                  bold: true,
+                  color: n.up
+                      ? _ok
+                      : (n.external ? _muted : _err),
+                ),
+                _cell(
+                  ((servicesOf[n.name] ?? {}).toList()..sort()).join(', '),
+                ),
+                _cell('${connsOf[n.name] ?? 0}'),
+              ],
           ],
         ),
         _section('Detalle de conexiones'),
         _table(
-          ['Origen', 'Destino', 'Servicio', 'Puerto', 'Conexiones'],
+          ['Origen', 'Destino', 'Servicio', 'Puerto', 'Proceso', 'Conexiones'],
           [
             for (final e in edges)
               [
@@ -576,6 +638,7 @@ Future<Uint8List> buildTopologyReport({
                 _cell(e.toName, bold: true, color: _ink),
                 _cell(e.service, color: _serviceColor(e.service)),
                 _cell('${e.port}'),
+                _cell(e.process ?? '—'),
                 _cell('${e.count}'),
               ],
           ],
