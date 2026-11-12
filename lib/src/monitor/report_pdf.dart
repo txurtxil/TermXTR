@@ -13,6 +13,22 @@ import 'monitor_models.dart';
 // ---------------------------------------------------------------------------
 // DTO para el informe de topologia (los _Node del mapa son privados).
 // ---------------------------------------------------------------------------
+// v2.37.0
+class TopoListenDto {
+  final String proto;
+  final int port;
+  final String program;
+  TopoListenDto(this.proto, this.port, this.program);
+}
+
+class TopoDockerDto {
+  final String name;
+  final String image;
+  final String status;
+  final String ports;
+  TopoDockerDto(this.name, this.image, this.status, this.ports);
+}
+
 class TopoNodeDto {
   final String id;
   final String name;
@@ -24,6 +40,10 @@ class TopoNodeDto {
   final String os;
   final String uptime;
   final double load1;
+  // v2.37.0
+  final String hostIp;
+  final List<TopoListenDto> listen;
+  final List<TopoDockerDto> docker;
   TopoNodeDto({
     required this.id,
     required this.name,
@@ -34,6 +54,9 @@ class TopoNodeDto {
     this.os = '',
     this.uptime = '',
     this.load1 = 0,
+    this.hostIp = '',
+    this.listen = const [],
+    this.docker = const [],
   });
 }
 
@@ -706,6 +729,7 @@ Future<Uint8List> buildTopologyReport({
                         '${n.uptime.isNotEmpty && n.uptime != 'n/a' ? ' · ${n.uptime.replaceFirst('up ', '')}' : ''}'),
                 () {
                   final l = (ipsOf[n.name] ?? {}).toList()..sort();
+                  if (l.isEmpty && n.hostIp.isNotEmpty) return _cell(n.hostIp);
                   return _cell(l.isEmpty ? '—' : l.take(3).join(', '));
                 }(),
                 _cell(
@@ -724,6 +748,40 @@ Future<Uint8List> buildTopologyReport({
               ],
           ],
         ),
+        // v2.37.0 — En escucha y Docker (auditoria completa por maquina)
+        if (nodes.any((n) => n.listen.isNotEmpty)) ...[
+          _section('Puertos en escucha'),
+          _table(
+            ['Nodo', 'Proto', 'Servicio', 'Proceso'],
+            [
+              for (final n in sortedNodes)
+                for (final e in n.listen.take(10))
+                  [
+                    _cell(n.name, bold: true, color: _ink),
+                    _cell(e.proto),
+                    _cell('${ConnMapService.serviceLabel(e.port)} :${e.port}'),
+                    _cell(e.program.isEmpty ? '—' : e.program),
+                  ],
+            ],
+          ),
+        ],
+        if (nodes.any((n) => n.docker.isNotEmpty)) ...[
+          _section('Contenedores Docker'),
+          _table(
+            ['Nodo', 'Contenedor', 'Imagen', 'Estado', 'Puertos'],
+            [
+              for (final n in sortedNodes)
+                for (final c in n.docker.take(15))
+                  [
+                    _cell(n.name, bold: true, color: _ink),
+                    _cell(c.name, bold: true),
+                    _cell(c.image),
+                    _cell(c.status),
+                    _cell(c.ports.isEmpty ? '—' : c.ports),
+                  ],
+            ],
+          ),
+        ],
         _section('Detalle de conexiones'),
         _table(
           ['Origen', 'Destino', 'Servicio', 'Puerto', 'Proceso', 'Conexiones'],

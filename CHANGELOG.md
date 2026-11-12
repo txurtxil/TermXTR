@@ -1,4 +1,8 @@
 
+## v2.37.0 (2026-11-12)
+- TERMINAL: copia con VERIFICACION (reintenta + lee de vuelta; si el portapapeles de Windows esta bloqueado, guarda en la boveda y avisa) + ATAJOS DE SHELL (terminal_aliases.json): c->clear, l->ls -la, ll, lt, p, d, f, s, h; la expansion se envia con Ctrl-U en remoto y va al historial.
+- MAPA/INFORME: auditoria completa por maquina - 'Puertos en escucha' y 'Contenedores Docker' (nombre, imagen, estado, puertos) en el PDF y en la ficha de nodo; IP de fallback desde el host configurado (auditoria de 1 solo host ya no sale vacia).
+
 ## v2.36.0 (2026-11-12)
 - MANIOBRAS: acciones rapidas por host (Monitor: boton ⚡; ficha de nodo del mapa). Set read-only predefinido (uptime, top, df, free, ss -s, systemctl --failed, dmesg) + set Oracle cuando aplica (tablespaces, sesiones, alert log). Comandos personalizables (maneuvers.json, aviso de responsabilidad). Resultado en hoja monoespaciada; timeout 8s conexion/30s ejecucion.
 

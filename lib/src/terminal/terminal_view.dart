@@ -259,6 +259,23 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
 
   void _changeFont(double delta) { setState(() { _fontSize = (_fontSize + delta).clamp(_minFont, _maxFont); }); }
 
+  Future<bool> _copyWithVerify(String text) async {
+    // v2.37.0: en Windows Clipboard.setData falla en silencio si el
+    // portapapeles esta bloqueado (CLIPBRD_E_CANT_OPEN): reintenta y
+    // VERIFICA leyendo de vuelta antes de dar el copia por buena.
+    for (var i = 0; i < 4; i++) {
+      try {
+        await Clipboard.setData(ClipboardData(text: text));
+        final back = await Clipboard.getData(Clipboard.kTextPlain).timeout(
+            const Duration(milliseconds: 600),
+            onTimeout: () => null);
+        if (back?.text == text) return true;
+      } catch (_) {}
+      await Future.delayed(Duration(milliseconds: 100 * (i + 1)));
+    }
+    return false;
+  }
+
   void _copySelection() {
     // v2.10.2: copiar YA NO borra la seleccion (como Termux): permite
     // re-copiar o ampliar y copiar de nuevo; se limpia tocando fuera o
@@ -267,9 +284,16 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
     if (sel != null) {
       final text = _active.terminal.buffer.getText(sel);
       if (text.isNotEmpty) {
-        Clipboard.setData(ClipboardData(text: text));
+        _copyWithVerify(text).then((ok) {
+          if (ok) {
+            _toast('Copiado (${text.length} caracteres)');
+          } else {
+            unawaited(ClipboardVault.instance
+                .copy(text, label: 'Copia (portapapeles bloqueado)'));
+            _toast('Portapapeles bloqueado; copia guardada en la boveda');
+          }
+        });
         HapticFeedback.selectionClick();
-        _toast('Copiado (${text.length} caracteres)');
       }
     }
   }

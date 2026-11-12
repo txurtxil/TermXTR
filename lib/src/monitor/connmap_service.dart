@@ -24,6 +24,15 @@ class ListenSvc {
   ListenSvc(this.proto, this.port, this.program);
 }
 
+// v2.37.0 - contenedor Docker por host.
+class DockerCtr {
+  final String name;
+  final String image;
+  final String status;
+  final String ports;
+  DockerCtr(this.name, this.image, this.status, this.ports);
+}
+
 class ConnEdge {
   final String fromIp;
   final String fromName;
@@ -83,9 +92,11 @@ class ConnMapService {
   // v2.31.0 - hechos por hostname, llenados como efecto lateral de collect().
   static final Map<String, HostFacts> facts = {};
   static final Map<String, List<ListenSvc>> listen = {};
+  static final Map<String, List<DockerCtr>> docker = {};
   static void clearFacts() {
     facts.clear();
     listen.clear();
+    docker.clear();
   }
 
   static Future<List<ConnEdge>> collect(List<SshHost> hosts,
@@ -139,11 +150,15 @@ class ConnMapService {
                       "echo \"LOAD=\$(cut -d' ' -f1 /proc/loadavg)\"; "
                       "echo \"UPTIME=\$(uptime -p 2>/dev/null || echo n/a)\"; "
                       "echo __TX_LISTEN__; "
-                      "LC_ALL=C ss -tulnp 2>/dev/null")
+                      "LC_ALL=C ss -tulnp 2>/dev/null; "
+                      "echo __TX_DOCKER__; "
+                      "command -v docker >/dev/null 2>&1 && "
+                      "docker ps --format '{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}' || true")
                   .timeout(const Duration(seconds: 12)),
               allowMalformed: true);
           var parsed = 0;
           var listenMode = false;
+          var dockerMode = false;
           for (final line in raw.split('\n')) {
             if (line.startsWith('OS=')) {
               (facts[h.hostname] ??= HostFacts()).os = line.substring(3);
@@ -176,6 +191,21 @@ class ConnMapService {
                       .putIfAbsent(h.hostname, () => [])
                       .add(ListenSvc(r[0], port, prog));
                 }
+              }
+              continue;
+            }
+            if (lt == '__TX_DOCKER__') {
+              dockerMode = true;
+              continue;
+            }
+            if (dockerMode) {
+              final p = lt.split('|');
+              if (p.length >= 3 && p[0].isNotEmpty) {
+                docker.putIfAbsent(h.hostname, () => []).add(DockerCtr(
+                    p[0],
+                    p[1],
+                    p[2],
+                    p.length > 3 ? p[3] : ''));
               }
               continue;
             }
@@ -225,7 +255,8 @@ class ConnMapService {
           MonitorLog.write(
               'connmap', h.name + ': ' + parsed.toString() + ' lineas');
           onLog?.call('\${h.name}: \$parsed lineas, '
-              '\${listen[h.hostname]?.length ?? 0} puertos en escucha '
+              '\${listen[h.hostname]?.length ?? 0} puertos, '
+              '\${docker[h.hostname]?.length ?? 0} contenedores '
               '(\${sw.elapsedMilliseconds} ms)');
           try {
             const oh = r"""

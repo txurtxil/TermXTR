@@ -355,6 +355,10 @@ class _MapScreenState extends State<MapScreen>
     final ips = <String>{};
     final agg = <String, int>{};
     final procOf = <String, String>{};
+    if (ips.isEmpty &&
+        RegExp(r'^\d{1,3}(\.\d{1,3}){3}\$').hasMatch(n.id)) {
+      ips.add(n.id);
+    }
     for (final e in myEdges) {
       final other = e.fromIp == n.id ? e.toIp : e.fromIp;
       if (other != '<ext>') ips.add(other);
@@ -502,6 +506,33 @@ class _MapScreenState extends State<MapScreen>
                 ]),
               ),
           ],
+          if (ConnMapService.docker[n.id]?.isNotEmpty ?? false) ...[
+            const Divider(color: AppColors.border, height: 18),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                  'Docker (\${ConnMapService.docker[n.id]!.length}):',
+                  style: const TextStyle(
+                      color: AppColors.textHi,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(height: 4),
+            for (final c in ConnMapService.docker[n.id]!.take(12))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Row(children: [
+                  Expanded(
+                    child: Text(c.name,
+                        style: const TextStyle(
+                            color: AppColors.textHi, fontSize: 12)),
+                  ),
+                  Text(c.status,
+                      style: const TextStyle(
+                          color: AppColors.textLo, fontSize: 11)),
+                ]),
+              ),
+          ],
           if (mhost != null) ...[
             const Divider(color: AppColors.border, height: 18),
             Align(
@@ -603,10 +634,21 @@ class _MapScreenState extends State<MapScreen>
                 fy: n.fy,
                 os: n.os,
                 uptime: n.uptime,
-                load1: n.load1))
+                load1: n.load1,
+                hostIp: n.id,
+                listen: [
+                  for (final e in ConnMapService.listen[n.id] ??
+                      const <ListenSvc>[])
+                    TopoListenDto(e.proto, e.port, e.program),
+                ],
+                docker: [
+                  for (final c in ConnMapService.docker[n.id] ??
+                      const <DockerCtr>[])
+                    TopoDockerDto(c.name, c.image, c.status, c.ports),
+                ]))
             .toList(),
         edges: _displayEdges,
-        appVersion: '2.36.0',
+        appVersion: '2.37.0',
         scopeTitle: _groupFilter.isEmpty ? null : _groupFilter,
         groupOf: {for (final h in widget.hosts) h.name: h.group ?? ''},
       );

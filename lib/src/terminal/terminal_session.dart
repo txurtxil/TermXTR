@@ -14,6 +14,7 @@ import '../monitor/ghost_config.dart';
 import '../monitor/monitor_log.dart';
 import '../sftp/sftp_favorites_service.dart';
 import '../storage/app_paths.dart';
+import 'terminal_aliases.dart';
 import 'terminal_recorder.dart';
 
 /// Una sesión de terminal independiente (una pestaña): su propio Terminal,
@@ -304,6 +305,21 @@ class TerminalSession {
     if (data == '\t' && suggestion != null) {
       acceptSuggestion();
       return;
+    }
+    // v2.37.0 - atajos de shell: si la linea tecleada ES un atajo (p.ej. 'c'),
+    // se borra lo tecleado en remoto (Ctrl-U) y se envia la expansion.
+    if (data == '\r' || data == '\n') {
+      final typed = currentLine.trim();
+      final expanded = TerminalAliases.match(typed);
+      if (expanded != null) {
+        CommandHistory.add(sourceHost.id, expanded);
+        currentLine = '';
+        suggestion = null;
+        _updateSuggestion();
+        final sh = _shell;
+        if (sh != null) sh.write(utf8.encode('\x15$expanded\r'));
+        return;
+      }
     }
     _trackInput(data);
     final shell = _shell;
