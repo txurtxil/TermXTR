@@ -161,7 +161,7 @@ class MonitorService {
           'fetch ${host.name} (${host.username}@${host.hostname}:${host.port})');
       final snap = MonitorSnapshot(
           ts: DateTime.now(),
-          oracle: OracleInfo(present: false),
+          oracle: OracleInfo(present: false, up: false),
           fs: <FsInfo>[],
           dirs: <DirInfo>[],
           failedNames: <String>[],
@@ -220,6 +220,19 @@ pgrep -f ora_pmon_ >/dev/null 2>&1 && echo TX_UP || echo TX_DOWN
 command -v lsnrctl >/dev/null 2>&1 && { lsnrctl status >/dev/null 2>&1 && echo TX_LUP || echo TX_LDOWN; } || echo TX_LNA
 sqlplus -s / as sysdba <<'EOS' 2>/dev/null
 set pages 0 feed off head off
+prompt TX_INST
+select instance_name||'|'||status||'|'||to_char(startup_time,'YYYY-MM-DD HH24:MI') from v\$instance;
+prompt TX_DB
+select log_mode from v\$database;
+prompt TX_SESS
+select (select count(*) from v\$session)||'/'||(select value from v\$parameter where name='sessions') from dual;
+prompt TX_PROC
+select (select count(*) from v\$process)||'/'||(select value from v\$parameter where name='processes') from dual;
+prompt TX_SGA
+select round(sum(value)/1048576) from v\$sga;
+prompt TX_FRA
+select round(max(percent_space_used)) from v\$recovery_area_usage;
+prompt TX_TBS
 select tablespace_name||' '||round(used_percent,1) from dba_tablespace_usage_metrics order by 2 desc fetch first 8 rows only;
 EOS
 """;
@@ -417,7 +430,7 @@ EOS
           snap.netEstablished = int.tryParse(l) ?? 0;
           break;
         case '__TX_OH__':
-          if (l == 'yes') snap.oracle = OracleInfo(present: true);
+          if (l == 'yes') snap.oracle = OracleInfo(present: true, up: false);
           break;
       }
     }
@@ -444,25 +457,71 @@ EOS
   static void _parseOracle(MonitorSnapshot snap, String raw) {
     final tbs = <String, double>{};
     bool? up, lup;
+    var instance = '', status = '', startup = '';
+    var archivelog = false;
+    var sessUsed = 0, sessLimit = 0, procUsed = 0, procLimit = 0;
+    var sgaMb = 0, fraPct = 0;
+    var section = '';
     for (final line in raw.split('\n')) {
       final l = line.trim();
-      if (l == 'TX_UP') {
-        up = true;
-      } else if (l == 'TX_DOWN') {
-        up = false;
-      } else if (l == 'TX_LUP') {
-        lup = true;
-      } else if (l == 'TX_LDOWN') {
-        lup = false;
-      } else {
+      if (l.startsWith('TX_')) {
+        section = l;
+        if (l == 'TX_UP') {
+          up = true;
+        } else if (l == 'TX_DOWN') {
+          up = false;
+        } else if (l == 'TX_LUP') {
+          lup = true;
+        } else if (l == 'TX_LDOWN') {
+          lup = false;
+        }
+        continue;
+      }
+      if (section == 'TX_TBS' || section.isEmpty) {
         final p = l.split(' ');
-        if (p.length >= 2 && !p[0].startsWith('TX_')) {
+        if (p.length >= 2) {
           final v = double.tryParse(p[1]);
           if (v != null) tbs[p[0]] = v;
         }
+      } else if (section == 'TX_INST') {
+        final p = l.split('|');
+        if (p.length >= 3) {
+          instance = p[0];
+          status = p[1];
+          startup = p[2];
+        }
+      } else if (section == 'TX_DB') {
+        archivelog = l.toUpperCase().contains('ARCHIVELOG') &&
+            !l.toUpperCase().contains('NOARCHIVE');
+      } else if (section == 'TX_SESS') {
+        final p = l.split('/');
+        sessUsed = int.tryParse(p[0]) ?? 0;
+        if (p.length > 1) sessLimit = int.tryParse(p[1]) ?? 0;
+      } else if (section == 'TX_PROC') {
+        final p = l.split('/');
+        procUsed = int.tryParse(p[0]) ?? 0;
+        if (p.length > 1) procLimit = int.tryParse(p[1]) ?? 0;
+      } else if (section == 'TX_SGA') {
+        sgaMb = int.tryParse(l) ?? 0;
+      } else if (section == 'TX_FRA') {
+        fraPct = int.tryParse(l) ?? 0;
       }
     }
     snap.oracle = OracleInfo(
-        present: true, up: up ?? false, listenerUp: lup, tablespaces: tbs);
+      present: true,
+      up: up ?? false,
+      listenerUp: lup,
+      tablespaces: tbs,
+      instance: instance,
+      status: status,
+      startup: startup,
+      archivelog: archivelog,
+      sessUsed: sessUsed,
+      sessLimit: sessLimit,
+      procUsed: procUsed,
+      procLimit: procLimit,
+      sgaMb: sgaMb,
+      fraPct: fraPct,
+    );
   }
 }

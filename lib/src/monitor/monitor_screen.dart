@@ -156,7 +156,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
       final bytes = await buildHostReport(
           hostName: widget.host.name,
           snap: _snap!,
-          appVersion: '2.32.0');
+          appVersion: '2.34.0');
       final path = await saveAndSharePdf(
           bytes,
           'informe_${fileSafe(widget.host.name)}'
@@ -846,6 +846,39 @@ class _MonitorScreenState extends State<MonitorScreen> {
               style: const TextStyle(color: AppColors.textHi, fontSize: 13)),
         ],
       ]),
+      // v2.33.0 - ficha fina de la instancia
+      if (o.instance.isNotEmpty || o.startup.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        for (final kv in <(String, String, bool)>[
+          if (o.instance.isNotEmpty)
+            ('SID', '${o.instance} · ${o.status}', false),
+          if (o.startup.isNotEmpty) ('Arranque', o.startup, false),
+          ('Archivelog', o.archivelog ? 'SÍ' : 'NO', false),
+          if (o.fraPct > 0) ('FRA', '${o.fraPct}%', o.fraPct >= 85),
+          if (o.sessLimit > 0)
+            ('Sesiones', '${o.sessUsed}/${o.sessLimit}',
+                o.sessUsed * 100 >= o.sessLimit * 90),
+          if (o.procLimit > 0)
+            ('Procesos', '${o.procUsed}/${o.procLimit}',
+                o.procUsed * 100 >= o.procLimit * 90),
+          if (o.sgaMb > 0) ('SGA', '${o.sgaMb} MB', false),
+        ])
+          Padding(
+            padding: const EdgeInsets.only(bottom: 3),
+            child: Row(children: [
+              SizedBox(
+                  width: 92,
+                  child: Text(kv.$1,
+                      style: const TextStyle(
+                          color: AppColors.textLo, fontSize: 12))),
+              Expanded(
+                  child: Text(kv.$2,
+                      style: TextStyle(
+                          color: kv.$3 ? AppColors.warn : AppColors.textHi,
+                          fontSize: 12))),
+            ]),
+          ),
+      ],
       if (tbs.isNotEmpty) ...[
         const SizedBox(height: 10),
         ...tbs,

@@ -342,6 +342,17 @@ Future<Uint8List> buildHostReport({
             ('Instancia', snap.oracle.up ? 'UP' : 'DOWN'),
             ('Listener',
                 snap.oracle.listenerUp == true ? 'UP' : 'no verificable'),
+            if (snap.oracle.instance.isNotEmpty)
+              ('SID', '${snap.oracle.instance} · ${snap.oracle.status}'),
+            if (snap.oracle.startup.isNotEmpty)
+              ('Arranque', snap.oracle.startup),
+            ('Archivelog', snap.oracle.archivelog ? 'SÍ' : 'NO'),
+            if (snap.oracle.fraPct > 0) ('FRA', '${snap.oracle.fraPct}%'),
+            if (snap.oracle.sessLimit > 0)
+              ('Sesiones', '${snap.oracle.sessUsed}/${snap.oracle.sessLimit}'),
+            if (snap.oracle.procLimit > 0)
+              ('Procesos', '${snap.oracle.procUsed}/${snap.oracle.procLimit}'),
+            if (snap.oracle.sgaMb > 0) ('SGA', '${snap.oracle.sgaMb} MB'),
             if (snap.oracle.tablespaces.isNotEmpty)
               ('Tablespaces', '${snap.oracle.tablespaces.length} registrados'),
           ]),

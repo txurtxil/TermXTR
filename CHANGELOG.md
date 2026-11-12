@@ -1,4 +1,10 @@
 
+## v2.34.0 (2026-11-12)
+- MAPA: LOG EN VIVO de la auditoria (durante el spinner, linea a linea: conexion por host, N lineas, N puertos en escucha, ms, FALLOs). Recoleccion ampliada: ss -tulnp por host -> ficha de nodo con seccion 'En escucha' (servicio etiquetado :puerto + proceso), puertos conocidos primero. Todo en el mismo exec SSH; nada nuevo para hosts sin credenciales.
+
+## v2.33.0 (2026-11-12)
+- ORACLE FINO (Monitor + PDF): via sqlplus / as sysdba se consulta SOLO LECTURA: SID + estado + startup_time (detecta reinicios inesperados), log_mode (archivelog SI/NO), FRA % (aviso >=85), sesiones y procesos vs limite (aviso >=90%), SGA MB. Secciones TX_INST/TX_DB/TX_SESS/TX_PROC/TX_SGA/TX_FRA con prompt markers; tablespaces intacto. Requiere Oracle 12c+ (fetch first).
+
 ## v2.32.0 (2026-11-12)
 - WINDOWS: al exportar un PDF se ABRE con el visor por defecto (cmd /c start) - ya no depende del share sheet de movil; el snackbar con la ruta sigue. Monitor: SWAP % (critico en cajas Oracle con SGA grande) y etiqueta 'Memoria (sin cache)'. Top procesos con args (se ve oracleSIABPROD / ora_dbw0_SIABPROD, no 'oracle' generico). /proc/net/dev con sed + FS por defecto (robusto en Oracle Linux).
 

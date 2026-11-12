@@ -50,6 +50,7 @@ class _MapScreenState extends State<MapScreen>
   final List<ConnEdge> _edges = [];
   bool _loading = false; // v2.29.2: sin auto-auditoria, no cargando al entrar
   bool _showExternal = false; // v2.30.0 - ocultar '· externo ·' por defecto
+  final List<String> _auditLog = []; // v2.34.0
   String _groupFilter = ''; // v2.29.0 '' = todos los grupos
   Set<String> _selHosts = {}; // v2.29.0 nombres; vacio = todos
   String? _error;
@@ -202,7 +203,14 @@ class _MapScreenState extends State<MapScreen>
     final List<String> failures = [];
     List<ConnEdge> edges;
     try {
-      edges = await ConnMapService.collect(_effectiveHosts);
+      _auditLog.clear();
+      edges = await ConnMapService.collect(
+        _effectiveHosts,
+        onLog: (m) {
+          if (!mounted) return;
+          setState(() => _auditLog.add(m));
+        },
+      );
     } catch (e) {
       edges = const [];
     }
@@ -362,6 +370,18 @@ class _MapScreenState extends State<MapScreen>
       }
     }
     final keys = agg.keys.toList()..sort();
+    // v2.34.0 - puertos en escucha (dedup, conocidos primero)
+    final seenL = <String>{};
+    final lsvcs = <ListenSvc>[];
+    for (final e in ConnMapService.listen[n.id] ?? const <ListenSvc>[]) {
+      if (seenL.add('\${e.proto}:\${e.port}')) lsvcs.add(e);
+    }
+    lsvcs.sort((a, b) {
+      final ka = ConnMapService.kServiceByPort.containsKey(a.port) ? 0 : 1;
+      final kb = ConnMapService.kServiceByPort.containsKey(b.port) ? 0 : 1;
+      if (ka != kb) return ka - kb;
+      return a.port.compareTo(b.port);
+    });
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.card,
@@ -440,6 +460,38 @@ class _MapScreenState extends State<MapScreen>
                         const TextStyle(color: AppColors.accent, fontSize: 12)),
               ]),
             ),
+          if (lsvcs.isNotEmpty) ...[
+            const Divider(color: AppColors.border, height: 18),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('En escucha (\${lsvcs.length}):',
+                  style: const TextStyle(
+                      color: AppColors.textHi,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(height: 4),
+            for (final e in lsvcs.take(24))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Row(children: [
+                  Text(e.proto,
+                      style: const TextStyle(
+                          color: AppColors.textLo, fontSize: 11)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                        '\${ConnMapService.serviceLabel(e.port)} :\${e.port}',
+                        style: const TextStyle(
+                            color: AppColors.textHi, fontSize: 12)),
+                  ),
+                  if (e.program.isNotEmpty)
+                    Text(e.program,
+                        style: const TextStyle(
+                            color: AppColors.textLo, fontSize: 11)),
+                ]),
+              ),
+          ],
           if (keys.isEmpty)
             const Text('Sin conexiones visibles para este filtro.',
                 style: TextStyle(color: AppColors.textLo, fontSize: 12)),
@@ -527,7 +579,7 @@ class _MapScreenState extends State<MapScreen>
                 load1: n.load1))
             .toList(),
         edges: _displayEdges,
-        appVersion: '2.32.0',
+        appVersion: '2.34.0',
         scopeTitle: _groupFilter.isEmpty ? null : _groupFilter,
         groupOf: {for (final h in widget.hosts) h.name: h.group ?? ''},
       );
@@ -599,8 +651,27 @@ class _MapScreenState extends State<MapScreen>
         ),
       ),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.accent))
+          ? Column(
+              children: [
+                const SizedBox(height: 24),
+                const CircularProgressIndicator(color: AppColors.accent),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      for (final m in _auditLog)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 3),
+                          child: Text(m,
+                              style: const TextStyle(
+                                  color: AppColors.textLo, fontSize: 11)),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            )
           : TabBarView(
               controller: _tab,
               children: [_buildGraph(), _buildList()],

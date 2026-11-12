@@ -16,6 +16,14 @@ class HostFacts {
   double load1 = 0;
 }
 
+// v2.34.0 - servicios en escucha por host (proto, puerto, programa).
+class ListenSvc {
+  final String proto;
+  final int port;
+  final String program;
+  ListenSvc(this.proto, this.port, this.program);
+}
+
 class ConnEdge {
   final String fromIp;
   final String fromName;
@@ -74,9 +82,14 @@ class ConnMapService {
 
   // v2.31.0 - hechos por hostname, llenados como efecto lateral de collect().
   static final Map<String, HostFacts> facts = {};
-  static void clearFacts() => facts.clear();
+  static final Map<String, List<ListenSvc>> listen = {};
+  static void clearFacts() {
+    facts.clear();
+    listen.clear();
+  }
 
-  static Future<List<ConnEdge>> collect(List<SshHost> hosts) async {
+  static Future<List<ConnEdge>> collect(List<SshHost> hosts,
+      {void Function(String)? onLog}) async {
     final known = <String, SshHost>{};
     for (final h in hosts) {
       known[h.hostname] = h;
@@ -111,6 +124,8 @@ class ConnMapService {
     }
 
     for (final h in hosts) {
+      final sw = Stopwatch()..start();
+      onLog?.call('\${h.name}: conectando…');
       try {
         final conn = await SshConnector.connect(h,
             timeout: const Duration(seconds: 6));
@@ -122,10 +137,13 @@ class ConnMapService {
                       "echo __TX_FACTS__; . /etc/os-release 2>/dev/null; "
                       "echo \"OS=\${PRETTY_NAME:-desconocido}\"; "
                       "echo \"LOAD=\$(cut -d' ' -f1 /proc/loadavg)\"; "
-                      "echo \"UPTIME=\$(uptime -p 2>/dev/null || echo n/a)\"")
+                      "echo \"UPTIME=\$(uptime -p 2>/dev/null || echo n/a)\"; "
+                      "echo __TX_LISTEN__; "
+                      "LC_ALL=C ss -tulnp 2>/dev/null")
                   .timeout(const Duration(seconds: 12)),
               allowMalformed: true);
           var parsed = 0;
+          var listenMode = false;
           for (final line in raw.split('\n')) {
             if (line.startsWith('OS=')) {
               (facts[h.hostname] ??= HostFacts()).os = line.substring(3);
@@ -138,6 +156,27 @@ class ConnMapService {
             }
             if (line.startsWith('UPTIME=')) {
               (facts[h.hostname] ??= HostFacts()).uptime = line.substring(7);
+              continue;
+            }
+            final lt = line.trim();
+            if (lt == '__TX_LISTEN__') {
+              listenMode = true;
+              continue;
+            }
+            if (listenMode) {
+              final r = lt.split(RegExp(r'\s+'));
+              if (r.length >= 6) {
+                final lp = r[4].split(':');
+                final port = int.tryParse(lp.isNotEmpty ? lp.last : '');
+                var prog = '';
+                final m = RegExp(r'\(\("([^"]+)"').firstMatch(lt);
+                if (m != null) prog = m.group(1)!;
+                if (port != null && port > 0) {
+                  listen
+                      .putIfAbsent(h.hostname, () => [])
+                      .add(ListenSvc(r[0], port, prog));
+                }
+              }
               continue;
             }
             String? local;
@@ -185,6 +224,9 @@ class ConnMapService {
           }
           MonitorLog.write(
               'connmap', h.name + ': ' + parsed.toString() + ' lineas');
+          onLog?.call('\${h.name}: \$parsed lineas, '
+              '\${listen[h.hostname]?.length ?? 0} puertos en escucha '
+              '(\${sw.elapsedMilliseconds} ms)');
           try {
             const oh = r"""
 sqlplus -s / as sysdba <<'EOS' 2>/dev/null
@@ -213,6 +255,7 @@ EOS
         }
       } catch (e) {
         failures.add(h.name);
+        onLog?.call('\${h.name}: FALLO (\${sw.elapsedMilliseconds} ms)');
         final em = e.toString();
         MonitorLog.write('connmap',
             'fallo en ${h.name}: ' +

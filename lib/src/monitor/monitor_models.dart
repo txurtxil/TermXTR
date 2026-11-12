@@ -29,12 +29,34 @@ class OracleInfo {
   final bool present;
   final bool up;
   final bool? listenerUp;
-  final Map<String, double> tablespaces; // nombre -> % usado
-  OracleInfo(
-      {required this.present,
-      this.up = false,
-      this.listenerUp,
-      this.tablespaces = const {}});
+  final Map<String, double> tablespaces;
+  // v2.33.0
+  final String instance;
+  final String status;
+  final String startup;
+  final bool archivelog;
+  final int sessUsed;
+  final int sessLimit;
+  final int procUsed;
+  final int procLimit;
+  final int sgaMb;
+  final int fraPct;
+  OracleInfo({
+    required this.present,
+    required this.up,
+    this.listenerUp,
+    this.tablespaces = const {},
+    this.instance = '',
+    this.status = '',
+    this.startup = '',
+    this.archivelog = false,
+    this.sessUsed = 0,
+    this.sessLimit = 0,
+    this.procUsed = 0,
+    this.procLimit = 0,
+    this.sgaMb = 0,
+    this.fraPct = 0,
+  });
 }
 
 // v2.25.0
