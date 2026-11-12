@@ -1,4 +1,7 @@
 
+## v2.25.0 (2026-11-12)
+- Monitor: TOP PROCESOS (ps --sort=-pcpu, %CPU/%MEM), TEMPERATURAS (sysfs thermal_zone + hwmon con fallback universal; semaforo verde <60C / ambar <80C / rojo >=80C) y RED (interfaces con RX/TX desde /proc/net/dev + conexiones TCP establecidas desde /proc/net/tcp[6]). Todo read-only, LC_ALL=C, secciones ocultas si el host no da datos (p.ej. VMs sin sensores).
+
 ## v2.24.4 (2026-11-12)
 - FIX: literal `\${AppPaths.base}` en `_samplesFile` (monitor_service.dart) - el historial de uso (monitor_samples.jsonl) NUNCA persistia desde v2.20.0; solo funcionaba la reconstruccion desde mtimes. Leccion: re-auditar escapes tras cada parche.
 - FIX: 4 interpolaciones rotas con `\$` literal que mostraban el placeholder crudo: label del slider de tamano de la sombra (monitor_screen), textos de alertas de disco/servicio (alert_service) y mensaje de fallo de host en el mapa de conexiones (connmap_service).

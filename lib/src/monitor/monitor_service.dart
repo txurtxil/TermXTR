@@ -185,6 +185,15 @@ systemctl list-units --type=service --state=running --no-legend --plain 2>/dev/n
 echo __TX_UNITS__
 for u in @@UNITS@@; do printf "%s %s
 " "$u" "$(systemctl is-active $u 2>/dev/null)"; done
+echo __TX_TOP__
+ps -eo comm,pcpu,pmem --sort=-pcpu 2>/dev/null | head -6
+echo __TX_TEMP__
+for z in /sys/class/thermal/thermal_zone*; do [ -f "$z/temp" ] && printf "%s %s\n" "$(cat "$z/type" 2>/dev/null)" "$(cat "$z/temp" 2>/dev/null)"; done
+for f in /sys/class/hwmon/hwmon*/temp*_input; do [ -f "$f" ] && printf "%s %s\n" "$(cat "${f%_input}_label" 2>/dev/null || basename "$f")" "$(cat "$f" 2>/dev/null)"; done
+echo __TX_NET__
+awk -F'[: ]+' 'NR>2 && $1!="" && $1!="lo" {print $1" "$2" "$10}' /proc/net/dev
+echo __TX_ESTAB__
+awk '$4=="01"{n++} END{print n+0}' /proc/net/tcp /proc/net/tcp6 2>/dev/null
 echo __TX_OH__
 command -v sqlplus >/dev/null 2>&1 && echo yes || echo no
 echo __TX_END__
@@ -352,6 +361,42 @@ EOS
           if (p.length >= 2 && !p[0].startsWith('__TX_')) {
             snap.unitStates[p[0]] = p[1];
           }
+          break;
+        case '__TX_TOP__':
+          {
+            final p = l.split(RegExp(r'\s+'));
+            if (p.length >= 3 && p[0] != 'COMMAND') {
+              final cpu = double.tryParse(p[p.length - 2]) ?? 0;
+              final mem = double.tryParse(p[p.length - 1]) ?? 0;
+              snap.top.add(TopProc(
+                  p.sublist(0, p.length - 2).join(' '), cpu, mem));
+            }
+          }
+          break;
+        case '__TX_TEMP__':
+          {
+            final p = l.split(RegExp(r'\s+'));
+            if (p.length >= 2) {
+              var v = double.tryParse(p[p.length - 1]) ?? 0;
+              if (v > 1000) v /= 1000; // millidegrees -> C
+              if (v > 0) {
+                snap.temps.add(TempSensor(
+                    p.sublist(0, p.length - 1).join(' '), v));
+              }
+            }
+          }
+          break;
+        case '__TX_NET__':
+          {
+            final p = l.split(RegExp(r'\s+'));
+            if (p.length >= 3) {
+              snap.net.add(NetIface(p[0],
+                  double.tryParse(p[1]) ?? 0, double.tryParse(p[2]) ?? 0));
+            }
+          }
+          break;
+        case '__TX_ESTAB__':
+          snap.netEstablished = int.tryParse(l) ?? 0;
           break;
         case '__TX_OH__':
           if (l == 'yes') snap.oracle = OracleInfo(present: true);

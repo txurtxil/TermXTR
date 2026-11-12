@@ -217,6 +217,9 @@ class _MonitorScreenState extends State<MonitorScreen> {
                       if (_snap != null) ...[
                         _secLoad(_snap!.load),
                         _secFs(_snap!.fs),
+                        _secTop(_snap!.top),
+                        _secTemps(_snap!.temps),
+                        _secNet(_snap!),
                         _secDirs(_snap!.dirs),
                         _secSystemd(_snap!),
                         _secHistory(),
@@ -483,6 +486,88 @@ class _MonitorScreenState extends State<MonitorScreen> {
     return take
         .map((v) => ch[((v - lo) / (hi - lo) * 7.999).clamp(0, 7).floor()])
         .join();
+  }
+
+  // v2.25.0
+  Widget _secTop(List<TopProc> top) {
+    if (top.isEmpty) return const SizedBox.shrink();
+    return _card(
+        title: 'Top procesos (CPU / MEM)',
+        children: top
+            .map((t) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(children: [
+                    Expanded(
+                        child: Text(t.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: AppColors.textHi, fontSize: 12))),
+                    Text(
+                        '${t.cpu.toStringAsFixed(1)}% / ${t.mem.toStringAsFixed(1)}%',
+                        style:
+                            const TextStyle(color: AppColors.textLo, fontSize: 12)),
+                  ]),
+                ))
+            .toList());
+  }
+
+  // v2.25.0
+  Widget _secTemps(List<TempSensor> temps) {
+    if (temps.isEmpty) return const SizedBox.shrink();
+    return _card(
+        title: 'Temperaturas',
+        children: temps.take(8).map((t) {
+          final c = t.celsius;
+          final color = c >= 80
+              ? AppColors.err
+              : (c >= 60 ? AppColors.warn : AppColors.ok);
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(children: [
+              Expanded(
+                  child: Text(t.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: AppColors.textLo, fontSize: 12))),
+              Text('${c.toStringAsFixed(0)} °C',
+                  style: TextStyle(
+                      color: color,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+            ]),
+          );
+        }).toList());
+  }
+
+  // v2.25.0
+  Widget _secNet(MonitorSnapshot s) {
+    if (s.net.isEmpty && s.netEstablished == 0) {
+      return const SizedBox.shrink();
+    }
+    final rows = s.net
+        .map((n) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(children: [
+                Expanded(
+                    child: Text(n.name,
+                        style: const TextStyle(
+                            color: AppColors.textHi, fontSize: 12))),
+                Text(
+                    '↓ ${MonitorSnapshot.humanBytes(n.rxBytes)} · ↑ ${MonitorSnapshot.humanBytes(n.txBytes)}',
+                    style:
+                        const TextStyle(color: AppColors.textLo, fontSize: 12)),
+              ]),
+            ))
+        .toList();
+    return _card(title: 'Red', children: [
+      ...rows,
+      if (s.netEstablished > 0)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text('conexiones TCP establecidas: ${s.netEstablished}',
+              style: const TextStyle(color: AppColors.textLo, fontSize: 12)),
+        ),
+    ]);
   }
 
   Widget _secHistory() {

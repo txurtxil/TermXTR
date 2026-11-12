@@ -36,6 +36,27 @@ class OracleInfo {
       this.tablespaces = const {}});
 }
 
+// v2.25.0
+class TopProc {
+  final String name;
+  final double cpu; // %
+  final double mem; // %
+  TopProc(this.name, this.cpu, this.mem);
+}
+
+class TempSensor {
+  final String name;
+  final double celsius;
+  TempSensor(this.name, this.celsius);
+}
+
+class NetIface {
+  final String name;
+  final double rxBytes;
+  final double txBytes;
+  NetIface(this.name, this.rxBytes, this.txBytes);
+}
+
 class MonitorSnapshot {
   final DateTime ts;
   LoadInfo? load;
@@ -46,6 +67,10 @@ class MonitorSnapshot {
   int servicesRunning;
   Map<String, String> unitStates;
   OracleInfo oracle;
+  List<TopProc> top; // v2.25.0
+  List<TempSensor> temps; // v2.25.0
+  List<NetIface> net; // v2.25.0
+  int netEstablished; // v2.25.0
   MonitorSnapshot(
       {required this.ts,
       this.load,
@@ -55,6 +80,10 @@ class MonitorSnapshot {
       this.failedNames = const [],
       this.servicesRunning = 0,
       this.unitStates = const {},
+      this.top = const [],
+      this.temps = const [],
+      this.net = const [],
+      this.netEstablished = 0,
       required this.oracle});
 
   static String humanBytes(double b) {
