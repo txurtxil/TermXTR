@@ -1,4 +1,7 @@
 
+## v2.26.0 (2026-11-12)
+- INFORMES PDF DE AUDITORIA: boton de exportar en Monitor (informe del host: sistema, discos con semaforo, top procesos, temperaturas, red, servicios systemd, Oracle con tablespaces; cabecera corporativa, tablas con rayado zebra, pie con paginacion) y en Mapa (topologia estilo Visio: nodos con LED por servicio, aristas etiquetadas y coloreadas por servicio, leyenda, tabla detalle de conexiones). Se guardan en exports/ y se comparten. Nueva dependencia: pdf.
+
 ## v2.25.0 (2026-11-12)
 - Monitor: TOP PROCESOS (ps --sort=-pcpu, %CPU/%MEM), TEMPERATURAS (sysfs thermal_zone + hwmon con fallback universal; semaforo verde <60C / ambar <80C / rojo >=80C) y RED (interfaces con RX/TX desde /proc/net/dev + conexiones TCP establecidas desde /proc/net/tcp[6]). Todo read-only, LC_ALL=C, secciones ocultas si el host no da datos (p.ej. VMs sin sensores).
 

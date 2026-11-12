@@ -8,12 +8,14 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../ssh/ssh_connector.dart';
 import '../ssh/ssh_host.dart';
 import '../storage/app_paths.dart';
 import '../ui/app_theme.dart';
 import 'connmap_service.dart';
+import 'report_pdf.dart';
 
 class MapScreen extends StatefulWidget {
   final List<SshHost> hosts;
@@ -46,6 +48,7 @@ class _MapScreenState extends State<MapScreen>
   Map<String, dynamic> _layout = {};
   String _filter = 'Todos';
   _Node? _drag;
+  bool _exporting = false; // v2.26.0
 
   File get _layoutFile => File('${AppPaths.base}/map_layout.json');
 
@@ -264,6 +267,41 @@ class _MapScreenState extends State<MapScreen>
     );
   }
 
+  // v2.26.0
+  Future<void> _exportPdf() async {
+    if (_exporting || _nodes.isEmpty) return;
+    setState(() => _exporting = true);
+    try {
+      final bytes = await buildTopologyReport(
+        nodes: _nodes
+            .map((n) => TopoNodeDto(
+                id: n.id,
+                name: n.name,
+                up: n.up,
+                external: n.external,
+                fx: n.fx,
+                fy: n.fy))
+            .toList(),
+        edges: _visibleEdges,
+        appVersion: '2.26.0',
+      );
+      await saveAndSharePdf(
+          bytes,
+          'topologia_${_nowForFile()}',
+          'Informe de topología TermXTR');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al generar el PDF: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  String _nowForFile() =>
+      DateTime.now().toString().substring(0, 16).replaceAll(RegExp(r'[^0-9]'), '');
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -275,6 +313,17 @@ class _MapScreenState extends State<MapScreen>
         title: const Text('Mapa',
             style: TextStyle(color: AppColors.textHi, fontSize: 16)),
         actions: [
+          IconButton(
+            tooltip: 'Exportar topología PDF',
+            icon: _exporting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.textLo))
+                : const Icon(Icons.picture_as_pdf, color: AppColors.textLo),
+            onPressed: (_nodes.isEmpty || _exporting) ? null : _exportPdf,
+          ),
           IconButton(
             icon: const Icon(Icons.refresh, color: AppColors.textLo),
             onPressed: _loading ? null : _load,

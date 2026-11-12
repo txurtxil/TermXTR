@@ -4,18 +4,22 @@
 // discos, directorios, carga/memoria, servicios fallidos y Oracle.
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import '../ui/app_theme.dart';
 
 import '../ssh/ssh_host.dart';
 import 'monitor_models.dart';
 import '../sftp/sftp_favorites_service.dart';
+import '../storage/app_paths.dart';
 import 'ghost_config.dart';
 import 'ghost_settings.dart';
 import 'alert_service.dart';
 import 'monitor_log.dart';
 import 'monitor_service.dart';
+import 'report_pdf.dart';
 
 
 class MonitorScreen extends StatefulWidget {
@@ -35,6 +39,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
   String _histSel = '';
   int _histRange = 7 * 24;
   List<Map<String, dynamic>> _histData = [];
+  bool _exporting = false; // v2.26.0
   bool _histBusy = false;
   final _unitCtrl = TextEditingController();
   Timer? _timer;
@@ -143,7 +148,34 @@ class _MonitorScreenState extends State<MonitorScreen> {
     }
   }
 
-  Future<void> _showLog() async {
+  // v2.26.0
+  Future<void> _exportPdf() async {
+    if (_exporting || _snap == null) return;
+    setState(() => _exporting = true);
+    try {
+      final bytes = await buildHostReport(
+          hostName: widget.host.name,
+          snap: _snap!,
+          appVersion: '2.26.0');
+      await saveAndSharePdf(
+          bytes,
+          'informe_${fileSafe(widget.host.name)}'
+              '_${_nowForFile()}',
+          'Informe TermXTR - ${widget.host.name}');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al generar el PDF: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  String _nowForFile() =>
+      DateTime.now().toString().substring(0, 16).replaceAll(RegExp(r'[^0-9]'), '');
+
+  void _showLog() async {
     final log = await MonitorLog.readLast();
     if (!mounted) return;
     showDialog(
@@ -180,6 +212,17 @@ class _MonitorScreenState extends State<MonitorScreen> {
         title: Text('Monitor — ${widget.host.name}',
             style: const TextStyle(color: AppColors.textHi, fontSize: 16)),
         actions: [
+          IconButton(
+            tooltip: 'Exportar informe PDF',
+            icon: _exporting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.textLo))
+                : const Icon(Icons.picture_as_pdf, color: AppColors.textLo),
+            onPressed: (_snap == null || _exporting) ? null : _exportPdf,
+          ),
           IconButton(
             tooltip: 'Ver log',
             icon: const Icon(Icons.receipt_long, color: AppColors.textLo),
