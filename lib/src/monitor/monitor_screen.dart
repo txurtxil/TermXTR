@@ -19,6 +19,7 @@ import 'ghost_settings.dart';
 import 'alert_service.dart';
 import 'monitor_log.dart';
 import 'monitor_service.dart';
+import 'maneuvers.dart';
 import 'report_pdf.dart';
 
 
@@ -156,7 +157,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
       final bytes = await buildHostReport(
           hostName: widget.host.name,
           snap: _snap!,
-          appVersion: '2.35.0');
+          appVersion: '2.36.0');
       final path = await saveAndSharePdf(
           bytes,
           'informe_${fileSafe(widget.host.name)}'
@@ -216,6 +217,14 @@ class _MonitorScreenState extends State<MonitorScreen> {
         title: Text('Monitor — ${widget.host.name}',
             style: const TextStyle(color: AppColors.textHi, fontSize: 16)),
         actions: [
+          IconButton(
+            tooltip: 'Maniobras',
+            icon: const Icon(Icons.bolt, color: AppColors.textLo),
+            onPressed: (_snap == null)
+                ? null
+                : () => showManeuversSheet(context, widget.host,
+                    withOracle: _snap!.oracle.present),
+          ),
           IconButton(
             tooltip: 'Exportar informe PDF',
             icon: _exporting

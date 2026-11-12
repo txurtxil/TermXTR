@@ -16,6 +16,7 @@ import '../ssh/ssh_hosts_service.dart';
 import '../storage/app_paths.dart';
 import '../ui/app_theme.dart';
 import 'connmap_service.dart';
+import 'maneuvers.dart';
 import 'report_pdf.dart';
 
 class MapScreen extends StatefulWidget {
@@ -376,6 +377,15 @@ class _MapScreenState extends State<MapScreen>
     for (final e in ConnMapService.listen[n.id] ?? const <ListenSvc>[]) {
       if (seenL.add('\${e.proto}:\${e.port}')) lsvcs.add(e);
     }
+    SshHost? mhost;
+    for (final h in widget.hosts) {
+      if (h.name == n.name || h.hostname == n.id) {
+        mhost = h;
+        break;
+      }
+    }
+    final hasOracle = (ConnMapService.listen[n.id] ?? const <ListenSvc>[])
+        .any((e) => e.port == 1521);
     lsvcs.sort((a, b) {
       final ka = ConnMapService.kServiceByPort.containsKey(a.port) ? 0 : 1;
       final kb = ConnMapService.kServiceByPort.containsKey(b.port) ? 0 : 1;
@@ -492,6 +502,23 @@ class _MapScreenState extends State<MapScreen>
                 ]),
               ),
           ],
+          if (mhost != null) ...[
+            const Divider(color: AppColors.border, height: 18),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  showManeuversSheet(context, mhost!,
+                      withOracle: hasOracle);
+                },
+                icon: const Icon(Icons.bolt,
+                    color: AppColors.accent, size: 18),
+                label: const Text('Maniobras',
+                    style: TextStyle(color: AppColors.accent)),
+              ),
+            ),
+          ],
           if (keys.isEmpty)
             const Text('Sin conexiones visibles para este filtro.',
                 style: TextStyle(color: AppColors.textLo, fontSize: 12)),
@@ -579,7 +606,7 @@ class _MapScreenState extends State<MapScreen>
                 load1: n.load1))
             .toList(),
         edges: _displayEdges,
-        appVersion: '2.35.0',
+        appVersion: '2.36.0',
         scopeTitle: _groupFilter.isEmpty ? null : _groupFilter,
         groupOf: {for (final h in widget.hosts) h.name: h.group ?? ''},
       );

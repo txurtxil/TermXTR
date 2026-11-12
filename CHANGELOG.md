@@ -1,4 +1,7 @@
 
+## v2.36.0 (2026-11-12)
+- MANIOBRAS: acciones rapidas por host (Monitor: boton ⚡; ficha de nodo del mapa). Set read-only predefinido (uptime, top, df, free, ss -s, systemctl --failed, dmesg) + set Oracle cuando aplica (tablespaces, sesiones, alert log). Comandos personalizables (maneuvers.json, aviso de responsabilidad). Resultado en hoja monoespaciada; timeout 8s conexion/30s ejecucion.
+
 ## v2.35.0 (2026-11-12)
 - ALERTAS DE UMBRAL ampliadas: memoria sin cache >=95%, swap >=50%, FRA Oracle >=85% (archivelog). Se unen a disco >=90%, unidad caida e instancia Oracle down (antispam por transicion + cooldown 30 min ya existente).
 
