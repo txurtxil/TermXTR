@@ -1,4 +1,7 @@
 
+## v2.30.0 (2026-11-12)
+- MAPA PARA AUDITORIA REAL: (1) chip '· externo ·' para ocultar/mostrar el nodo externo y sus aristas (por defecto OCULTO - sin ruido de las conexiones propias); (2) al entrar sin datos y con grupos creados, selector directo (chips de grupo + 'Elegir hosts concretos'); (3) tocar un nodo abre su FICHA: estado, grupo, IPs y servicios con puerto/proceso/conteo; (4) export PDF: guarda siempre y muestra la RUTA en un snackbar (el selector de compartir falla en Windows - ya no rompe nada); (5) PDF de topologia: columna Servicios enriquecida ('Oracle :1521 (oracleSIABDES) x4; SSH :22 (sshd) x2').
+
 ## v2.29.2 (2026-11-12)
 - HOTFIX: la bandera _loading seguia inicializada a true tras quitar el auto-audit de v2.29.1 -> spinner infinito al entrar en el Mapa. Ahora inicia en false: entrar no audita ni cuelga; solo trabaja al elegir grupo/hosts o pulsar actualizar.
 

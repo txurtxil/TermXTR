@@ -156,12 +156,16 @@ class _MonitorScreenState extends State<MonitorScreen> {
       final bytes = await buildHostReport(
           hostName: widget.host.name,
           snap: _snap!,
-          appVersion: '2.29.0');
-      await saveAndSharePdf(
+          appVersion: '2.30.0');
+      final path = await saveAndSharePdf(
           bytes,
           'informe_${fileSafe(widget.host.name)}'
               '_${_nowForFile()}',
           'Informe TermXTR - ${widget.host.name}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('PDF guardado en: $path')));
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

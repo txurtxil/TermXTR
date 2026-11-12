@@ -45,6 +45,7 @@ class _MapScreenState extends State<MapScreen>
   final List<_Node> _nodes = [];
   final List<ConnEdge> _edges = [];
   bool _loading = false; // v2.29.2: sin auto-auditoria, no cargando al entrar
+  bool _showExternal = false; // v2.30.0 - ocultar '· externo ·' por defecto
   String _groupFilter = ''; // v2.29.0 '' = todos los grupos
   Set<String> _selHosts = {}; // v2.29.0 nombres; vacio = todos
   String? _error;
@@ -84,6 +85,15 @@ class _MapScreenState extends State<MapScreen>
     }
     return hs;
   }
+
+  // v2.30.0 - filtro de ruido: nodo y aristas externas
+  List<_Node> get _displayNodes =>
+      _nodes.where((n) => _showExternal || !n.external).toList();
+
+  List<ConnEdge> get _displayEdges => _visibleEdges
+      .where(
+          (e) => _showExternal || (e.fromIp != '<ext>' && e.toIp != '<ext>'))
+      .toList();
 
   void _showHostPicker() {
     final base = _groupFilter.isEmpty
@@ -321,10 +331,110 @@ class _MapScreenState extends State<MapScreen>
         0.25 * a.dy + 0.5 * ctrl.dy + 0.25 * b.dy);
   }
 
+  // v2.30.0 - ficha de nodo: IPs, grupo y servicios con puerto/proceso/conteo.
+  void _showNodeDetail(_Node n) {
+    final myEdges =
+        _displayEdges.where((e) => e.fromIp == n.id || e.toIp == n.id).toList();
+    final ips = <String>{};
+    final agg = <String, int>{};
+    final procOf = <String, String>{};
+    for (final e in myEdges) {
+      final other = e.fromIp == n.id ? e.toIp : e.fromIp;
+      if (other != '<ext>') ips.add(other);
+      final k = '${e.service} :${e.port}';
+      agg[k] = (agg[k] ?? 0) + e.count;
+      final pr = e.process ?? '';
+      if (pr.isNotEmpty) procOf[k] = pr;
+    }
+    var group = '';
+    for (final h in widget.hosts) {
+      if (h.name == n.name || h.hostname == n.id) {
+        group = h.group ?? '';
+        break;
+      }
+    }
+    final keys = agg.keys.toList()..sort();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.card,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Icon(Icons.circle,
+                size: 12, color: n.up ? AppColors.ok : AppColors.err),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(n.name,
+                  style: const TextStyle(
+                      color: AppColors.textHi,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16)),
+            ),
+            Text(n.up ? 'UP' : 'DOWN',
+                style: TextStyle(
+                    color: n.up ? AppColors.ok : AppColors.err,
+                    fontWeight: FontWeight.bold)),
+          ]),
+          if (group.isNotEmpty)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text('Grupo: $group',
+                    style:
+                        const TextStyle(color: AppColors.textLo, fontSize: 12)),
+              ),
+            ),
+          if (ips.isNotEmpty)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('IPs: ${ips.take(4).join(', ')}',
+                  style:
+                      const TextStyle(color: AppColors.textLo, fontSize: 12)),
+            ),
+          const Divider(color: AppColors.border, height: 18),
+          for (final k in keys)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Row(children: [
+                Expanded(
+                  child: Text(k,
+                      style: const TextStyle(
+                          color: AppColors.textHi, fontSize: 13)),
+                ),
+                if (procOf[k] != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Text(procOf[k]!,
+                        style: const TextStyle(
+                            color: AppColors.textLo, fontSize: 12)),
+                  ),
+                Text('x${agg[k]}',
+                    style:
+                        const TextStyle(color: AppColors.accent, fontSize: 12)),
+              ]),
+            ),
+          if (keys.isEmpty)
+            const Text('Sin conexiones visibles para este filtro.',
+                style: TextStyle(color: AppColors.textLo, fontSize: 12)),
+        ]),
+      ),
+    );
+  }
+
   void _onTapGraph(TapDownDetails d, Size size) {
+    // v2.30.0: tocar un nodo abre su ficha de detalle
+    for (final n in _displayNodes) {
+      final p = Offset(n.fx * size.width, n.fy * size.height);
+      if ((p - d.localPosition).distance < 48) {
+        _showNodeDetail(n);
+        return;
+      }
+    }
     ConnEdge? best;
     var bd = 34.0;
-    for (final e in _visibleEdges) {
+    for (final e in _displayEdges) {
       final m = _midOf(e, size);
       final dist = (m - d.localPosition).distance;
       if (dist < bd) {
@@ -379,7 +489,7 @@ class _MapScreenState extends State<MapScreen>
     setState(() => _exporting = true);
     try {
       final bytes = await buildTopologyReport(
-        nodes: _nodes
+        nodes: _displayNodes
             .map((n) => TopoNodeDto(
                 id: n.id,
                 name: n.name,
@@ -388,15 +498,19 @@ class _MapScreenState extends State<MapScreen>
                 fx: n.fx,
                 fy: n.fy))
             .toList(),
-        edges: _visibleEdges,
-        appVersion: '2.29.0',
+        edges: _displayEdges,
+        appVersion: '2.30.0',
         scopeTitle: _groupFilter.isEmpty ? null : _groupFilter,
         groupOf: {for (final h in widget.hosts) h.name: h.group ?? ''},
       );
-      await saveAndSharePdf(
+      final path = await saveAndSharePdf(
           bytes,
           'topologia_${_nowForFile()}',
           'Informe de topología TermXTR');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('PDF guardado en: $path')));
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -478,25 +592,68 @@ class _MapScreenState extends State<MapScreen>
       );
     }
     if (_nodes.isEmpty) {
-      return const Center(
+      final groups = SshHostsService.instance.groupNames;
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.hub_outlined, size: 40, color: AppColors.textLo),
-              SizedBox(height: 10),
-              Text(
-                'Sin auditoria todavia.\nElige un grupo (chips de arriba) o hosts (checklist) y pulsa el boton de actualizar.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textLo, fontSize: 13),
-              ),
+              const Icon(Icons.hub_outlined,
+                  size: 40, color: AppColors.textLo),
+              const SizedBox(height: 10),
+              if (groups.isEmpty)
+                const Text(
+                  'Sin auditoria todavia.\nCrea hosts con grupo (Desarrollo / Preproduccion / Produccion) y pulsa el boton de actualizar.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textLo, fontSize: 13),
+                )
+              else ...[
+                const Text('Elige que auditar:',
+                    style: TextStyle(color: AppColors.textLo, fontSize: 13)),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    for (final g in ['', ...groups])
+                      ActionChip(
+                        avatar: g.isEmpty
+                            ? null
+                            : CircleAvatar(
+                                radius: 5,
+                                backgroundColor: Color(SshHostsService
+                                    .instance
+                                    .groupColor(g))),
+                        label: Text(g.isEmpty ? 'Todos' : g,
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.textHi)),
+                        backgroundColor: AppColors.card,
+                        side: const BorderSide(color: AppColors.border),
+                        onPressed: () => setState(() {
+                          _groupFilter = g;
+                          _selHosts.clear();
+                          _load();
+                        }),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: _showHostPicker,
+                  icon: const Icon(Icons.checklist,
+                      color: AppColors.accent, size: 18),
+                  label: const Text('Elegir hosts concretos',
+                      style: TextStyle(color: AppColors.accent)),
+                ),
+              ],
             ],
           ),
         ),
       );
     }
-    final vis = _visibleEdges;
+    final vis = _displayEdges;
     return LayoutBuilder(
       builder: (ctx, c) {
         final size = Size(c.maxWidth, c.maxHeight);
@@ -509,11 +666,11 @@ class _MapScreenState extends State<MapScreen>
                 behavior: HitTestBehavior.translucent,
                 onTapDown: (d) => _onTapGraph(d, size),
                 child: CustomPaint(
-                  painter: _EdgePainter(vis, _nodes, _edgeColor),
+                  painter: _EdgePainter(vis, _displayNodes, _edgeColor),
                 ),
               ),
             ),
-            for (final n in _nodes)
+            for (final n in _displayNodes)
               Positioned(
                 left: n.fx * size.width - 52,
                 top: n.fy * size.height - 22,
@@ -674,6 +831,26 @@ class _MapScreenState extends State<MapScreen>
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: FilterChip(
+                            label: const Text('· externo ·',
+                                style: TextStyle(fontSize: 10)),
+                            selected: _showExternal,
+                            onSelected: (_) =>
+                                setState(() => _showExternal = !_showExternal),
+                            selectedColor:
+                                AppColors.accent.withValues(alpha: 0.25),
+                            checkmarkColor: AppColors.textHi,
+                            labelStyle: TextStyle(
+                                color: _showExternal
+                                    ? AppColors.textHi
+                                    : AppColors.textLo,
+                                fontSize: 10),
+                            backgroundColor: AppColors.card,
+                            side: const BorderSide(color: AppColors.border),
+                          ),
+                        ),
                         for (final f in _filters)
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 3),
@@ -722,7 +899,7 @@ class _MapScreenState extends State<MapScreen>
   }
 
   Widget _buildList() {
-    final vis = _visibleEdges;
+    final vis = _displayEdges;
     if (vis.isEmpty) {
       return const Center(
         child: Text('Sin conexiones visibles para este filtro.',

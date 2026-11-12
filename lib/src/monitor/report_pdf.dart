@@ -546,6 +546,26 @@ Future<Uint8List> buildTopologyReport({
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
 
+  // v2.30.0 — detalle rico por nodo: servicio :puerto (proceso) xN
+  final svcRichOf = <String, String>{};
+  for (final n in nodes) {
+    final agg = <String, int>{};
+    final procOf = <String, String>{};
+    for (final e in edges) {
+      if (e.fromName != n.name && e.toName != n.name) continue;
+      final k = '${e.service} :${e.port}';
+      agg[k] = (agg[k] ?? 0) + e.count;
+      final pr = e.process ?? '';
+      if (pr.isNotEmpty) procOf[k] = pr;
+    }
+    if (agg.isEmpty) continue;
+    final ks = agg.keys.toList()..sort();
+    svcRichOf[n.name] = ks
+        .map((k) =>
+            '$k${procOf[k] != null ? ' (${procOf[k]})' : ''} x${agg[k]}')
+        .join('; ');
+  }
+
   doc.addPage(
     pw.MultiPage(
       pageFormat: page,
@@ -635,9 +655,9 @@ Future<Uint8List> buildTopologyReport({
                       ? _ok
                       : (n.external ? _muted : _err),
                 ),
-                _cell(
-                  ((servicesOf[n.name] ?? {}).toList()..sort()).join(', '),
-                ),
+                _cell(svcRichOf[n.name] ??
+                    ((servicesOf[n.name] ?? {}).toList()..sort())
+                        .join(', ')),
                 _cell('${connsOf[n.name] ?? 0}'),
               ],
           ],
@@ -682,6 +702,11 @@ Future<String> saveAndSharePdf(
     ..createSync(recursive: true);
   final f = File('${dir.path}/$basename.pdf');
   await f.writeAsBytes(bytes, flush: true);
-  await Share.shareXFiles([XFile(f.path)], text: shareText);
+  try {
+    await Share.shareXFiles([XFile(f.path)], text: shareText);
+  } catch (_) {
+    // plataformas sin selector de compartir (p. ej. Windows):
+    // el PDF ya esta guardado; el caller muestra la ruta.
+  }
   return f.path;
 }
