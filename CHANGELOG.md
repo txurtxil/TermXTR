@@ -1,4 +1,7 @@
 
+## v2.32.0 (2026-11-12)
+- WINDOWS: al exportar un PDF se ABRE con el visor por defecto (cmd /c start) - ya no depende del share sheet de movil; el snackbar con la ruta sigue. Monitor: SWAP % (critico en cajas Oracle con SGA grande) y etiqueta 'Memoria (sin cache)'. Top procesos con args (se ve oracleSIABPROD / ora_dbw0_SIABPROD, no 'oracle' generico). /proc/net/dev con sed + FS por defecto (robusto en Oracle Linux).
+
 ## v2.31.0 (2026-11-12)
 - AUDITORIA CON MAS INFORMACION UTIL: el Mapa recolecta ahora, en el MISMO exec SSH, SO (PRETTY_NAME), uptime y carga (load1) por host -> ficha de nodo y columna 'Sistema' en el Resumen del PDF. Orden en el PDF: pasada anti-solapes + clamp a margenes (ya no se cortan cajas). Puerto 8007 etiquetado 'Tomcat HTTP'. Todo read-only.
 

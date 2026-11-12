@@ -215,7 +215,9 @@ Future<Uint8List> buildHostReport({
             ('Load 1 min', snap.load!.l1.toStringAsFixed(2)),
             ('Load 5 min', snap.load!.l5.toStringAsFixed(2)),
             ('Load 15 min', snap.load!.l15.toStringAsFixed(2)),
-            ('Memoria', '${snap.load!.memPct.toStringAsFixed(0)}% usada'),
+            ('Memoria (sin caché)',
+                '${snap.load!.memPct.toStringAsFixed(0)}% usada'),
+            ('Swap', '${snap.load!.swapPct.toStringAsFixed(0)}% usado'),
           ]),
         ],
         _section('Discos'),
@@ -752,10 +754,16 @@ Future<String> saveAndSharePdf(
   final f = File('${dir.path}/$basename.pdf');
   await f.writeAsBytes(bytes, flush: true);
   try {
-    await Share.shareXFiles([XFile(f.path)], text: shareText);
+    if (Platform.isWindows) {
+      // Windows: abrir con el visor por defecto (ventana propia);
+      // no hay share sheet de movil.
+      await Process.start('cmd', ['/c', 'start', '', f.path]);
+    } else {
+      await Share.shareXFiles([XFile(f.path)], text: shareText);
+    }
   } catch (_) {
-    // plataformas sin selector de compartir (p. ej. Windows):
-    // el PDF ya esta guardado; el caller muestra la ruta.
+    // sin visor ni selector: el PDF ya esta guardado;
+    // el caller muestra la ruta.
   }
   return f.path;
 }

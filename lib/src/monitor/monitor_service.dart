@@ -178,6 +178,8 @@ echo __TX_LOAD__
 cut -d' ' -f1-3 /proc/loadavg
 echo __TX_MEM__
 awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{printf "%d\n",(t-a)/t*100}' /proc/meminfo
+echo __TX_SWAP__
+awk '/SwapTotal/{t=$2}/SwapFree/{f=$2}END{if(t>0)printf "%d\n",(t-f)/t*100;else print "0"}' /proc/meminfo
 echo __TX_FAIL__
 systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $2}' | head -5
 echo __TX_ACTIVE__
@@ -186,12 +188,12 @@ echo __TX_UNITS__
 for u in @@UNITS@@; do printf "%s %s
 " "$u" "$(systemctl is-active $u 2>/dev/null)"; done
 echo __TX_TOP__
-ps -eo comm,pcpu,pmem --sort=-pcpu 2>/dev/null | head -6
+ps -eo pcpu,pmem,args --sort=-pcpu 2>/dev/null | head -6
 echo __TX_TEMP__
 for z in /sys/class/thermal/thermal_zone*; do [ -f "$z/temp" ] && printf "%s %s\n" "$(cat "$z/type" 2>/dev/null)" "$(cat "$z/temp" 2>/dev/null)"; done
 for f in /sys/class/hwmon/hwmon*/temp*_input; do [ -f "$f" ] && printf "%s %s\n" "$(cat "${f%_input}_label" 2>/dev/null || basename "$f")" "$(cat "$f" 2>/dev/null)"; done
 echo __TX_NET__
-awk -F'[: ]+' 'NR>2 && $1!="" && $1!="lo" {print $1" "$2" "$10}' /proc/net/dev
+sed 's/:/ /' /proc/net/dev | awk 'NR>2 && $1!="lo" {print $1" "$2" "$10}'
 echo __TX_ESTAB__
 awk '$4=="01"{n++} END{print n+0}' /proc/net/tcp /proc/net/tcp6 2>/dev/null
 echo __TX_OH__
@@ -365,13 +367,22 @@ EOS
         case '__TX_TOP__':
           {
             final p = l.split(RegExp(r'\s+'));
-            if (p.length >= 3 && p[0] != 'COMMAND') {
-              final cpu = double.tryParse(p[p.length - 2]) ?? 0;
-              final mem = double.tryParse(p[p.length - 1]) ?? 0;
-              snap.top = [
-                ...snap.top,
-                TopProc(p.sublist(0, p.length - 2).join(' '), cpu, mem)
-              ];
+            if (p.length >= 3 && p[0] != '%CPU') {
+              final cpu = double.tryParse(p[0]) ?? 0;
+              final mem = double.tryParse(p[1]) ?? 0;
+              var name = p.sublist(2).join(' ');
+              if (name.length > 48) name = name.substring(0, 48);
+              snap.top = [...snap.top, TopProc(name, cpu, mem)];
+            }
+          }
+          break;
+        case '__TX_SWAP__':
+          {
+            final ld = snap.load;
+            if (ld != null) {
+              snap.load = LoadInfo(
+                  ld.l1, ld.l5, ld.l15, ld.memPct,
+                  swapPct: (double.tryParse(l) ?? 0));
             }
           }
           break;

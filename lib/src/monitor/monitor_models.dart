@@ -20,8 +20,9 @@ class DirInfo {
 
 class LoadInfo {
   final double l1, l5, l15;
-  final double memPct; // 0-100
-  LoadInfo(this.l1, this.l5, this.l15, this.memPct);
+  final double memPct; // 0-100 (sin cache: MemTotal-MemAvailable)
+  final double swapPct; // 0-100
+  LoadInfo(this.l1, this.l5, this.l15, this.memPct, {this.swapPct = 0});
 }
 
 class OracleInfo {

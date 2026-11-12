@@ -156,7 +156,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
       final bytes = await buildHostReport(
           hostName: widget.host.name,
           snap: _snap!,
-          appVersion: '2.31.0');
+          appVersion: '2.32.0');
       final path = await saveAndSharePdf(
           bytes,
           'informe_${fileSafe(widget.host.name)}'
@@ -317,7 +317,9 @@ class _MonitorScreenState extends State<MonitorScreen> {
         _chip('15m ${l.l15.toStringAsFixed(2)}'),
       ]),
       const SizedBox(height: 8),
-      _bar('Memoria', l.memPct, '${l.memPct.toStringAsFixed(1)}%'),
+      _bar('Memoria (sin caché)', l.memPct, '${l.memPct.toStringAsFixed(1)}%'),
+      if (l.swapPct > 0)
+        _bar('Swap', l.swapPct, '${l.swapPct.toStringAsFixed(0)}%'),
     ]);
   }
 
