@@ -1,7 +1,7 @@
 name: linux_container
 description: "TermXTR: terminal SSH/SFTP para Android con editor integrado, grabadora y gestion de hosts."
 publish_to: 'none'
-version: 2.34.0+112
+version: 2.35.0+113
 
 environment:
   sdk: ^3.7.2

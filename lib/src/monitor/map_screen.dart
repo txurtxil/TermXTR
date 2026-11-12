@@ -579,7 +579,7 @@ class _MapScreenState extends State<MapScreen>
                 load1: n.load1))
             .toList(),
         edges: _displayEdges,
-        appVersion: '2.34.0',
+        appVersion: '2.35.0',
         scopeTitle: _groupFilter.isEmpty ? null : _groupFilter,
         groupOf: {for (final h in widget.hosts) h.name: h.group ?? ''},
       );

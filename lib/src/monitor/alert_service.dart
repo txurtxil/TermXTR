@@ -67,6 +67,19 @@ class AlertService {
     if (s.oracle.present && !s.oracle.up) {
       alerts.add('Instancia Oracle DOWN');
     }
+    // v2.35.0 - memoria/swap/FRA
+    final ld = s.load;
+    if (ld != null) {
+      if (ld.memPct >= 95) {
+        alerts.add('Memoria al ${ld.memPct.toStringAsFixed(0)}% (sin caché)');
+      }
+      if (ld.swapPct >= 50) {
+        alerts.add('Swap al ${ld.swapPct.toStringAsFixed(0)}%');
+      }
+    }
+    if (s.oracle.present && s.oracle.up && s.oracle.fraPct >= 85) {
+      alerts.add('FRA Oracle al ${s.oracle.fraPct}% (archivelog)');
+    }
 
     _state[hostId] ??= <String, dynamic>{};
     final st = _state[hostId] as Map<String, dynamic>;
@@ -93,7 +106,7 @@ class AlertService {
       const android = AndroidNotificationDetails(
         'termxtr_alerts',
         'Alertas de sistemas',
-        channelDescription: 'Umbrales de discos, servicios y Oracle',
+        channelDescription: 'Umbrales de discos, memoria, swap, servicios y Oracle',
         importance: Importance.high,
         priority: Priority.high,
       );

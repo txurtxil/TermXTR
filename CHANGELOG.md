@@ -1,4 +1,7 @@
 
+## v2.35.0 (2026-11-12)
+- ALERTAS DE UMBRAL ampliadas: memoria sin cache >=95%, swap >=50%, FRA Oracle >=85% (archivelog). Se unen a disco >=90%, unidad caida e instancia Oracle down (antispam por transicion + cooldown 30 min ya existente).
+
 ## v2.34.0 (2026-11-12)
 - MAPA: LOG EN VIVO de la auditoria (durante el spinner, linea a linea: conexion por host, N lineas, N puertos en escucha, ms, FALLOs). Recoleccion ampliada: ss -tulnp por host -> ficha de nodo con seccion 'En escucha' (servicio etiquetado :puerto + proceso), puertos conocidos primero. Todo en el mismo exec SSH; nada nuevo para hosts sin credenciales.
 
