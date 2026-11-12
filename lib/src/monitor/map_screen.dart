@@ -648,7 +648,7 @@ class _MapScreenState extends State<MapScreen>
                 ]))
             .toList(),
         edges: _displayEdges,
-        appVersion: '2.37.0',
+        appVersion: '2.38.0',
         scopeTitle: _groupFilter.isEmpty ? null : _groupFilter,
         groupOf: {for (final h in widget.hosts) h.name: h.group ?? ''},
       );
@@ -919,6 +919,20 @@ class _MapScreenState extends State<MapScreen>
                                       color: AppColors.accent, fontSize: 8)),
                             ],
                           ]),
+                      // v2.38.0 — contadores de auditoria en la caja del nodo
+                      if (!n.external &&
+                          ((ConnMapService.listen[n.id]?.isNotEmpty ??
+                                  false) ||
+                              (ConnMapService.docker[n.id]?.isNotEmpty ??
+                                  false)))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            '▸${ConnMapService.listen[n.id]?.length ?? 0} ⬡${ConnMapService.docker[n.id]?.length ?? 0}',
+                            style: const TextStyle(
+                                color: AppColors.textLo, fontSize: 7),
+                          ),
+                        ),
                     ]),
                   ),
                 ),
@@ -1066,20 +1080,85 @@ class _MapScreenState extends State<MapScreen>
     );
   }
 
+  // v2.38.0 — secciones de auditoria por nodo para la pestaña Lista.
+  List<Widget> _auditSections() {
+    final out = <Widget>[];
+    for (final n in _displayNodes) {
+      if (n.external) continue;
+      final l = ConnMapService.listen[n.id] ?? const <ListenSvc>[];
+      final d = ConnMapService.docker[n.id] ?? const <DockerCtr>[];
+      if (l.isEmpty && d.isEmpty) continue;
+      out.add(Padding(
+        padding: const EdgeInsets.fromLTRB(2, 10, 2, 4),
+        child: Text(n.name,
+            style: const TextStyle(
+                color: AppColors.textHi,
+                fontWeight: FontWeight.bold,
+                fontSize: 13)),
+      ));
+      for (final e in l) {
+        out.add(Padding(
+          padding: const EdgeInsets.only(left: 8, bottom: 2),
+          child: Row(children: [
+            Text(e.proto,
+                style:
+                    const TextStyle(color: AppColors.textLo, fontSize: 10)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                  '${ConnMapService.serviceLabel(e.port)} :${e.port}${e.program.isNotEmpty ? '  -  ${e.program}' : ''}',
+                  style: const TextStyle(
+                      color: AppColors.textHi, fontSize: 11)),
+            ),
+          ]),
+        ));
+      }
+      for (final c in d) {
+        out.add(Padding(
+          padding: const EdgeInsets.only(left: 8, bottom: 2),
+          child: Row(children: [
+            const Icon(Icons.view_agenda,
+                size: 11, color: AppColors.accent),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text('${c.name}  -  ${c.status}',
+                  style: const TextStyle(
+                      color: AppColors.textHi, fontSize: 11)),
+            ),
+          ]),
+        ));
+      }
+    }
+    return out;
+  }
+
   Widget _buildList() {
     final vis = _displayEdges;
-    if (vis.isEmpty) {
+    final auditChildren = _auditSections();
+    if (vis.isEmpty && auditChildren.isEmpty) {
       return const Center(
         child: Text('Sin conexiones visibles para este filtro.',
             style: TextStyle(color: AppColors.textLo)),
       );
     }
+    if (vis.isEmpty) {
+      return ListView(
+          padding: const EdgeInsets.all(12), children: auditChildren);
+    }
     return ListView.separated(
       padding: const EdgeInsets.all(12),
-      itemCount: vis.length,
+      itemCount: vis.length + (auditChildren.isEmpty ? 0 : 1),
       separatorBuilder: (_, __) =>
           const Divider(color: AppColors.border, height: 8),
       itemBuilder: (_, i) {
+        if (auditChildren.isNotEmpty && i == vis.length) {
+          return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Divider(color: AppColors.border, height: 16),
+                ...auditChildren,
+              ]);
+        }
         final e = vis[i];
         return Container(
           padding: const EdgeInsets.all(10),

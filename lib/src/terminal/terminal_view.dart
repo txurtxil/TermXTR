@@ -12,6 +12,7 @@ import 'package:xterm/xterm.dart';
 
 import '../storage/app_paths.dart';
 import 'terminal_keybar.dart';
+import 'terminal_aliases.dart';
 import 'terminal_session.dart';
 import 'keybar_config.dart';
 import 'keybar_settings_screen.dart';
@@ -618,6 +619,11 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
               _scriptTile(ctx, s, 'Info de red (ip a)', 'ip a\n', icon: Icons.network_cell),
               _scriptTile(ctx, s, 'Mapeos de unidades (mount)', 'mount | column -t 2>/dev/null || mount\n', icon: Icons.usb),
               _scriptTile(ctx, s, 'Procesos activos (htop/top)', 'htop 2>/dev/null || top\n', icon: Icons.memory),
+              _scriptTile(ctx, s, 'Atajos de shell…', '', icon: Icons.keyboard,
+                  customAction: () {
+                Navigator.pop(ctx);
+                showAliasesManager(context);
+              }),
               const SizedBox(height: 8),
             ],
           ),

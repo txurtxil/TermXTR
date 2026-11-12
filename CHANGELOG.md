@@ -1,4 +1,7 @@
 
+## v2.38.0 (2026-11-12)
+- ATAJOS DE SHELL gestionables: entrada 'Atajos de shell…' en Utilidades (terminal) con interruptor activo, lista ordenada (editar al tocar, borrar) y alta de atajos propios. Persistente en aliases.json. Grafo: cajas de nodo con contadores de escucha/docker (▸N ⬡N). Lista: secciones 'en escucha' y 'docker' por nodo (la Lista tambien es informe, no solo aristas).
+
 ## v2.37.0 (2026-11-12)
 - TERMINAL: copia con VERIFICACION (reintenta + lee de vuelta; si el portapapeles de Windows esta bloqueado, guarda en la boveda y avisa) + ATAJOS DE SHELL (terminal_aliases.json): c->clear, l->ls -la, ll, lt, p, d, f, s, h; la expansion se envia con Ctrl-U en remoto y va al historial.
 - MAPA/INFORME: auditoria completa por maquina - 'Puertos en escucha' y 'Contenedores Docker' (nombre, imagen, estado, puertos) en el PDF y en la ficha de nodo; IP de fallback desde el host configurado (auditoria de 1 solo host ya no sale vacia).
