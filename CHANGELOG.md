@@ -1,4 +1,7 @@
 
+## v2.28.0 (2026-11-12)
+- AUDITORIA DE FAVORITOS HUERFANOS: el panel de favoritos SFTP detecta los favoritos cuyo host ya no existe (invisibles hasta ahora: el panel solo listaba los del host actual) y ofrece reparacion guiada: re-vincular a otro host vivo o eliminar. SftpFavoritesService: nuevo 'orphans(liveHostIds)'.
+
 ## v2.27.0 (2026-11-12)
 - Informe de topologia con MAS INFORMACION: cajas de nodo con estado UP/DOWN coloreado, IP(s) reales extraidas de las aristas y volumen xN; etiquetas de arista con puerto ('HTTPS :443 x12'); nueva tabla 'Resumen de nodos' (Nodo | IP | Estado | Servicios | Conexiones); detalle de conexiones ampliado con columna Proceso. APK de release renombrada a termxtr-vX.Y.Z.apk (convencion Windows).
 

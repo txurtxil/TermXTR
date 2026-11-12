@@ -74,7 +74,25 @@ class SftpFavoritesService extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> _persist() async {
+  // v2.28.0 — favoritos cuyo host ya no existe en SshHostsService.
+  List<SftpFavorite> orphans(Set<String> liveHostIds) =>
+      _favorites.where((f) => !liveHostIds.contains(f.hostId)).toList();
+
+  // v2.28.0
+  Future<void> relinkHost(String id, String newHostId) async {
+    final i = _favorites.indexWhere((f) => f.id == id);
+    if (i < 0) return;
+    final f = _favorites[i];
+    _favorites[i] = SftpFavorite(
+      id: f.id,
+      hostId: newHostId,
+      path: f.path,
+      label: f.label,
+    );
+    await _save();
+  }
+
+  Future<void> _save() async {
     if (_rootfsPath == null) return;
     try {
       final f = File('$_rootfsPath$_fileRel');
@@ -108,12 +126,12 @@ class SftpFavoritesService extends ChangeNotifier {
       ));
     }
     notifyListeners();
-    await _persist();
+    await _save();
   }
 
   Future<void> remove(String id) async {
     _favorites.removeWhere((f) => f.id == id);
     notifyListeners();
-    await _persist();
+    await _save();
   }
 }

@@ -843,8 +843,121 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
     }
   }
 
+  // v2.28.0 - auditoria de favoritos huerfanos (host de origen ya no existe).
+  void _showOrphanAudit() {
+    final liveIds = SshHostsService.instance.hosts.map((h) => h.id).toSet();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final orphans = SftpFavoritesService.instance.orphans(liveIds);
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber, color: AppColors.warn),
+                        SizedBox(width: 8),
+                        Text(
+                          'Favoritos huerfanos',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textHi,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(color: AppColors.border),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final f in orphans)
+                          ListTile(
+                            dense: true,
+                            title: Text(f.label,
+                                style: const TextStyle(color: AppColors.textHi)),
+                            subtitle: Text(
+                              '${f.path} · host: ${f.hostId}',
+                              style: const TextStyle(color: AppColors.textLo),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Re-vincular a otro host',
+                                  icon: const Icon(Icons.link,
+                                      color: AppColors.accent, size: 18),
+                                  onPressed: () async {
+                                    final hosts = SshHostsService.instance.hosts;
+                                    final picked = await showDialog<SshHost>(
+                                      context: context,
+                                      builder: (ctx) => SimpleDialog(
+                                        title: const Text('Re-vincular a...',
+                                            style: TextStyle(
+                                                color: AppColors.textHi)),
+                                        children: [
+                                          for (final h in hosts)
+                                            SimpleDialogOption(
+                                              onPressed: () =>
+                                                  Navigator.pop(ctx, h),
+                                              child: Text(
+                                                  '${h.name} (${h.hostname})',
+                                                  style: const TextStyle(
+                                                      color: AppColors.textHi)),
+                                            ),
+                                        ],
+                                      ),
+                                    );
+                                    if (picked != null) {
+                                      SftpFavoritesService.instance
+                                          .relinkHost(f.id, picked.id);
+                                      liveIds.add(picked.id);
+                                      setSheetState(() {});
+                                    }
+                                  },
+                                ),
+                                IconButton(
+                                  tooltip: 'Eliminar',
+                                  icon: const Icon(Icons.delete_outline,
+                                      color: AppColors.err, size: 18),
+                                  onPressed: () {
+                                    SftpFavoritesService.instance.remove(f.id);
+                                    setSheetState(() {});
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (orphans.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Text('Sin favoritos huerfanos',
+                                style: TextStyle(color: AppColors.textLo)),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showFavorites() {
     final favs = SftpFavoritesService.instance.forHost(widget.host.id);
+    final orphans = SftpFavoritesService.instance
+        .orphans(SshHostsService.instance.hosts.map((h) => h.id).toSet());
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.card,
@@ -867,6 +980,22 @@ class _SftpBrowserScreenState extends State<SftpBrowserScreen> {
                 padding: EdgeInsets.all(20),
                 child: Text('Sin rutas guardadas todavia. Toca la estrella arriba para guardar la actual.',
                     style: TextStyle(color: AppColors.textLo, fontSize: 12)),
+              ),
+            if (orphans.isNotEmpty)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.warning_amber, color: AppColors.warn),
+                title: Text('${orphans.length} favorito(s) huerfano(s)',
+                    style: const TextStyle(
+                        color: AppColors.warn, fontWeight: FontWeight.bold)),
+                subtitle: const Text('El host de origen ya no existe',
+                    style: TextStyle(color: AppColors.textLo)),
+                trailing:
+                    const Icon(Icons.chevron_right, color: AppColors.textLo),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showOrphanAudit();
+                },
               ),
             ...favs.map((f) => ListTile(
                   leading: const Icon(Icons.folder, color: AppColors.accent, size: 20),
