@@ -1,3 +1,8 @@
+
+## v2.24.4 (2026-11-12)
+- FIX: literal `\${AppPaths.base}` en `_samplesFile` (monitor_service.dart) - el historial de uso (monitor_samples.jsonl) NUNCA persistia desde v2.20.0; solo funcionaba la reconstruccion desde mtimes. Leccion: re-auditar escapes tras cada parche.
+- FIX: 4 interpolaciones rotas con `\$` literal que mostraban el placeholder crudo: label del slider de tamano de la sombra (monitor_screen), textos de alertas de disco/servicio (alert_service) y mensaje de fallo de host en el mapa de conexiones (connmap_service).
+- Auditoria de escapes en monitor/: los `\$` restantes son de strings de comandos remotos (shell) y son correctos.
 # Changelog
 
 ## v2.17.7 (2026-10-27)

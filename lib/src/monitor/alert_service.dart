@@ -56,12 +56,12 @@ class AlertService {
 
     for (final f in s.fs) {
       if (f.pct >= 90) {
-        alerts.add('Disco \${f.mount} al \${f.pct.toStringAsFixed(0)}%');
+        alerts.add('Disco ${f.mount} al ${f.pct.toStringAsFixed(0)}%');
       }
     }
     for (final e in s.unitStates.entries) {
       if (units.contains(e.key) && e.value != 'active') {
-        alerts.add('Servicio \${e.key}: \${e.value}');
+        alerts.add('Servicio ${e.key}: ${e.value}');
       }
     }
     if (s.oracle.present && !s.oracle.up) {

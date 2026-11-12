@@ -80,7 +80,7 @@ String dirCacheAge(String hostId, String path) {
 // v2.20.0: historial local de metricas (JSONL en el movil). Cada fetch
 // guarda % de discos y bytes de directorios -> tendencias por fechas sin
 // instalar nada en el servidor. Rotacion suave a 2 MB.
-File get _samplesFile => File('\${AppPaths.base}/monitor_samples.jsonl');
+File get _samplesFile => File('${AppPaths.base}/monitor_samples.jsonl');
 
 Future<void> sampleAppend(
     String hostId, Map<String, double> mounts, Map<String, double> dirs) async {

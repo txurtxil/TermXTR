@@ -612,7 +612,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
             min: 0.7,
             max: 2.0,
             divisions: 13,
-            label: '\${(GhostSettings.scale * 100).round()}%',
+            label: '${(GhostSettings.scale * 100).round()}%',
             onChanged: (v) {
               GhostSettings.setScale(v);
               setState(() {});

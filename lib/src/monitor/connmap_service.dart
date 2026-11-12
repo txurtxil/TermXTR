@@ -186,7 +186,7 @@ EOS
         failures.add(h.name);
         final em = e.toString();
         MonitorLog.write('connmap',
-            'fallo en \${h.name}: ' +
+            'fallo en ${h.name}: ' +
                 (em.length > 60 ? em.substring(0, 60) : em));
       }
     }
