@@ -1,4 +1,7 @@
 
+## v2.28.1 (2026-11-12)
+- HOTFIX Monitor: 'Unsupported operation: Cannot add to an unmodifiable list' al abrir el Monitor - los defaults `const []` de top/temps/net (v2.25.0) no admiten .add(); el parseo ahora reasigna con spread. Leccion: un default const [] NUNCA se muta; analyze no lo detecta (fallo solo en runtime).
+
 ## v2.28.0 (2026-11-12)
 - AUDITORIA DE FAVORITOS HUERFANOS: el panel de favoritos SFTP detecta los favoritos cuyo host ya no existe (invisibles hasta ahora: el panel solo listaba los del host actual) y ofrece reparacion guiada: re-vincular a otro host vivo o eliminar. SftpFavoritesService: nuevo 'orphans(liveHostIds)'.
 

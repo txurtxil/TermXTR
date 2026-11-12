@@ -368,8 +368,10 @@ EOS
             if (p.length >= 3 && p[0] != 'COMMAND') {
               final cpu = double.tryParse(p[p.length - 2]) ?? 0;
               final mem = double.tryParse(p[p.length - 1]) ?? 0;
-              snap.top.add(TopProc(
-                  p.sublist(0, p.length - 2).join(' '), cpu, mem));
+              snap.top = [
+                ...snap.top,
+                TopProc(p.sublist(0, p.length - 2).join(' '), cpu, mem)
+              ];
             }
           }
           break;
@@ -380,8 +382,10 @@ EOS
               var v = double.tryParse(p[p.length - 1]) ?? 0;
               if (v > 1000) v /= 1000; // millidegrees -> C
               if (v > 0) {
-                snap.temps.add(TempSensor(
-                    p.sublist(0, p.length - 1).join(' '), v));
+                snap.temps = [
+                  ...snap.temps,
+                  TempSensor(p.sublist(0, p.length - 1).join(' '), v)
+                ];
               }
             }
           }
@@ -390,8 +394,11 @@ EOS
           {
             final p = l.split(RegExp(r'\s+'));
             if (p.length >= 3) {
-              snap.net.add(NetIface(p[0],
-                  double.tryParse(p[1]) ?? 0, double.tryParse(p[2]) ?? 0));
+              snap.net = [
+                ...snap.net,
+                NetIface(p[0], double.tryParse(p[1]) ?? 0,
+                    double.tryParse(p[2]) ?? 0)
+              ];
             }
           }
           break;
