@@ -44,7 +44,7 @@ class _MapScreenState extends State<MapScreen>
   late final TabController _tab;
   final List<_Node> _nodes = [];
   final List<ConnEdge> _edges = [];
-  bool _loading = true;
+  bool _loading = false; // v2.29.2: sin auto-auditoria, no cargando al entrar
   String _groupFilter = ''; // v2.29.0 '' = todos los grupos
   Set<String> _selHosts = {}; // v2.29.0 nombres; vacio = todos
   String? _error;

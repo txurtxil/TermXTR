@@ -1,4 +1,7 @@
 
+## v2.29.2 (2026-11-12)
+- HOTFIX: la bandera _loading seguia inicializada a true tras quitar el auto-audit de v2.29.1 -> spinner infinito al entrar en el Mapa. Ahora inicia en false: entrar no audita ni cuelga; solo trabaja al elegir grupo/hosts o pulsar actualizar.
+
 ## v2.29.1 (2026-11-12)
 - HOTFIX comportamiento: el Mapa YA NO audita al entrar (venia de versiones antiguas). Al abrirlo muestra un aviso 'Sin auditoria todavia' y solo escanea a peticion explicita: boton de actualizar, chip de grupo o 'Auditar seleccion'. Critico para el trabajo: entrar en el mapa no dispara ninguna auditoria.
 
