@@ -63,7 +63,8 @@ class _MapScreenState extends State<MapScreen>
   void initState() {
     super.initState();
     _tab = TabController(length: 2, vsync: this);
-    _load();
+    // v2.29.1: SIN auto-auditoria al entrar. Se audita solo a peticion
+    // explicita: boton de actualizar, chip de grupo o 'Auditar seleccion'.
   }
 
   @override
@@ -473,6 +474,25 @@ class _MapScreenState extends State<MapScreen>
           child: Text(_error!,
               style: const TextStyle(color: AppColors.err),
               textAlign: TextAlign.center),
+        ),
+      );
+    }
+    if (_nodes.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.hub_outlined, size: 40, color: AppColors.textLo),
+              SizedBox(height: 10),
+              Text(
+                'Sin auditoria todavia.\nElige un grupo (chips de arriba) o hosts (checklist) y pulsa el boton de actualizar.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textLo, fontSize: 13),
+              ),
+            ],
+          ),
         ),
       );
     }
