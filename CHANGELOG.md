@@ -1,4 +1,7 @@
 
+## v2.31.0 (2026-11-12)
+- AUDITORIA CON MAS INFORMACION UTIL: el Mapa recolecta ahora, en el MISMO exec SSH, SO (PRETTY_NAME), uptime y carga (load1) por host -> ficha de nodo y columna 'Sistema' en el Resumen del PDF. Orden en el PDF: pasada anti-solapes + clamp a margenes (ya no se cortan cajas). Puerto 8007 etiquetado 'Tomcat HTTP'. Todo read-only.
+
 ## v2.30.0 (2026-11-12)
 - MAPA PARA AUDITORIA REAL: (1) chip '· externo ·' para ocultar/mostrar el nodo externo y sus aristas (por defecto OCULTO - sin ruido de las conexiones propias); (2) al entrar sin datos y con grupos creados, selector directo (chips de grupo + 'Elegir hosts concretos'); (3) tocar un nodo abre su FICHA: estado, grupo, IPs y servicios con puerto/proceso/conteo; (4) export PDF: guarda siempre y muestra la RUTA en un snackbar (el selector de compartir falla en Windows - ya no rompe nada); (5) PDF de topologia: columna Servicios enriquecida ('Oracle :1521 (oracleSIABDES) x4; SSH :22 (sshd) x2').
 

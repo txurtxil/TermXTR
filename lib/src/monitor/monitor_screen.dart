@@ -156,7 +156,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
       final bytes = await buildHostReport(
           hostName: widget.host.name,
           snap: _snap!,
-          appVersion: '2.30.0');
+          appVersion: '2.31.0');
       final path = await saveAndSharePdf(
           bytes,
           'informe_${fileSafe(widget.host.name)}'

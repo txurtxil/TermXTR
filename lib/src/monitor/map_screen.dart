@@ -35,6 +35,10 @@ class _Node {
   double fy;
   int degree = 0;
   bool isDb = false;
+  // v2.31.0
+  String os = '';
+  String uptime = '';
+  double load1 = 0;
   _Node(this.id, this.name,
       {this.up = false, this.external = false, this.fx = 0.5, this.fy = 0.5});
 }
@@ -221,9 +225,13 @@ class _MapScreenState extends State<MapScreen>
         ..addAll(edges);
       _nodes.clear();
       for (final h in _effectiveHosts) {
+        final hf = ConnMapService.facts[h.hostname];
         _nodes.add(_Node(h.hostname, h.name, up: upMap[h.hostname] ?? false)
           ..fx = ((_layout[h.hostname]?['fx']) as num?)?.toDouble() ?? -1
-          ..fy = ((_layout[h.hostname]?['fy']) as num?)?.toDouble() ?? -1);
+          ..fy = ((_layout[h.hostname]?['fy']) as num?)?.toDouble() ?? -1
+          ..os = hf?.os ?? ''
+          ..uptime = hf?.uptime ?? ''
+          ..load1 = hf?.load1 ?? 0);
       }
       if (_edges.any((e) => e.fromIp == '<ext>' || e.toIp == '<ext>')) {
         _nodes.add(_Node('<ext>', '· externo ·', external: true)
@@ -393,6 +401,23 @@ class _MapScreenState extends State<MapScreen>
                   style:
                       const TextStyle(color: AppColors.textLo, fontSize: 12)),
             ),
+          if (n.os.isNotEmpty || n.load1 > 0)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  [
+                    if (n.os.isNotEmpty) 'SO: ${n.os}',
+                    if (n.uptime.isNotEmpty && n.uptime != 'n/a')
+                      'Up: ${n.uptime.replaceFirst('up ', '')}',
+                    if (n.load1 > 0) 'Carga: ${n.load1.toStringAsFixed(2)}',
+                  ].join(' · '),
+                  style:
+                      const TextStyle(color: AppColors.textLo, fontSize: 12),
+                ),
+              ),
+            ),
           const Divider(color: AppColors.border, height: 18),
           for (final k in keys)
             Padding(
@@ -496,10 +521,13 @@ class _MapScreenState extends State<MapScreen>
                 up: n.up,
                 external: n.external,
                 fx: n.fx,
-                fy: n.fy))
+                fy: n.fy,
+                os: n.os,
+                uptime: n.uptime,
+                load1: n.load1))
             .toList(),
         edges: _displayEdges,
-        appVersion: '2.30.0',
+        appVersion: '2.31.0',
         scopeTitle: _groupFilter.isEmpty ? null : _groupFilter,
         groupOf: {for (final h in widget.hosts) h.name: h.group ?? ''},
       );

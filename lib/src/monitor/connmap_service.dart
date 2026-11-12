@@ -9,6 +9,13 @@ import '../ssh/ssh_connector.dart';
 import '../ssh/ssh_host.dart';
 import 'monitor_log.dart';
 
+// v2.31.0 - datos rapidos por host para auditoria (SO, uptime, carga).
+class HostFacts {
+  String os = '';
+  String uptime = '';
+  double load1 = 0;
+}
+
 class ConnEdge {
   final String fromIp;
   final String fromName;
@@ -43,7 +50,7 @@ class ConnMapService {
     162: 'SNMP trap',
     9200: 'Elasticsearch', 9300: 'Elasticsearch nodo',
     27017: 'MongoDB', 11211: 'Memcached', 6379: 'Redis',
-    8161: 'ActiveMQ', 5672: 'RabbitMQ', 1099: 'JMX', 4848: 'GlassFish',
+    8161: 'ActiveMQ', 5672: 'RabbitMQ', 1099: 'JMX', 4848: 'GlassFish', 8007: 'Tomcat HTTP',
   };
 
   static String serviceLabel(int port) => kServiceByPort[port] ?? 'puerto $port';
@@ -65,6 +72,10 @@ class ConnMapService {
         !t.startsWith('users:');
   }
 
+  // v2.31.0 - hechos por hostname, llenados como efecto lateral de collect().
+  static final Map<String, HostFacts> facts = {};
+  static void clearFacts() => facts.clear();
+
   static Future<List<ConnEdge>> collect(List<SshHost> hosts) async {
     final known = <String, SshHost>{};
     for (final h in hosts) {
@@ -72,6 +83,7 @@ class ConnMapService {
     }
     const extName = '· externo ·';
     const extIp = '<ext>';
+    clearFacts();
     final edges = <String, ConnEdge>{};
     final failures = <String>[];
 
@@ -106,11 +118,28 @@ class ConnMapService {
           final raw = utf8.decode(
               await conn.c
                   .run("LC_ALL=C; ss -tnp state established 2>/dev/null || "
-                      "netstat -tnp 2>/dev/null | grep ESTABLISHED")
+                      "netstat -tnp 2>/dev/null | grep ESTABLISHED; "
+                      "echo __TX_FACTS__; . /etc/os-release 2>/dev/null; "
+                      "echo \"OS=\${PRETTY_NAME:-desconocido}\"; "
+                      "echo \"LOAD=\$(cut -d' ' -f1 /proc/loadavg)\"; "
+                      "echo \"UPTIME=\$(uptime -p 2>/dev/null || echo n/a)\"")
                   .timeout(const Duration(seconds: 12)),
               allowMalformed: true);
           var parsed = 0;
           for (final line in raw.split('\n')) {
+            if (line.startsWith('OS=')) {
+              (facts[h.hostname] ??= HostFacts()).os = line.substring(3);
+              continue;
+            }
+            if (line.startsWith('LOAD=')) {
+              (facts[h.hostname] ??= HostFacts()).load1 =
+                  double.tryParse(line.substring(5)) ?? 0;
+              continue;
+            }
+            if (line.startsWith('UPTIME=')) {
+              (facts[h.hostname] ??= HostFacts()).uptime = line.substring(7);
+              continue;
+            }
             String? local;
             String? remote;
             for (final tok in line.trim().split(RegExp(r'\s+'))) {

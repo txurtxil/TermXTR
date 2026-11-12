@@ -20,6 +20,10 @@ class TopoNodeDto {
   final bool external;
   final double fx; // 0..1 relativo al lienzo; <0 = sin posicion guardada
   final double fy;
+  // v2.31.0
+  final String os;
+  final String uptime;
+  final double load1;
   TopoNodeDto({
     required this.id,
     required this.name,
@@ -27,6 +31,9 @@ class TopoNodeDto {
     this.external = false,
     this.fx = -1,
     this.fy = -1,
+    this.os = '',
+    this.uptime = '',
+    this.load1 = 0,
   });
 }
 
@@ -401,6 +408,42 @@ Future<Uint8List> buildTopologyReport({
     if (p != null) posByName[n.name] = p;
   }
 
+  // v2.31.0 - orden: separar cajas solapadas y mantenerlas dentro del lienzo
+  const minDX = 142.0;
+  const minDY = 52.0;
+  PdfPoint clampP(PdfPoint pp) => PdfPoint(
+        pp.x.clamp(minDX / 2 + 4, W - minDX / 2 - 4),
+        pp.y.clamp(minDY / 2 + 4, H - minDY / 2 - 4),
+      );
+  final layNames = posByName.keys.toList();
+  for (var it = 0; it < 80; it++) {
+    var moved = false;
+    for (var i = 0; i < layNames.length; i++) {
+      for (var j = i + 1; j < layNames.length; j++) {
+        final a = posByName[layNames[i]]!;
+        final b = posByName[layNames[j]]!;
+        final dx = b.x - a.x;
+        final dy = b.y - a.y;
+        final ox = minDX - dx.abs();
+        final oy = minDY - dy.abs();
+        if (ox <= 0 || oy <= 0) continue;
+        moved = true;
+        if (ox < oy) {
+          final push = ox / 2 + 1;
+          final sg = dx >= 0 ? 1.0 : -1.0;
+          posByName[layNames[i]] = clampP(PdfPoint(a.x - push * sg, a.y));
+          posByName[layNames[j]] = clampP(PdfPoint(b.x + push * sg, b.y));
+        } else {
+          final push = oy / 2 + 1;
+          final sg = dy >= 0 ? 1.0 : -1.0;
+          posByName[layNames[i]] = clampP(PdfPoint(a.x, a.y - push * sg));
+          posByName[layNames[j]] = clampP(PdfPoint(b.x, b.y + push * sg));
+        }
+      }
+    }
+    if (!moved) break;
+  }
+
   // v2.27.0: IPs y volumen de conexiones por nodo
   final ipsOf = <String, Set<String>>{};
   final connsOf = <String, int>{};
@@ -631,6 +674,7 @@ Future<Uint8List> buildTopologyReport({
           [
             'Nodo',
             if (groupOf != null) 'Grupo',
+            'Sistema',
             'IP',
             'Estado',
             'Servicios',
@@ -642,6 +686,11 @@ Future<Uint8List> buildTopologyReport({
                 _cell(n.name, bold: true, color: _ink),
                 if (groupOf != null)
                   _cell(groupOf![n.name] ?? '—'),
+                _cell(n.os.isEmpty
+                    ? '—'
+                    : '${n.os}'
+                        '${n.load1 > 0 ? ' · load ${n.load1.toStringAsFixed(2)}' : ''}'
+                        '${n.uptime.isNotEmpty && n.uptime != 'n/a' ? ' · ${n.uptime.replaceFirst('up ', '')}' : ''}'),
                 () {
                   final l = (ipsOf[n.name] ?? {}).toList()..sort();
                   return _cell(l.isEmpty ? '—' : l.take(3).join(', '));
