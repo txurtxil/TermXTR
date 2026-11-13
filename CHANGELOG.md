@@ -1,4 +1,7 @@
 
+## v2.39.0 (2026-11-13)
+- ORDEN Y SIMPLIFICACION: el menu de host 'Auditar servicios (mapa de red)' (auditoria vieja que guardaba en silencio y no mostraba nada) AHORA abre el Mapa unificado con ese host preseleccionado y auditandolo en vivo (log incluido). Boton gear VISIBLE 'Utilidades' en la barra de la terminal (icono herramientas) - el menu ya no depende solo del doble toque. El mapa viejo HostMapScreen queda sin lanzadores (codigo muerto pendiente de limpieza).
+
 ## v2.38.0 (2026-11-12)
 - ATAJOS DE SHELL gestionables: entrada 'Atajos de shell…' en Utilidades (terminal) con interruptor activo, lista ordenada (editar al tocar, borrar) y alta de atajos propios. Persistente en aliases.json. Grafo: cajas de nodo con contadores de escucha/docker (▸N ⬡N). Lista: secciones 'en escucha' y 'docker' por nodo (la Lista tambien es informe, no solo aristas).
 

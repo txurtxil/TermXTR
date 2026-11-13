@@ -609,7 +609,14 @@ class _HostsScreenState extends State<HostsScreen> {
               onSelected: (v) {
                 if (v == 'multisel') setState(() => _selectMode = true);
                 if (v == 'move') _pickGroup(h);
-                if (v == 'audit') _auditHost(h);
+                if (v == 'audit') {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => MapScreen(
+                              hosts: SshHostsService.instance.hosts,
+                              initialSelection: {h.name})));
+                }
                 if (v == 'monitor') {
                   Navigator.push(
                       context,
@@ -646,7 +653,7 @@ class _HostsScreenState extends State<HostsScreen> {
                     child: Text('Monitor de sistemas')),
                 const PopupMenuItem(
                     value: 'audit',
-                    child: Text('Auditar servicios (mapa de red)')),
+                    child: Text('Auditar este host en el mapa')),
                 const PopupMenuItem(
                     value: 'sendkey',
                     child: Text('Enviar clave publica')),

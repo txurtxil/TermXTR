@@ -21,7 +21,11 @@ import 'report_pdf.dart';
 
 class MapScreen extends StatefulWidget {
   final List<SshHost> hosts;
-  const MapScreen({super.key, required this.hosts});
+  // v2.39.0 — cuando se pide auditar UN host desde su menu: preseleccion
+  // y auditoria inmediata (accion explicita del usuario).
+  final Set<String>? initialSelection;
+  const MapScreen(
+      {super.key, required this.hosts, this.initialSelection});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -72,6 +76,13 @@ class _MapScreenState extends State<MapScreen>
     _tab = TabController(length: 2, vsync: this);
     // v2.29.1: SIN auto-auditoria al entrar. Se audita solo a peticion
     // explicita: boton de actualizar, chip de grupo o 'Auditar seleccion'.
+    // v2.39.0: excepcion — venir con initialSelection ES la peticion
+    // explicita (menu 'Auditar este host en el mapa').
+    if (widget.initialSelection != null &&
+        widget.initialSelection!.isNotEmpty) {
+      _selHosts = {...widget.initialSelection!};
+      _load();
+    }
   }
 
   @override
@@ -648,7 +659,7 @@ class _MapScreenState extends State<MapScreen>
                 ]))
             .toList(),
         edges: _displayEdges,
-        appVersion: '2.38.0',
+        appVersion: '2.39.0',
         scopeTitle: _groupFilter.isEmpty ? null : _groupFilter,
         groupOf: {for (final h in widget.hosts) h.name: h.group ?? ''},
       );

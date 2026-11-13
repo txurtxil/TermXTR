@@ -740,6 +740,8 @@ class _TerminalScreenState extends State<TerminalScreen> with WidgetsBindingObse
               Expanded(child: Text('TermXTR $_appVersion', style: TextStyle(color: Colors.white70, fontSize: 14, fontFamily: 'monospace', fontWeight: FontWeight.bold))),
               IconButton(tooltip: 'Hosts SSH / SFTP', onPressed: _openHosts, icon: const Icon(Icons.dns_rounded, color: Colors.lightBlueAccent, size: 22)),
               if (_active.sourceHost != null) IconButton(tooltip: _sftpOpen.contains(_active) ? 'Volver a la shell' : 'SFTP de este host', onPressed: () => _toggleSftp(_active), icon: Icon(_sftpOpen.contains(_active) ? Icons.terminal : Icons.folder_open, color: Colors.amberAccent, size: 22)),
+              // v2.39.0 — entrada visible al menu Utilidades (antes solo doble toque)
+              if (_active.sourceHost != null) IconButton(tooltip: 'Utilidades (atajos, portapapeles…)', onPressed: () => _showQuickScripts(_active), icon: const Icon(Icons.construction_rounded, color: Colors.white70, size: 22)),
               if (_sessions.length < _maxSessions) IconButton(tooltip: 'Nueva sesión', onPressed: _addSession, icon: const Icon(Icons.add, color: Colors.greenAccent, size: 22)),
             ],
           ),
