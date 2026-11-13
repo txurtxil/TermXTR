@@ -3,17 +3,22 @@
 // insignia de conexiones por nodo, icono BD en nodos Oracle, filtros por
 // servicio (grafo + lista), leyenda, aristas LED, detalle al tocar.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:xterm/xterm.dart';
 
 import '../ssh/ssh_connector.dart';
+import '../ssh/ssh_credentials_store.dart';
 import '../ssh/ssh_host.dart';
 import '../ssh/ssh_hosts_service.dart';
 import '../storage/app_paths.dart';
+import '../terminal/terminal_session.dart';
+import '../terminal/terminal_view.dart';
 import '../ui/app_theme.dart';
 import 'connmap_service.dart';
 import 'maneuvers.dart';
@@ -56,6 +61,10 @@ class _MapScreenState extends State<MapScreen>
   bool _loading = false; // v2.29.2: sin auto-auditoria, no cargando al entrar
   bool _showExternal = false; // v2.30.0 - ocultar '· externo ·' por defecto
   final List<String> _auditLog = []; // v2.34.0
+  // v2.40.0 — shell incrustado
+  TerminalSession? _shell;
+  SshHost? _shellHost;
+  bool _shellOpen = false;
   String _groupFilter = ''; // v2.29.0 '' = todos los grupos
   Set<String> _selHosts = {}; // v2.29.0 nombres; vacio = todos
   String? _error;
@@ -82,12 +91,17 @@ class _MapScreenState extends State<MapScreen>
         widget.initialSelection!.isNotEmpty) {
       _selHosts = {...widget.initialSelection!};
       _load();
+    } else {
+      _restoreSnapshot();
     }
   }
+
+
 
   @override
   void dispose() {
     _tab.dispose();
+    _shell?.dispose();
     super.dispose();
   }
 
@@ -259,12 +273,254 @@ class _MapScreenState extends State<MapScreen>
           ..fy = ((_layout['<ext>']?['fy']) as num?)?.toDouble() ?? -1);
       }
       _recalcMeta();
+      unawaited(_saveSnapshot());
       _loading = false;
       _error = _visibleEdges.isEmpty && failures.isNotEmpty
           ? 'fallo en: ' + failures.join(', ')
           : null;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _autoLayout());
+  }
+
+  // v2.40.0 — persistir/restaurar la ultima auditoria (salir del mapa no la pierde)
+  Future<void> _saveSnapshot() async {
+    try {
+      final f = File('${AppPaths.base}/map_snapshot.json');
+      final j = <String, dynamic>{
+        'ts': DateTime.now().toIso8601String(),
+        'group': _groupFilter,
+        'sel': _selHosts.toList(),
+        'edges': [
+          for (final e in _edges)
+            {
+              'fip': e.fromIp,
+              'fn': e.fromName,
+              'tip': e.toIp,
+              'tn': e.toName,
+              'p': e.port,
+              's': e.service,
+              'pr': e.process,
+              'c': e.count
+            }
+        ],
+        'listen': {
+          for (final e in ConnMapService.listen.entries)
+            e.key: [
+              for (final l in e.value)
+                {'pr': l.proto, 'po': l.port, 'pg': l.program}
+            ]
+        },
+        'docker': {
+          for (final e in ConnMapService.docker.entries)
+            e.key: [
+              for (final c in e.value)
+                {'n': c.name, 'i': c.image, 's': c.status, 'p': c.ports}
+            ]
+        },
+        'facts': {
+          for (final e in ConnMapService.facts.entries)
+            e.key: {'os': e.value.os, 'up': e.value.uptime, 'l': e.value.load1}
+        },
+      };
+      await f.writeAsString(jsonEncode(j));
+    } catch (_) {}
+  }
+
+  Future<void> _restoreSnapshot() async {
+    try {
+      final f = File('${AppPaths.base}/map_snapshot.json');
+      if (!f.existsSync()) return;
+      final j = jsonDecode(await f.readAsString());
+      if (j is! Map) return;
+      ConnMapService.clearFacts();
+      (j['facts'] as Map?)?.forEach((k, v) {
+        ConnMapService.facts[k.toString()] = HostFacts()
+          ..os = (v['os'] ?? '').toString()
+          ..uptime = (v['up'] ?? '').toString()
+          ..load1 = ((v['l'] ?? 0) as num).toDouble();
+      });
+      ConnMapService.listen.clear();
+      (j['listen'] as Map?)?.forEach((k, v) {
+        ConnMapService.listen[k.toString()] = [
+          for (final l in (v as List)) ListenSvc(l['pr'], l['po'], l['pg'])
+        ];
+      });
+      ConnMapService.docker.clear();
+      (j['docker'] as Map?)?.forEach((k, v) {
+        ConnMapService.docker[k.toString()] = [
+          for (final c in (v as List))
+            DockerCtr(c['n'], c['i'], c['s'], c['p'])
+        ];
+      });
+      final edges = <ConnEdge>[
+        for (final e in (j['edges'] as List? ?? const []))
+          ConnEdge(
+              fromIp: e['fip'],
+              fromName: e['fn'],
+              toIp: e['tip'],
+              toName: e['tn'],
+              port: e['p'],
+              service: e['s'],
+              process: e['pr'],
+              count: e['c'])
+      ];
+      if (!mounted) return;
+      setState(() {
+        _groupFilter = (j['group'] ?? '').toString();
+        _selHosts = {
+          for (final x in (j['sel'] as List? ?? const [])) x.toString()
+        };
+        _edges
+          ..clear()
+          ..addAll(edges);
+        _nodes
+          ..clear()
+          ..addAll([
+          for (final h in widget.hosts)
+            if (edges.any((e) => e.fromIp == h.hostname ||
+                    e.toIp == h.hostname) ||
+                (ConnMapService.listen[h.hostname]?.isNotEmpty ?? false) ||
+                (ConnMapService.docker[h.hostname]?.isNotEmpty ?? false))
+              _Node(h.hostname, h.name, up: true)
+                ..fx = -1
+                ..fy = -1
+                ..os = ConnMapService.facts[h.hostname]?.os ?? ''
+                ..uptime = ConnMapService.facts[h.hostname]?.uptime ?? ''
+                ..load1 = ConnMapService.facts[h.hostname]?.load1 ?? 0,
+          if (edges.any((e) => e.fromIp == '<ext>' || e.toIp == '<ext>'))
+            _Node('<ext>', '· externo ·', external: true),
+          ]);
+        _recalcMeta();
+      });
+      final ts = (j['ts'] ?? '').toString();
+      if (ts.isNotEmpty) {
+        final d = DateTime.tryParse(ts);
+        final hhmm = d == null
+            ? ts
+            : d.hour.toString().padLeft(2, '0') + ':' +
+                d.minute.toString().padLeft(2, '0');
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(
+                    'Mostrando la auditoría de las $hhmm — pulsa 🔄 para re-auditar')));
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  // v2.40.0 — shell incrustado en el mapa
+  Future<void> _openShell(SshHost h) async {
+    _shell?.dispose();
+    final pwd = await SshCredentialsStore.readPassword(h.id);
+    final s = TerminalSession(h.name, sourceHost: h, password: pwd);
+    s.start(columns: 100, rows: 20);
+    setState(() {
+      _shell = s;
+      _shellHost = h;
+      _shellOpen = true;
+    });
+  }
+
+  Future<void> _toggleShell() async {
+    if (_shellOpen) {
+      setState(() => _shellOpen = false);
+      return;
+    }
+    SshHost? h = _shellHost;
+    if (h != null && !_effectiveHosts.any((x) => x.name == h!.name)) {
+      h = null;
+    }
+    if (h == null) {
+      final cands = _effectiveHosts;
+      if (cands.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sin hosts en el alcance actual')));
+        return;
+      }
+      if (cands.length == 1) {
+        h = cands.first;
+      } else {
+        h = await showModalBottomSheet<SshHost>(
+          context: context,
+          builder: (ctx) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: Text('Shell en…',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textHi)),
+                ),
+                for (final x in cands)
+                  ListTile(
+                    dense: true,
+                    title: Text(x.name,
+                        style: const TextStyle(color: AppColors.textHi)),
+                    subtitle: Text(x.hostname,
+                        style: const TextStyle(color: AppColors.textLo)),
+                    onTap: () => Navigator.pop(ctx, x),
+                  ),
+              ],
+            ),
+          ),
+        );
+        if (h == null) return;
+      }
+    }
+    await _openShell(h);
+  }
+
+  void _closeShell() {
+    _shell?.dispose();
+    setState(() {
+      _shell = null;
+      _shellHost = null;
+      _shellOpen = false;
+    });
+  }
+
+  Widget _buildShellPanel() {
+    final s = _shell;
+    if (s == null) return const SizedBox.shrink();
+    return Container(
+      height: 260,
+      color: const Color(0xFF101418),
+      child: Column(children: [
+        Container(
+          height: 30,
+          color: const Color(0xFF161B22),
+          child: Row(children: [
+            const SizedBox(width: 8),
+            const Icon(Icons.terminal, size: 14, color: AppColors.accent),
+            const SizedBox(width: 6),
+            Expanded(
+                child: Text('shell — ${_shellHost?.name ?? ''}',
+                    style: const TextStyle(
+                        color: AppColors.textHi, fontSize: 12))),
+            IconButton(
+                icon: const Icon(Icons.keyboard_hide,
+                    size: 16, color: AppColors.textLo),
+                tooltip: 'Ocultar',
+                onPressed: () => setState(() => _shellOpen = false)),
+            IconButton(
+                icon: const Icon(Icons.close, size: 16, color: AppColors.err),
+                tooltip: 'Cerrar sesión',
+                onPressed: _closeShell),
+          ]),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: TerminalView(s.terminal, controller: s.controller),
+          ),
+        ),
+      ]),
+    );
   }
 
   void _recalcMeta() {
@@ -560,6 +816,20 @@ class _MapScreenState extends State<MapScreen>
                     style: TextStyle(color: AppColors.accent)),
               ),
             ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () {
+                  final hh = mhost!;
+                  Navigator.pop(context);
+                  _openShell(hh);
+                },
+                icon: const Icon(Icons.terminal,
+                    color: AppColors.accent, size: 18),
+                label: const Text('Shell aquí',
+                    style: TextStyle(color: AppColors.accent)),
+              ),
+            ),
           ],
           if (keys.isEmpty)
             const Text('Sin conexiones visibles para este filtro.',
@@ -659,7 +929,7 @@ class _MapScreenState extends State<MapScreen>
                 ]))
             .toList(),
         edges: _displayEdges,
-        appVersion: '2.39.0',
+        appVersion: '2.40.0',
         scopeTitle: _groupFilter.isEmpty ? null : _groupFilter,
         groupOf: {for (final h in widget.hosts) h.name: h.group ?? ''},
       );
@@ -696,6 +966,11 @@ class _MapScreenState extends State<MapScreen>
             style: TextStyle(color: AppColors.textHi, fontSize: 16)),
         actions: [
           IconButton(
+            tooltip: 'Shell en el mapa',
+            icon: const Icon(Icons.terminal, color: AppColors.textLo),
+            onPressed: _loading ? null : _toggleShell,
+          ),
+          IconButton(
             tooltip: 'Seleccionar hosts',
             icon: Icon(
                 _selHosts.isEmpty
@@ -730,6 +1005,7 @@ class _MapScreenState extends State<MapScreen>
           tabs: const [Tab(text: 'Grafo'), Tab(text: 'Lista')],
         ),
       ),
+      bottomSheet: _shellOpen ? _buildShellPanel() : null,
       body: _loading
           ? Column(
               children: [

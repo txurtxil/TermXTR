@@ -1,4 +1,7 @@
 
+## v2.40.0 (2026-11-13)
+- MAPA: SHELL INCRUSTADO - boton terminal en la barra (o 'Shell aqui' en la ficha de nodo): panel inferior con sesion SSH interactiva mientras ves el mapa. Persistencia: la ultima auditoria se guarda en map_snapshot.json y se restaura al volver (snackbar con la hora + 🔄 re-auditar) - salir del mapa ya no la pierde.
+
 ## v2.39.0 (2026-11-13)
 - ORDEN Y SIMPLIFICACION: el menu de host 'Auditar servicios (mapa de red)' (auditoria vieja que guardaba en silencio y no mostraba nada) AHORA abre el Mapa unificado con ese host preseleccionado y auditandolo en vivo (log incluido). Boton gear VISIBLE 'Utilidades' en la barra de la terminal (icono herramientas) - el menu ya no depende solo del doble toque. El mapa viejo HostMapScreen queda sin lanzadores (codigo muerto pendiente de limpieza).
 
